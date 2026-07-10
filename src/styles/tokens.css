@@ -1,0 +1,40 @@
+@font-face {
+  font-family: "Recharge";
+  src: url("../../assets/fonts/Recharge-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sui Generis";
+  src: url("../../assets/fonts/SuiGeneris-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+  --font-display: "Recharge", "Arial Narrow", sans-serif;
+  --font-body: "Sui Generis", Inter, system-ui, sans-serif;
+  --bg-root: #080a0f;
+  --bg-deep: #05070a;
+  --bg-panel: #11151d;
+  --bg-panel-raised: #161b25;
+  --bg-soft: #1b212c;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text: #f2f4f7;
+  --text-secondary: #aeb6c2;
+  --text-muted: #778190;
+  --accent: #8cc736;
+  --accent-bright: #a7e249;
+  --accent-soft: rgba(140, 199, 54, 0.12);
+  --warning: #f0b94c;
+  --danger: #f07178;
+  --focus: #c7f77f;
+  --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.38);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --page-width: 1180px;
+}
