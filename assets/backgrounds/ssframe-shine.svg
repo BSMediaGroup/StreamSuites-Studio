@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg
+  width="100%"
+  height="100%"
+  viewBox="0 0 984 881"
+  version="1.1"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xml:space="preserve"
+  xmlns:serif="http://www.serif.com/"
+  style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;"
+>
+
+  <defs>
+    <!-- Soft falloff shine gradient -->
+    <linearGradient id="ssShineSoft" x1="0" y1="0" x2="984" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0)" />
+      <stop offset="35%"  stop-color="rgba(255,255,255,0.15)" />
+      <stop offset="50%"  stop-color="rgba(255,255,255,0.95)" />
+      <stop offset="65%"  stop-color="rgba(255,255,255,0.15)" />
+      <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+    </linearGradient>
+  </defs>
+
+  <!-- Static structural outline (thicker) -->
+  <path
+    d="M138.971,271.454l261.222,-271.454l583.168,0l-259.327,270.484l-151.009,0l-216.982,227.05l-217.072,0l-0,-226.08Zm705.419,337.815l-261.222,271.454l-583.168,0l259.327,-270.484l151.009,-0l216.982,-227.05l217.072,-0l0,226.08Z"
+    style="fill:none;stroke:rgba(255,255,255,0.22);stroke-width:2.4px;"
+  />
+
+  <!-- Smooth running shine (soft edges, no hard transitions) -->
+  <path
+    d="M138.971,271.454l261.222,-271.454l583.168,0l-259.327,270.484l-151.009,0l-216.982,227.05l-217.072,0l-0,-226.08Zm705.419,337.815l-261.222,271.454l-583.168,0l259.327,-270.484l151.009,-0l216.982,-227.05l217.072,-0l0,226.08Z"
+    style="
+      fill:none;
+      stroke:url(#ssShineSoft);
+      stroke-width:4.4px;
+      stroke-linecap:round;
+      stroke-dasharray:260 820;
+      stroke-dashoffset:0;
+    "
+  >
+    <animate
+      attributeName="stroke-dashoffset"
+      from="0"
+      to="-2200"
+      dur="18s"
+      repeatCount="indefinite"
+    />
+  </path>
+
+</svg>

@@ -1,0 +1,1078 @@
+{
+  "achievement.*": [
+    "seal",
+    "achievement",
+    "cosmetic",
+    "badge",
+    "rare to mythic"
+  ],
+  "achievement.b_2_spirit_bomber": [
+    "combat",
+    "vehicle",
+    "military",
+    "b 2 spirit bomber",
+    "spirit"
+  ],
+  "achievement.bmw_sedan": [
+    "bmw sedan",
+    "luxury",
+    "vehicle",
+    "premium",
+    "bmw"
+  ],
+  "achievement.smith_wesson_586_revolver": [
+    "smith wesson 586 revolver",
+    "weapon",
+    "gear",
+    "combat",
+    "smith"
+  ],
+  "achievement.sr_71_blackbird": [
+    "combat",
+    "vehicle",
+    "military",
+    "sr 71 blackbird",
+    "sr"
+  ],
+  "aerospace.spacex_falcon_9": [
+    "spacex falcon 9",
+    "aerospace",
+    "aircraft",
+    "space",
+    "spacex"
+  ],
+  "armor.tactical_vest": [
+    "vest",
+    "tactical",
+    "bullet prrof",
+    "armor",
+    "protection"
+  ],
+  "collectible.big_fish": [
+    "fish",
+    "large",
+    "bass",
+    "fishing",
+    "treasure"
+  ],
+  "collectible.shark": [
+    "shark",
+    "fish",
+    "catch",
+    "large",
+    "treasure"
+  ],
+  "collectible.small_fish": [
+    "fish",
+    "treasure",
+    "collectible",
+    "small fish",
+    "small"
+  ],
+  "collectible.swordfish": [
+    "fish",
+    "swordfish",
+    "catch",
+    "fishing",
+    "large"
+  ],
+  "combat_vehicle.aircraft_carrier": [
+    "aircraft carrier",
+    "carrier",
+    "aircraft",
+    "combat",
+    "vehicle"
+  ],
+  "combat_vehicle.ambulance": [
+    "ambulance",
+    "emergency",
+    "vehicle",
+    "service",
+    "vehicles"
+  ],
+  "combat_vehicle.armored_van": [
+    "armored van",
+    "armored",
+    "vehicle",
+    "security",
+    "van"
+  ],
+  "combat_vehicle.battle_tank": [
+    "tank",
+    "battle",
+    "armor",
+    "weapon",
+    "combat"
+  ],
+  "combat_vehicle.battleship": [
+    "battleship",
+    "ship",
+    "combat",
+    "vehicle",
+    "military"
+  ],
+  "combat_vehicle.bentley_convertible": [
+    "convertible",
+    "car",
+    "vehicle",
+    "luxury",
+    "premium"
+  ],
+  "combat_vehicle.cadillac_escalade": [
+    "cadillac",
+    "escalade",
+    "car",
+    "vehicle",
+    "luxury"
+  ],
+  "combat_vehicle.convertible_2": [
+    "convertible",
+    "car",
+    "vehicle",
+    "luxury",
+    "premium"
+  ],
+  "combat_vehicle.firetruck": [
+    "firetruck",
+    "emergency",
+    "vehicle",
+    "service",
+    "vehicles"
+  ],
+  "combat_vehicle.limousine": [
+    "limousine",
+    "limo",
+    "car",
+    "vehicle",
+    "luxury"
+  ],
+  "combat_vehicle.luxury_yacht": [
+    "yacht",
+    "luxury",
+    "vehicle",
+    "premium",
+    "luxury yacht"
+  ],
+  "combat_vehicle.marine_one": [
+    "marine one",
+    "osprey",
+    "helicopter",
+    "government",
+    "vehicle"
+  ],
+  "combat_vehicle.nasa_rocket_system": [
+    "nasa rocket system",
+    "aerospace",
+    "aircraft",
+    "space",
+    "nasa"
+  ],
+  "combat_vehicle.nuclear_submarine": [
+    "submarine",
+    "nuclear",
+    "combat",
+    "vehicle",
+    "military"
+  ],
+  "combat_vehicle.police_patrol_car": [
+    "police patrol car",
+    "emergency",
+    "vehicle",
+    "service",
+    "police"
+  ],
+  "combat_vehicle.police_patrol_truck": [
+    "police patrol truck",
+    "emergency",
+    "vehicle",
+    "service",
+    "police"
+  ],
+  "combat_vehicle.presidential_limousine": [
+    "limousine",
+    "presidential",
+    "beast",
+    "limo",
+    "government"
+  ],
+  "combat_vehicle.spacex_rocket_system": [
+    "spacex rocket system",
+    "aerospace",
+    "aircraft",
+    "space",
+    "spacex"
+  ],
+  "combat_vehicle.spacex_starship": [
+    "spacex starship",
+    "aerospace",
+    "aircraft",
+    "space",
+    "spacex"
+  ],
+  "combat_vehicle.tactical_police_van": [
+    "tactical police van",
+    "emergency",
+    "vehicle",
+    "service",
+    "tactical"
+  ],
+  "companion_cosmetic_modifier.pet_2": [
+    "companion",
+    "cosmetic",
+    "modifier",
+    "pet 2",
+    "pet"
+  ],
+  "companion_cosmetic_modifier.second_pet": [
+    "companion",
+    "cosmetic",
+    "modifier",
+    "second pet",
+    "second"
+  ],
+  "consumable.bait.*": [
+    "fish",
+    "bait",
+    "fishing",
+    "hook",
+    "consumable"
+  ],
+  "consumable.boost.*": [
+    "health",
+    "consumable",
+    "item",
+    "usable",
+    "boost"
+  ],
+  "consumable.potion_1": [
+    "potion",
+    "red",
+    "consumable",
+    "item",
+    "usable"
+  ],
+  "consumable.potion_2": [
+    "potion",
+    "green",
+    "boost",
+    "health",
+    "consumable"
+  ],
+  "consumable.potion_3": [
+    "potion",
+    "blue",
+    "boost",
+    "health",
+    "consumable"
+  ],
+  "cosmetic.avatar_frame.*": [
+    "cosmetic",
+    "style",
+    "collectible",
+    "avatar frame",
+    "avatar"
+  ],
+  "cosmetic.badge.game.*": [
+    "badge",
+    "green",
+    "streamsuites",
+    "achievement",
+    "cosmetic"
+  ],
+  "cosmetic.badge_dc": [
+    "daniel clancy",
+    "admin",
+    "streamsuites",
+    "badge",
+    "platform"
+  ],
+  "cosmetic.badge_kick": [
+    "badge",
+    "kick",
+    "cosmetic",
+    "platform",
+    "badge kick"
+  ],
+  "cosmetic.badge_pilled": [
+    "badge",
+    "pilled",
+    "cosmetic",
+    "style",
+    "collectible"
+  ],
+  "cosmetic.badge_rumble": [
+    "logo",
+    "rumble",
+    "badge",
+    "platform",
+    "cosmetic"
+  ],
+  "cosmetic.badge_streamsuites": [
+    "badge",
+    "silver",
+    "streamsuites",
+    "cosmetic",
+    "style"
+  ],
+  "cosmetic.badge_twitch": [
+    "badge",
+    "platform",
+    "cosmetic",
+    "badge twitch",
+    "twitch"
+  ],
+  "cosmetic.badge_youtube": [
+    "badge",
+    "platform",
+    "cosmetic",
+    "badge youtube",
+    "youtube"
+  ],
+  "cosmetic.title.*": [
+    "cosmetic",
+    "style",
+    "collectible",
+    "title",
+    "common to mythic"
+  ],
+  "crate.daily": [
+    "daily",
+    "crate",
+    "reward"
+  ],
+  "crate.daily_crate": [
+    "crate",
+    "reward",
+    "loot",
+    "daily crate",
+    "daily"
+  ],
+  "crate.mystery.*": [
+    "mystery",
+    "crate",
+    "reward",
+    "uncommon to legendary"
+  ],
+  "crate.regular_crate": [
+    "crate",
+    "reward",
+    "loot",
+    "regular crate",
+    "regular"
+  ],
+  "crate.secret_chest": [
+    "fish",
+    "treasure",
+    "collectible",
+    "secret chest",
+    "secret"
+  ],
+  "crate.secret_crate": [
+    "crate",
+    "reward",
+    "loot",
+    "secret crate",
+    "secret"
+  ],
+  "crate.treasure.*": [
+    "chest",
+    "treasure",
+    "gold",
+    "fish",
+    "collectible"
+  ],
+  "currency.bank_token": [
+    "money",
+    "cash",
+    "bank",
+    "currency",
+    "stekel"
+  ],
+  "currency.coin": [
+    "coin",
+    "currency",
+    "money",
+    "stekel",
+    "economy"
+  ],
+  "currency.diamond": [
+    "currency",
+    "economy",
+    "wallet",
+    "diamond",
+    "system"
+  ],
+  "currency.gem": [
+    "currency",
+    "premium",
+    "style",
+    "gem",
+    "streamsuites"
+  ],
+  "currency.gem.blue": [
+    "currency",
+    "economy",
+    "wallet",
+    "gem blue",
+    "blue"
+  ],
+  "currency.gem.green": [
+    "currency",
+    "economy",
+    "wallet",
+    "gem green",
+    "green"
+  ],
+  "currency.gem.red": [
+    "currency",
+    "economy",
+    "wallet",
+    "gem red",
+    "red"
+  ],
+  "currency.gold_bullion": [
+    "gold",
+    "bullion",
+    "treasure",
+    "value",
+    "money"
+  ],
+  "currency.silver_bullion": [
+    "silver",
+    "bullion",
+    "treasure",
+    "value",
+    "money"
+  ],
+  "debug.test_token": [
+    "token",
+    "streamsuites",
+    "test token",
+    "admin",
+    "test"
+  ],
+  "equipment.crossbow": [
+    "crossbow",
+    "weapon",
+    "gear",
+    "combat",
+    "weapons"
+  ],
+  "equipment.gold_gun": [
+    "gun",
+    "gold",
+    "weapon",
+    "shoot",
+    "pistol"
+  ],
+  "equipment.gold_shield": [
+    "shield",
+    "armor",
+    "streamsuites",
+    "gold",
+    "protection"
+  ],
+  "equipment.gun": [
+    "gun",
+    "weapon",
+    "pistol",
+    "handgun",
+    "gear"
+  ],
+  "equipment.heavy_duty_rod": [
+    "rod",
+    "fishing",
+    "steel",
+    "heavy duty",
+    "tool"
+  ],
+  "equipment.silver_gun": [
+    "gun",
+    "silver",
+    "weapon",
+    "shoot",
+    "pistol"
+  ],
+  "equipment.silver_shield": [
+    "shield",
+    "armor",
+    "streamsuites",
+    "silver",
+    "protection"
+  ],
+  "event.boss_token": [
+    "token",
+    "boss",
+    "challenge",
+    "boss token",
+    "event"
+  ],
+  "event.duel_contract": [
+    "contract",
+    "agreement",
+    "signed",
+    "dual",
+    "covenant"
+  ],
+  "event.heist_map": [
+    "heist map",
+    "heist",
+    "map",
+    "group",
+    "event"
+  ],
+  "fish.*": [
+    "fish",
+    "treasure",
+    "collectible",
+    "common to legendary"
+  ],
+  "game.gold_dice": [
+    "dice",
+    "roll",
+    "games",
+    "gamble",
+    "gold"
+  ],
+  "game.silver_dice": [
+    "dice",
+    "roll",
+    "games",
+    "gamble",
+    "silver"
+  ],
+  "game.small_dingy": [
+    "small dingy",
+    "game",
+    "play",
+    "arcade",
+    "small"
+  ],
+  "gamepiece.chip.*": [
+    "chip",
+    "roulette",
+    "game",
+    "piece",
+    "cosmetic"
+  ],
+  "gamepiece.coinflip.*": [
+    "coin",
+    "flip",
+    "coinflip",
+    "chance",
+    "game"
+  ],
+  "gamepiece.dice.*": [
+    "dice",
+    "roll",
+    "games",
+    "gamble",
+    "red"
+  ],
+  "gear.rod.*": [
+    "rod",
+    "fishing",
+    "tool",
+    "equipment",
+    "gear"
+  ],
+  "gear.shield.*": [
+    "shield",
+    "armor",
+    "streamsuites",
+    "protection",
+    "gear"
+  ],
+  "gear.weapon.*": [
+    "weapon",
+    "gear",
+    "combat",
+    "grenade",
+    "weapons"
+  ],
+  "junk.*": [
+    "junk",
+    "rubbish",
+    "rust",
+    "can",
+    "scrap"
+  ],
+  "key.*": [
+    "key",
+    "treasure",
+    "silver",
+    "unlock",
+    "item"
+  ],
+  "key.gold_key": [
+    "key",
+    "treasure",
+    "gold",
+    "unlock",
+    "access"
+  ],
+  "key.secret_key": [
+    "key",
+    "secret",
+    "unlock",
+    "gold",
+    "access"
+  ],
+  "key.silver_key": [
+    "key",
+    "treasure",
+    "silver",
+    "unlock",
+    "access"
+  ],
+  "luxury_vehicle.air_force_once": [
+    "jet",
+    "plane",
+    "air force one",
+    "luxury",
+    "vehicle"
+  ],
+  "luxury_vehicle.air_force_one": [
+    "jet",
+    "plane",
+    "air force one",
+    "government",
+    "vehicle"
+  ],
+  "luxury_vehicle.bentley_flying_spur": [
+    "bentley",
+    "flying",
+    "spur",
+    "luxury",
+    "vehicle"
+  ],
+  "luxury_vehicle.boat": [
+    "boat",
+    "luxury",
+    "vehicle",
+    "premium"
+  ],
+  "luxury_vehicle.cadillac_sedan": [
+    "cadillac sedan",
+    "luxury",
+    "vehicle",
+    "premium",
+    "cadillac"
+  ],
+  "luxury_vehicle.chevrolet_camaro_zl1": [
+    "chevrolet",
+    "camaro",
+    "zl1",
+    "luxury",
+    "vehicle"
+  ],
+  "luxury_vehicle.chevrolet_suburban": [
+    "chevrolet suburban",
+    "luxury",
+    "vehicle",
+    "premium",
+    "chevrolet"
+  ],
+  "luxury_vehicle.chevrolet_truck": [
+    "chevrolet truck",
+    "luxury",
+    "vehicle",
+    "premium",
+    "chevrolet"
+  ],
+  "luxury_vehicle.dodge_charger_srt_hellcat": [
+    "dodge charger srt hellcat",
+    "luxury",
+    "vehicle",
+    "premium",
+    "dodge"
+  ],
+  "luxury_vehicle.ferrari": [
+    "ferrari",
+    "luxury",
+    "vehicle",
+    "premium"
+  ],
+  "luxury_vehicle.ford_f350": [
+    "ford f350",
+    "luxury",
+    "vehicle",
+    "premium",
+    "ford"
+  ],
+  "luxury_vehicle.ford_mustang": [
+    "ford mustang",
+    "luxury",
+    "vehicle",
+    "premium",
+    "ford"
+  ],
+  "luxury_vehicle.jeep_wrangler_rubicon": [
+    "jeep",
+    "wrangler",
+    "rubicon",
+    "luxury",
+    "vehicle"
+  ],
+  "luxury_vehicle.lamborghini": [
+    "lamborghini",
+    "luxury",
+    "vehicle",
+    "premium",
+    "rare to mythic"
+  ],
+  "luxury_vehicle.large_limousine": [
+    "limo",
+    "limousine",
+    "cadillac",
+    "luxury",
+    "vehicle"
+  ],
+  "luxury_vehicle.large_private_jet": [
+    "private jet",
+    "luxury",
+    "vehicle",
+    "premium",
+    "large private jet"
+  ],
+  "luxury_vehicle.mercedes_g_wagon": [
+    "mercedes g wagon",
+    "luxury",
+    "vehicle",
+    "premium",
+    "mercedes"
+  ],
+  "luxury_vehicle.motorbike": [
+    "motorbike",
+    "luxury",
+    "vehicle",
+    "premium"
+  ],
+  "luxury_vehicle.private_jet": [
+    "private jet",
+    "luxury",
+    "vehicle",
+    "premium",
+    "private"
+  ],
+  "luxury_vehicle.suv": [
+    "suv",
+    "luxury",
+    "vehicle",
+    "premium"
+  ],
+  "luxury_vehicle.tesla_cybertruck": [
+    "tesla",
+    "cybertruck",
+    "luxury",
+    "vehicle",
+    "premium"
+  ],
+  "material.*": [
+    "material",
+    "fabric",
+    "crafting",
+    "resource",
+    "common to rare"
+  ],
+  "material.brass": [
+    "brass",
+    "material",
+    "resource",
+    "crafting"
+  ],
+  "material.brick": [
+    "material",
+    "brick",
+    "resource",
+    "crafting"
+  ],
+  "material.bronze": [
+    "material",
+    "resource",
+    "crafting",
+    "bronze"
+  ],
+  "material.concrete": [
+    "concrete",
+    "material",
+    "resource",
+    "crafting"
+  ],
+  "material.fabric": [
+    "material",
+    "fabric",
+    "resource",
+    "crafting"
+  ],
+  "material.gold": [
+    "material",
+    "resource",
+    "crafting",
+    "gold"
+  ],
+  "material.iron_ore": [
+    "iron",
+    "ore",
+    "rock",
+    "resource",
+    "material"
+  ],
+  "material.lumber": [
+    "material",
+    "lumber",
+    "resource",
+    "crafting"
+  ],
+  "material.platinum": [
+    "material",
+    "resource",
+    "crafting",
+    "platinum"
+  ],
+  "material.silver": [
+    "material",
+    "resource",
+    "crafting",
+    "silver"
+  ],
+  "material.steel": [
+    "material",
+    "steel",
+    "resource",
+    "crafting"
+  ],
+  "material.stone": [
+    "material",
+    "resource",
+    "crafting",
+    "stone"
+  ],
+  "material.titanium": [
+    "material",
+    "resource",
+    "crafting",
+    "titanium"
+  ],
+  "pet.*": [
+    "pet",
+    "dog",
+    "animal",
+    "companion",
+    "cosmetic"
+  ],
+  "progress.rank_badge.*": [
+    "rank badge",
+    "rank",
+    "badge",
+    "progression",
+    "cosmetic"
+  ],
+  "progress.xp_star": [
+    "progression",
+    "rank",
+    "level",
+    "xp star",
+    "xp"
+  ],
+  "quest.scroll.*": [
+    "quest",
+    "objective",
+    "story",
+    "scroll",
+    "object"
+  ],
+  "quest_object.briefcase": [
+    "briefcase",
+    "quest",
+    "objective",
+    "story",
+    "object"
+  ],
+  "recipe.*": [
+    "recipe cooking",
+    "crafting",
+    "unlock",
+    "recipe",
+    "card"
+  ],
+  "slot.symbol.*": [
+    "slots",
+    "casino",
+    "gamble",
+    "symbol",
+    "slot"
+  ],
+  "ticket.*": [
+    "ticket",
+    "entry",
+    "event",
+    "common to rare"
+  ],
+  "ticket.blue_ticket": [
+    "ticket",
+    "blue",
+    "entry",
+    "event",
+    "blue ticket"
+  ],
+  "ticket.gold_ticket": [
+    "ticket",
+    "gold",
+    "entry",
+    "event",
+    "gold ticket"
+  ],
+  "ticket.green_ticket": [
+    "ticket",
+    "green",
+    "entry",
+    "event",
+    "green ticket"
+  ],
+  "ticket.red_ticket": [
+    "ticket",
+    "red",
+    "entry",
+    "event",
+    "red ticket"
+  ],
+  "ticket.trivia": [
+    "trivia",
+    "token",
+    "entry",
+    "reward",
+    "modifier"
+  ],
+  "ticket.wheel_entry": [
+    "wheel entry",
+    "wheel",
+    "entry",
+    "token",
+    "item"
+  ],
+  "tool_equipment.mq_9_reaper": [
+    "combat",
+    "vehicle",
+    "military",
+    "mq 9 reaper",
+    "mq"
+  ],
+  "weapon.ah_64_apache_helicopter": [
+    "apache",
+    "helicopter",
+    "combat",
+    "vehicle",
+    "military"
+  ],
+  "weapon.battle_axe": [
+    "axe",
+    "battle",
+    "weapon",
+    "gear",
+    "combat"
+  ],
+  "weapon.bomb": [
+    "bomb",
+    "weapon",
+    "gear",
+    "combat",
+    "rare to mythic"
+  ],
+  "weapon.compound_bow": [
+    "weapon",
+    "gear",
+    "combat",
+    "compound bow",
+    "compound"
+  ],
+  "weapon.fgm_148_javelin": [
+    "rocket launcher",
+    "javelin",
+    "weapon",
+    "gear",
+    "combat"
+  ],
+  "weapon.flamethrower": [
+    "flame",
+    "flamethrower",
+    "thrower",
+    "weapon",
+    "gear"
+  ],
+  "weapon.shotgun": [
+    "weapon",
+    "gear",
+    "combat",
+    "shotgun"
+  ],
+  "weapon.slingshot": [
+    "slingshot",
+    "weapon",
+    "gear",
+    "combat",
+    "common to jackpot"
+  ],
+  "weapon.sword": [
+    "sword",
+    "weapon",
+    "gear",
+    "combat"
+  ],
+  "weapon.tactical_knife": [
+    "knife",
+    "tactical",
+    "weapon",
+    "gear",
+    "combat"
+  ],
+  "weapons.ar_556": [
+    "ar 556",
+    "gun",
+    "rifle",
+    "weapon",
+    "ar"
+  ],
+  "weapons.desert_eagle_50_ae": [
+    "desert eagle 50 ae",
+    "weapon",
+    "gear",
+    "combat",
+    "desert"
+  ],
+  "weapons.glock_19": [
+    "glock 19",
+    "weapon",
+    "gear",
+    "combat",
+    "glock"
+  ],
+  "weapons.kalashnikova_ak_47": [
+    "kalashnikova ak 47",
+    "weapon",
+    "gear",
+    "combat",
+    "kalashnikova"
+  ],
+  "weapons.smith_wesson_j_frame_38": [
+    "smith wesson j frame",
+    "weapon",
+    "gear",
+    "combat",
+    "smith wesson j frame 38"
+  ],
+  "weapons.walther_ppk": [
+    "walther ppk",
+    "weapon",
+    "gear",
+    "combat",
+    "walther"
+  ],
+  "weapons.walther_ppk_silencer": [
+    "walther ppk",
+    "silencer",
+    "weapon",
+    "gear",
+    "combat"
+  ]
+}
