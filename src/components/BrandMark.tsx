@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import studioLogoUrl from "../../assets/logos/sscmattesilver.webp";
+import studioLogoUrl from "../../assets/logos/studiologo.webp";
 
 interface BrandMarkProps {
   readonly compact?: boolean;
