@@ -6,7 +6,7 @@ import { ThemeToggle } from "../ThemeToggle";
 import { Button } from "../ui/Button";
 import { StatusChip } from "../ui/StatusChip";
 
-const futureNavigation = ["Rooms", "Brand", "Media", "Destinations", "Settings"];
+const futureNavigation = ["Brand", "Media", "Destinations", "Settings"];
 
 interface StudioShellProps {
   readonly children: ReactNode;
@@ -66,7 +66,7 @@ export function StudioShell({ children }: StudioShellProps) {
         </nav>
         <div className="studio-sidebar__note">
           <strong>Closed ALPHA</strong>
-          <p>Account access is confirmed by Runtime/Auth. Rooms are not implemented.</p>
+          <p>Rooms, invitations, and lobby authority are Runtime/Auth-owned. Media is not implemented.</p>
         </div>
       </aside>
 

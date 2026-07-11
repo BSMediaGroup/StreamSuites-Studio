@@ -24,20 +24,25 @@ No rooms, media, broadcast output, or recording were delivered by this phase.
 - persist runtime-owned non-admin grants with a transactional 25-user cap and admin management API foundation
 - provide accessible dark/light modes with dark as default and use the verified Studio logo asset
 
-No Admin Dashboard management UI, self-service application, room, guest invite, or media behavior is delivered by this phase.
+No self-service application, room, guest invite, or media behavior was delivered by this phase. The existing Admin Dashboard grant-management surface remains separate and preserved.
 
-## 3. Runtime-owned rooms and guest invites — planned
+## 3. Runtime-owned rooms and guest invites — complete
 
-- add room and invitation contracts to Runtime/Auth
-- enforce room role, tier, permission, and invite-expiry server-side in addition to the implemented ALPHA entry policy
-- keep guest permission temporary and room-scoped
-- target a maximum initial on-stage size of nine
+- persist room ownership plus draft/open/closed/ended lifecycle in Runtime/Auth
+- authorize admins globally and active-granted creator/developer-capable owners only for their rooms, while public accounts remain invite participants
+- generate high-entropy invitations, persist only secure hashes, return the raw code once, and support revocation plus optional expiry
+- create separate temporary room-scoped guest sessions without replacing the shared account cookie
+- persist waiting/admitted/denied/removed/left/expired lobby state and expose guest-self plus owner/admin management APIs
+- enforce a transactional maximum of nine admitted guest stage occupants while keeping the host/director and waiting lobby outside that cap
+- ship the room dashboard, protected management workspace, and real join/lobby UI without claiming media connectivity
 
-## 4. Mocked stage and production controls — planned
+No camera, microphone, screen sharing, media track, broadcast output, or recording was delivered by this phase.
+
+## 4. Pre-media stage and production controls — planned
 
 - build interactive layout and control behavior without claiming live media
 - validate keyboard, screen-reader, mobile, and reduced-motion use
-- keep mock UI state clearly separate from authoritative room state
+- keep local interaction state clearly separate from authoritative Runtime/Auth room state
 
 ## 5. Cloudflare Realtime media — planned
 

@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildOAuthLoginUrl,
   loadStudioAccess,
+  createStudioInvite,
+  joinStudioInvite,
+  listStudioRooms,
   loadTurnstileConfig,
   loginWithPassword,
   normalizeStudioAccess,
@@ -170,5 +173,56 @@ describe("Studio Runtime/Auth adapter", () => {
       ok: false,
       error: { code: "turnstile_invalid", message: expect.not.stringContaining("provider detail") },
     });
+  });
+
+  it("normalizes room summaries and keeps credentials enabled", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      items: [{
+        id: "room-1",
+        owner_account_id: "account-1",
+        title: "Launch room",
+        description: null,
+        lifecycle_state: "open",
+        max_guest_stage_occupants: 9,
+        waiting_guest_count: 2,
+        admitted_guest_count: 1,
+        created_at: "2026-07-11T00:00:00Z",
+        updated_at: "2026-07-11T00:01:00Z",
+        opened_at: "2026-07-11T00:01:00Z",
+        ended_at: null,
+      }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(listStudioRooms()).resolves.toEqual([
+      expect.objectContaining({ id: "room-1", title: "Launch room", lifecycleState: "open", maxGuestStageOccupants: 9 }),
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/studio/rooms"), expect.objectContaining({ credentials: "include", cache: "no-store" }));
+  });
+
+  it("returns a newly created raw invite only from the creation response and never persists it", async () => {
+    const rawCode = "one-time-secret-code";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      invite_code: rawCode,
+      invite: { id: "invite-1", room_id: "room-1", label: null, active: true, expires_at: null, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", revoked_at: null },
+    }), { status: 201 })));
+    await expect(createStudioInvite("room-1", {})).resolves.toMatchObject({ inviteCode: rawCode, invite: { id: "invite-1" } });
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it("joins through Runtime/Auth without receiving or storing a guest credential", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      guest: { id: "guest-1", room_id: "room-1", display_name: "Guest", account_id: null, state: "waiting", created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", expires_at: "2026-07-11T12:00:00Z", admitted_at: null, denied_at: null, removed_at: null, left_at: null },
+    }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(joinStudioInvite("invite-code", "Guest")).resolves.toMatchObject({ id: "guest-1", state: "waiting" });
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(request.credentials).toBe("include");
+    expect(JSON.parse(String(request.body))).toEqual({ invite_code: "invite-code", display_name: "Guest" });
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
   });
 });

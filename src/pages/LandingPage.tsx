@@ -38,8 +38,8 @@ export function LandingPage() {
           </h1>
           <p className="hero__lede">
             StreamSuites Studio is the new flagship browser production surface. This
-            closed ALPHA now enforces Runtime/Auth session and access authority—no working
-            rooms, media transport, or broadcasting are available yet.
+            closed ALPHA now uses Runtime/Auth-owned rooms, secure invitations, and lobby
+            admission. Media transport and broadcasting are not available yet.
           </p>
           <div className="hero__actions">
             <ButtonLink to="/login">View access path</ButtonLink>
@@ -82,8 +82,8 @@ export function LandingPage() {
           <p className="eyebrow">Foundation first</p>
           <h2 id="foundation-title">Clear boundaries from the first frame.</h2>
           <p>
-            The client now consumes runtime-owned session and ALPHA access decisions while
-            StreamSuites remains the only source of account, access, room, and version truth.
+            The client now consumes runtime-owned session, access, room, invite, and lobby
+            decisions while StreamSuites remains the only source of canonical truth.
           </p>
         </div>
         <div className="foundation-grid">
@@ -102,8 +102,8 @@ export function LandingPage() {
           <p className="eyebrow">ALPHA scope</p>
           <h2>Small room. Honest status.</h2>
           <p>
-            The initial on-stage target is up to nine people. That capacity and every
-            media capability remain planned—not shipped—in this scaffold.
+            Runtime/Auth now enforces nine admitted guest stage slots, with the host/director
+            separate and extra guests allowed to wait. Every media capability remains unshipped.
           </p>
         </div>
         <ButtonLink to="/login" variant="secondary">

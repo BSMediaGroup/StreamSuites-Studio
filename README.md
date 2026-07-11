@@ -1,12 +1,12 @@
 # StreamSuites Studio
 
-> **Status: ALPHA access foundation — closed, invite-only access**
+> **Status: ALPHA room-authority foundation — closed access, pre-media**
 > **Flagship surface:** <https://studio.streamsuites.app>
 > **Deployment target:** Cloudflare Pages
 
-StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. This client now authenticates through the existing Runtime/Auth session authority and consumes runtime-owned closed-ALPHA access decisions. It still does not provide working rooms, guest invitations, media, broadcasting, or recording.
+StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. This client authenticates through the existing Runtime/Auth session authority and now consumes runtime-owned closed-ALPHA access, persistent rooms, secure guest invitations, temporary guest sessions, and lobby/admission decisions. It still does not provide media, broadcasting, or recording.
 
-Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. The planned initial on-stage size is a maximum of nine people; that capacity is a target, not shipped behavior.
+Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. Admins may own/manage any room; creator/developer-capable accounts with active Studio access may own their rooms. Public accounts may participate through valid invitations without becoming creators or owners. Runtime/Auth transactionally enforces nine admitted guest stage slots, with the host/director outside those slots and no nine-person limit on the waiting lobby.
 
 ## Current implementation
 
@@ -21,8 +21,11 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - dark/light token system with dark as the first-visit default and theme-only local persistence
 - the existing `assets/logos/sscmattesilver.webp` header logo in both themes
 - reusable buttons, cards, status chips, empty states, and form fields
-- truthful landing, account-access, workspace-preview, invite-entry, and not-found states
-- confirmed typed boundaries for Runtime/Auth sessions and Studio access plus provisional room, guest-invite, media-provider, and runtime-version view models
+- runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, and safe count states
+- protected `/studio/rooms/:roomId` management workspace for details, lifecycle, one-time invite creation, revocation, lobby admission/denial, and admitted-guest removal
+- real `/join/:inviteCode` validation, display-name entry, waiting/admitted/denied/removed/left/expired states, refresh, and leave flow
+- one-time raw invite links held only in component memory, cleared by reload/navigation, and never persisted; guest credentials remain in Runtime/Auth's separate HttpOnly cookie
+- confirmed typed boundaries for Runtime/Auth sessions, Studio access, rooms, invites, lobby entries, guest self-state, media direction, and runtime-version view models
 - focused tests for auth/access normalization, safe return paths, no authorized-shell flash, theme accessibility/persistence, invite-code safety, and runtime-version parsing
 - architecture and phased ALPHA roadmap documentation
 
@@ -32,16 +35,16 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 | --- | --- |
 | `/` | Closed-ALPHA product and access overview. |
 | `/login` | Uses the existing Turnstile-protected StreamSuites OAuth or email/password login, then checks runtime-owned Studio access. |
-| `/studio` | Fails closed until session and Studio access are confirmed; renders the existing truthful workspace only when allowed. |
-| `/join/:inviteCode` | Safely displays a format-checked but explicitly unverified invite code. |
+| `/studio` | Fails closed until session/access are confirmed; admins and eligible creators manage runtime-owned rooms while public accounts receive truthful invite-participation guidance. |
+| `/studio/rooms/:roomId` | Protected owner/admin room lifecycle, invite, and lobby authority workspace. |
+| `/join/:inviteCode` | Validates the code through Runtime/Auth in a POST body and provides the temporary pre-media guest/lobby flow. |
 | `*` | Not-found surface. |
 
 ## Not implemented
 
 The following are explicitly not shipped:
 
-- Admin Dashboard UI for managing Studio grants
-- Studio rooms, room permissions, guest invites, invite validation, or room tokens
+- media-provider room tokens or connectivity
 - camera, microphone, screen share, WebRTC, TURN, or SFU behavior
 - Cloudflare Realtime credentials or media integration
 - LiveKit, Egress, recording, RTMP, or provider destination integration
@@ -85,7 +88,9 @@ The challenge uses Cloudflare's supported dark appearance in Studio dark mode an
 
 StreamSuites remains the single authority for runtime state, Auth API behavior, accounts, sessions, roles, tiers, permissions, room orchestration, invitations, access control, token minting, alerts, audit state, persistence, exports, and canonical version/build metadata.
 
-Studio is a client/UI surface only. It validates the confirmed current-session and Studio-access payloads through a narrow adapter and never persists canonical account, session, grant, role, or tier state in `localStorage`. The only persisted browser preference is `streamsuites_studio_theme`.
+Studio is a client/UI surface only. It validates confirmed current-session, access, room, invite, and lobby payloads through the existing typed adapter and never persists canonical account, session, grant, role, tier, room, invite, or lobby state in `localStorage`. The only persisted browser preference is `streamsuites_studio_theme`.
+
+Invite codes are sent to Runtime/Auth only in JSON POST bodies. A newly created raw code/link is displayed once from the creation response, kept only in component memory, and cannot be retrieved from invite lists. Studio never writes it to local/session storage or logs. Temporary guest authority is represented only by Runtime/Auth's `streamsuites_studio_guest` HttpOnly cookie: production uses the shared `.streamsuites.app` scope with `Secure`, `SameSite=Lax`, and `/`; localhost/private development follows the runtime's host-only non-Secure convention. Its implemented lifetime is 12 hours, and it never overwrites `streamsuites_session`.
 
 The Runtime/Auth repository owns the persistent grant table and admin management endpoints. Admin accounts do not consume tester slots. Creator, developer, and public accounts keep their existing classifications and require an enabled grant. Access is re-evaluated server-side; unavailable Runtime/Auth is shown as unavailable rather than denied.
 
@@ -105,8 +110,8 @@ The roadmap is phased and describes planned work, not current capability:
 
 1. frontend scaffold and design foundation — **complete**
 2. existing StreamSuites Auth/session bridge and closed-ALPHA access authority — **current milestone complete**
-3. runtime-owned Studio rooms and guest invites
-4. mocked stage and production-control interactions
+3. runtime-owned Studio rooms, guest invites, temporary sessions, and lobby admission — **current milestone complete**
+4. pre-media stage and production-control interactions
 5. Cloudflare Realtime camera, microphone, and screen share
 6. OBS-capturable program output
 7. provider destinations and recording foundations
@@ -176,7 +181,9 @@ StreamSuites-Studio/
 │   │   ├── LandingPage.tsx
 │   │   ├── LoginPage.tsx
 │   │   ├── NotFoundPage.tsx
+│   │   ├── RoomManagementPage.tsx
 │   │   ├── StudioPage.test.tsx
+│   │   ├── StudioRooms.test.tsx
 │   │   └── StudioPage.tsx
 │   ├── styles/
 │   │   ├── index.css

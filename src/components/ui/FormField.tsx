@@ -1,12 +1,12 @@
 import type { InputHTMLAttributes } from "react";
-import { useId } from "react";
+import { forwardRef, useId } from "react";
 
 interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   readonly label: string;
   readonly hint?: string;
 }
 
-export function FormField({ label, hint, id, ...props }: FormFieldProps) {
+export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(function FormField({ label, hint, id, ...props }, ref) {
   const generatedId = useId();
   const fieldId = id ?? generatedId;
   const hintId = hint ? `${fieldId}-hint` : undefined;
@@ -14,7 +14,7 @@ export function FormField({ label, hint, id, ...props }: FormFieldProps) {
   return (
     <label className="form-field" htmlFor={fieldId}>
       <span className="form-field__label">{label}</span>
-      <input id={fieldId} aria-describedby={hintId} {...props} />
+      <input ref={ref} id={fieldId} aria-describedby={hintId} {...props} />
       {hint && (
         <span className="form-field__hint" id={hintId}>
           {hint}
@@ -22,4 +22,4 @@ export function FormField({ label, hint, id, ...props }: FormFieldProps) {
       )}
     </label>
   );
-}
+});

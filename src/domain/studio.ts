@@ -27,26 +27,55 @@ export interface StudioAccessState {
   readonly errorMessage?: string;
 }
 
-export type RoomLifecycle = "draft" | "ready" | "active" | "ended";
+export type RoomLifecycle = "draft" | "open" | "closed" | "ended";
 
 export interface RoomSummary {
   readonly id: string;
-  readonly displayName: string;
-  readonly lifecycle: RoomLifecycle;
+  readonly ownerAccountId: string;
+  readonly title: string;
+  readonly description: string | null;
+  readonly lifecycleState: RoomLifecycle;
+  readonly maxGuestStageOccupants: number;
+  readonly waitingGuestCount: number;
+  readonly admittedGuestCount: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly openedAt: string | null;
+  readonly endedAt: string | null;
 }
 
-export type GuestInviteValidation =
-  | "unchecked"
-  | "checking"
-  | "valid"
-  | "invalid"
-  | "expired";
+export interface RoomInvite {
+  readonly id: string;
+  readonly roomId: string;
+  readonly label: string | null;
+  readonly active: boolean;
+  readonly expiresAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly revokedAt: string | null;
+}
 
-export interface GuestInvite {
-  readonly code: string;
-  readonly validation: GuestInviteValidation;
-  readonly room?: RoomSummary;
-  readonly expiresAt?: string;
+export interface InviteValidation {
+  readonly room: Pick<RoomSummary, "id" | "title" | "description" | "lifecycleState">;
+  readonly expiresAt: string | null;
+}
+
+export type GuestLobbyState = "waiting" | "admitted" | "denied" | "removed" | "left" | "expired";
+
+export interface StudioGuest {
+  readonly id: string;
+  readonly roomId: string;
+  readonly displayName: string;
+  readonly accountId: string | null;
+  readonly state: GuestLobbyState;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly expiresAt: string;
+  readonly admittedAt: string | null;
+  readonly deniedAt: string | null;
+  readonly removedAt: string | null;
+  readonly leftAt: string | null;
+  readonly room?: InviteValidation["room"];
 }
 
 export type MediaProviderId = "cloudflare-realtime" | "livekit";

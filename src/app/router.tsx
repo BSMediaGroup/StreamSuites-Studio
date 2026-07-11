@@ -3,6 +3,7 @@ import { JoinPage } from "../pages/JoinPage";
 import { LandingPage } from "../pages/LandingPage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
+import { RoomManagementPage } from "../pages/RoomManagementPage";
 import { StudioPage } from "../pages/StudioPage";
 
 export const studioRouter = createBrowserRouter(
@@ -10,6 +11,7 @@ export const studioRouter = createBrowserRouter(
     { path: "/", element: <LandingPage /> },
     { path: "/login", element: <LoginPage /> },
     { path: "/studio", element: <StudioPage /> },
+    { path: "/studio/rooms/:roomId", element: <RoomManagementPage /> },
     { path: "/join/:inviteCode", element: <JoinPage /> },
     { path: "*", element: <NotFoundPage /> },
   ],
