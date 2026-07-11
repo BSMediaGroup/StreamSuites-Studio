@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useStudioAuth } from "../../auth/studioAuthContext";
 import { BrandMark } from "../BrandMark";
+import { ThemeToggle } from "../ThemeToggle";
 import { Button } from "../ui/Button";
 import { StatusChip } from "../ui/StatusChip";
 
@@ -12,6 +14,15 @@ interface StudioShellProps {
 
 export function StudioShell({ children }: StudioShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
+  const { access, logout } = useStudioAuth();
+
+  async function handleLogout() {
+    setLogoutPending(true);
+    const completed = await logout();
+    setLogoutPending(false);
+    if (completed) window.location.assign("/login");
+  }
 
   return (
     <div className={`studio-shell${menuOpen ? " studio-shell--menu-open" : ""}`}>
@@ -28,8 +39,14 @@ export function StudioShell({ children }: StudioShellProps) {
         </Button>
         <BrandMark />
         <div className="studio-topbar__status">
+          <ThemeToggle />
           <StatusChip tone="alpha">ALPHA</StatusChip>
-          <StatusChip tone="pending">Preview only</StatusChip>
+          <span className="studio-account-name">
+            {access.account?.displayName ?? access.account?.userCode ?? "StreamSuites account"}
+          </span>
+          <Button variant="quiet" onClick={() => void handleLogout()} disabled={logoutPending}>
+            {logoutPending ? "Logging out…" : "Logout"}
+          </Button>
         </div>
       </header>
 
@@ -49,7 +66,7 @@ export function StudioShell({ children }: StudioShellProps) {
         </nav>
         <div className="studio-sidebar__note">
           <strong>Closed ALPHA</strong>
-          <p>Room and account access will be validated by Runtime/Auth.</p>
+          <p>Account access is confirmed by Runtime/Auth. Rooms are not implemented.</p>
         </div>
       </aside>
 

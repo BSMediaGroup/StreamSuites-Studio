@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { BrandMark } from "../BrandMark";
+import { ThemeToggle } from "../ThemeToggle";
 import { StatusChip } from "../ui/StatusChip";
 
 interface SiteShellProps {
@@ -18,7 +19,10 @@ export function SiteShell({ children }: SiteShellProps) {
           </NavLink>
           <NavLink to="/login">Access</NavLink>
         </nav>
-        <StatusChip tone="alpha">ALPHA</StatusChip>
+        <div className="site-header__actions">
+          <ThemeToggle />
+          <StatusChip tone="alpha">ALPHA</StatusChip>
+        </div>
       </header>
       <main id="main-content">{children}</main>
       <footer className="site-footer">

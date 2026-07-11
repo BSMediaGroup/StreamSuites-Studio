@@ -1,5 +1,5 @@
 type PublicStudioConfig = Readonly<{
-  runtimeApiBaseUrl: string | null;
+  runtimeApiBaseUrl: string;
   runtimeVersionUrl: string | null;
 }>;
 
@@ -17,6 +17,10 @@ function readOptionalPublicUrl(value: string | undefined): string | null {
 }
 
 export const publicStudioConfig: PublicStudioConfig = Object.freeze({
-  runtimeApiBaseUrl: readOptionalPublicUrl(import.meta.env.VITE_RUNTIME_API_BASE_URL),
+  runtimeApiBaseUrl:
+    readOptionalPublicUrl(import.meta.env.VITE_RUNTIME_API_BASE_URL) ??
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      ? "http://127.0.0.1:18087"
+      : "https://api.streamsuites.app"),
   runtimeVersionUrl: readOptionalPublicUrl(import.meta.env.VITE_RUNTIME_VERSION_URL),
 });

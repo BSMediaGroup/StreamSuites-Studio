@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import shieldUrl from "../../assets/logos/logoshield.svg";
+import studioLogoUrl from "../../assets/logos/sscmattesilver.webp";
 
 interface BrandMarkProps {
   readonly compact?: boolean;
@@ -8,7 +8,7 @@ interface BrandMarkProps {
 export function BrandMark({ compact = false }: BrandMarkProps) {
   return (
     <Link className="brand-mark" to="/" aria-label="StreamSuites Studio home">
-      <img src={shieldUrl} alt="" width="34" height="38" />
+      <img src={studioLogoUrl} alt="StreamSuites Studio" width="42" height="42" />
       <span className="brand-copy">
         <strong>StreamSuites</strong>
         {!compact && <span>Studio</span>}

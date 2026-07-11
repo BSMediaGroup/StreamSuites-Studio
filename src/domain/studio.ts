@@ -1,18 +1,30 @@
-/**
- * Provisional frontend models only. Runtime/Auth remains authoritative and a
- * future adapter must map its confirmed response contracts into these shapes.
- */
+export type StreamSuitesAccountType = "admin" | "creator" | "developer" | "public";
+
+export interface StudioSessionAccount {
+  readonly id: string;
+  readonly userCode: string | null;
+  readonly displayName: string | null;
+  readonly avatarUrl: string | null;
+  readonly accountType: StreamSuitesAccountType;
+  readonly tier: string | null;
+}
+
 export type StudioAccessStatus =
-  | "unknown"
-  | "signed_out"
-  | "pending_validation"
-  | "authorized"
-  | "denied";
+  | "loading"
+  | "unauthenticated"
+  | "unavailable"
+  | "denied"
+  | "restricted"
+  | "allowed";
 
 export interface StudioAccessState {
   readonly status: StudioAccessStatus;
   readonly source: "runtime-auth";
-  readonly reason?: string;
+  readonly reasonCode: string;
+  readonly account: StudioSessionAccount | null;
+  readonly stage: "ALPHA";
+  readonly activeTesterLimit: number;
+  readonly errorMessage?: string;
 }
 
 export type RoomLifecycle = "draft" | "ready" | "active" | "ended";

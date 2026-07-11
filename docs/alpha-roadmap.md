@@ -2,7 +2,7 @@
 
 Every phase below is additive. A phase is not shipped until its real authority and media paths are implemented and validated.
 
-## 1. Scaffold and design foundation — current
+## 1. Scaffold and design foundation — complete
 
 - React, TypeScript, and Vite application foundation
 - responsive landing, access, Studio-shell, invite-entry, and not-found routes
@@ -11,22 +11,26 @@ Every phase below is additive. A phase is not shipped until its real authority a
 - Cloudflare Pages build and SPA fallback
 - architecture and roadmap documentation
 
-No authentication, rooms, media, broadcast output, or recording is delivered by this phase.
+No rooms, media, broadcast output, or recording were delivered by this phase.
 
-## 2. Existing Auth/session bridge — planned
+## 2. Existing Auth/session bridge and closed-ALPHA access — complete
 
 - connect to the existing StreamSuites Runtime/Auth session contract
 - map confirmed server responses through a narrow Studio adapter
 - preserve server-backed cookie/session truth
-- reuse existing admin, creator, and public account types
+- reuse existing admin, creator, developer, and public account types
 - fail closed when Runtime/Auth is unavailable or access is not granted
+- protect `/studio`, provide real Auth entry/logout, and distinguish denied from unavailable
+- persist runtime-owned non-admin grants with a transactional 25-user cap and admin management API foundation
+- provide accessible dark/light modes with dark as default and use the verified Studio logo asset
 
-## 3. Runtime-owned rooms, invites, and access — planned
+No Admin Dashboard management UI, self-service application, room, guest invite, or media behavior is delivered by this phase.
+
+## 3. Runtime-owned rooms and guest invites — planned
 
 - add room and invitation contracts to Runtime/Auth
-- enforce role, tier, permission, invite-expiry, and closed-ALPHA access server-side
+- enforce room role, tier, permission, and invite-expiry server-side in addition to the implemented ALPHA entry policy
 - keep guest permission temporary and room-scoped
-- cap the initial invited tester group at Daniel plus no more than 25 testers
 - target a maximum initial on-stage size of nine
 
 ## 4. Mocked stage and production controls — planned

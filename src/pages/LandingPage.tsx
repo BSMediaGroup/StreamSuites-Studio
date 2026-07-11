@@ -12,7 +12,7 @@ const foundationPoints = [
   {
     number: "02",
     title: "Existing account authority",
-    body: "Studio will reuse StreamSuites admin, creator, and public accounts through the Runtime/Auth API.",
+    body: "Studio reuses StreamSuites admin, creator, developer, and public accounts through the Runtime/Auth API.",
   },
   {
     number: "03",
@@ -38,13 +38,13 @@ export function LandingPage() {
           </h1>
           <p className="hero__lede">
             StreamSuites Studio is the new flagship browser production surface. This
-            closed ALPHA currently provides the product and application foundation—no
-            working rooms, media transport, or broadcasting are available yet.
+            closed ALPHA now enforces Runtime/Auth session and access authority—no working
+            rooms, media transport, or broadcasting are available yet.
           </p>
           <div className="hero__actions">
             <ButtonLink to="/login">View access path</ButtonLink>
             <ButtonLink to="/studio" variant="secondary">
-              Preview the shell
+              Open Studio
             </ButtonLink>
           </div>
           <p className="hero__footnote">
@@ -82,8 +82,8 @@ export function LandingPage() {
           <p className="eyebrow">Foundation first</p>
           <h2 id="foundation-title">Clear boundaries from the first frame.</h2>
           <p>
-            The scaffold establishes the client surface while the StreamSuites runtime
-            remains the only source of account, access, room, and version truth.
+            The client now consumes runtime-owned session and ALPHA access decisions while
+            StreamSuites remains the only source of account, access, room, and version truth.
           </p>
         </div>
         <div className="foundation-grid">

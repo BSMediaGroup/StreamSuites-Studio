@@ -1,23 +1,28 @@
 # StreamSuites Studio
 
-> **Status: ALPHA scaffold — closed, invite-only access**
+> **Status: ALPHA access foundation — closed, invite-only access**
 > **Flagship surface:** <https://studio.streamsuites.app>
 > **Deployment target:** Cloudflare Pages
 
-StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. This repository currently contains a polished frontend foundation only. It does not provide working rooms, authentication, media, broadcasting, or recording.
+StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. This client now authenticates through the existing Runtime/Auth session authority and consumes runtime-owned closed-ALPHA access decisions. It still does not provide working rooms, guest invitations, media, broadcasting, or recording.
 
-The initial closed ALPHA is limited to Daniel plus no more than 25 invited testers. The planned initial on-stage size is a maximum of nine people; that capacity is a target, not shipped behavior.
+Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. The planned initial on-stage size is a maximum of nine people; that capacity is a target, not shipped behavior.
 
-## Current scaffold
+## Current implementation
 
 - React + TypeScript + Vite application foundation
 - clean browser routes with a Cloudflare Pages SPA fallback
-- responsive public shell and Studio workspace shell
-- dark production-oriented design tokens and accessible focus behavior
+- responsive public shell and access-protected Studio workspace shell
+- credentialed `GET /auth/session` and `GET /api/studio/access` bridge with typed normalization
+- existing Google, GitHub, Discord, X, Twitch, and email/password Auth entry paths
+- Runtime/Auth logout through `POST /auth/logout`
+- explicit loading, unauthenticated, allowed, denied, restricted, and unavailable states
+- dark/light token system with dark as the first-visit default and theme-only local persistence
+- the existing `assets/logos/sscmattesilver.webp` header logo in both themes
 - reusable buttons, cards, status chips, empty states, and form fields
 - truthful landing, account-access, workspace-preview, invite-entry, and not-found states
-- provisional typed boundaries for Runtime/Auth sessions, Studio access, rooms, guest invites, API errors, media-provider direction, and runtime version hydration
-- focused unit tests for invite-code safety and the confirmed runtime version export shape
+- confirmed typed boundaries for Runtime/Auth sessions and Studio access plus provisional room, guest-invite, media-provider, and runtime-version view models
+- focused tests for auth/access normalization, safe return paths, no authorized-shell flash, theme accessibility/persistence, invite-code safety, and runtime-version parsing
 - architecture and phased ALPHA roadmap documentation
 
 ### Routes
@@ -25,17 +30,17 @@ The initial closed ALPHA is limited to Daniel plus no more than 25 invited teste
 | Route | Current behavior |
 | --- | --- |
 | `/` | Closed-ALPHA product and access overview. |
-| `/login` | Explains reuse of existing StreamSuites accounts; no login request is sent. |
-| `/studio` | Unauthenticated application-shell preview with truthful empty states. |
+| `/login` | Uses existing StreamSuites OAuth or email/password login, then checks runtime-owned Studio access. |
+| `/studio` | Fails closed until session and Studio access are confirmed; renders the existing truthful workspace only when allowed. |
 | `/join/:inviteCode` | Safely displays a format-checked but explicitly unverified invite code. |
 | `*` | Not-found surface. |
 
 ## Not implemented
 
-The following are explicitly not shipped by this scaffold:
+The following are explicitly not shipped:
 
-- Runtime/Auth session integration or a functional login flow
-- Studio access grants, rooms, permissions, invites, or room tokens
+- Admin Dashboard UI for managing Studio grants
+- Studio rooms, room permissions, guest invites, invite validation, or room tokens
 - camera, microphone, screen share, WebRTC, TURN, or SFU behavior
 - Cloudflare Realtime credentials or media integration
 - LiveKit, Egress, recording, RTMP, or provider destination integration
@@ -69,13 +74,15 @@ npm run preview
 
 The production build is written to `dist/`. Cloudflare Pages should use `npm run build` as the build command and `dist` as the output directory. `public/_redirects` provides direct-load SPA fallback behavior.
 
-Copy `.env.example` to an ignored local environment file only when integration work begins. Every `VITE_*` value is browser-public; secrets, provider credentials, room tokens, API tokens, and Cloudflare identifiers must never be placed there.
+`VITE_RUNTIME_API_BASE_URL` is the public Runtime/Auth origin. The client falls back to `https://api.streamsuites.app` in production and `http://127.0.0.1:18087` on Vite localhost, while remaining configurable for Pages. `VITE_RUNTIME_VERSION_URL` stays optional. Every `VITE_*` value is browser-public; secrets, provider credentials, room tokens, API tokens, and Cloudflare identifiers must never be placed there.
 
 ## Authority boundaries
 
 StreamSuites remains the single authority for runtime state, Auth API behavior, accounts, sessions, roles, tiers, permissions, room orchestration, invitations, access control, token minting, alerts, audit state, persistence, exports, and canonical version/build metadata.
 
-Studio is a client/UI surface only. It must use adapters around confirmed Runtime/Auth contracts and must not invent canonical state, store it in `localStorage`, or introduce a parallel account database. The confirmed current-session request path is represented as a typed seam, while its response remains `unknown` until the next integration task validates and maps the runtime payload.
+Studio is a client/UI surface only. It validates the confirmed current-session and Studio-access payloads through a narrow adapter and never persists canonical account, session, grant, role, or tier state in `localStorage`. The only persisted browser preference is `streamsuites_studio_theme`.
+
+The Runtime/Auth repository owns the persistent grant table and admin management endpoints. Admin accounts do not consume tester slots. Creator, developer, and public accounts keep their existing classifications and require an enabled grant. Access is re-evaluated server-side; unavailable Runtime/Auth is shown as unavailable rather than denied.
 
 The canonical runtime version is defined by `StreamSuites/runtime/version.py` and exported through `StreamSuites/runtime/exports/version.json`. This package uses `0.0.0` only as private npm metadata; it is not a Studio product version. The UI shows the ALPHA stage only. Numeric version hydration is pending confirmation of the deployed Studio-safe publication/CORS path for the existing runtime export contract.
 
@@ -91,9 +98,9 @@ The Python runtime/Auth API will orchestrate rooms, permissions, invitations, ac
 
 The roadmap is phased and describes planned work, not current capability:
 
-1. frontend scaffold and design foundation — **current milestone**
-2. existing StreamSuites Auth/session bridge
-3. runtime-owned Studio rooms, invites, and access
+1. frontend scaffold and design foundation — **complete**
+2. existing StreamSuites Auth/session bridge and closed-ALPHA access authority — **current milestone complete**
+3. runtime-owned Studio rooms and guest invites
 4. mocked stage and production-control interactions
 5. Cloudflare Realtime camera, microphone, and screen share
 6. OBS-capturable program output
@@ -130,9 +137,14 @@ StreamSuites-Studio/
 │   ├── api/
 │   │   ├── contracts.ts
 │   │   ├── runtimeVersion.test.ts
-│   │   └── runtimeVersion.ts
+│   │   ├── runtimeVersion.ts
+│   │   ├── studioAuth.test.ts
+│   │   └── studioAuth.ts
 │   ├── app/
 │   │   └── router.tsx
+│   ├── auth/
+│   │   ├── StudioAuthProvider.tsx
+│   │   └── studioAuthContext.ts
 │   ├── components/
 │   │   ├── shell/
 │   │   │   ├── SiteShell.tsx
@@ -143,7 +155,8 @@ StreamSuites-Studio/
 │   │   │   ├── EmptyState.tsx
 │   │   │   ├── FormField.tsx
 │   │   │   └── StatusChip.tsx
-│   │   └── BrandMark.tsx
+│   │   ├── BrandMark.tsx
+│   │   └── ThemeToggle.tsx
 │   ├── config/
 │   │   └── env.ts
 │   ├── domain/
@@ -156,12 +169,17 @@ StreamSuites-Studio/
 │   │   ├── LandingPage.tsx
 │   │   ├── LoginPage.tsx
 │   │   ├── NotFoundPage.tsx
+│   │   ├── StudioPage.test.tsx
 │   │   └── StudioPage.tsx
 │   ├── styles/
 │   │   ├── index.css
 │   │   └── tokens.css
 │   ├── test/
 │   │   └── setup.ts
+│   ├── theme/
+│   │   ├── ThemeProvider.test.tsx
+│   │   ├── ThemeProvider.tsx
+│   │   └── themeContext.ts
 │   ├── App.tsx
 │   ├── main.tsx
 │   └── vite-env.d.ts

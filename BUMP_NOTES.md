@@ -2,6 +2,15 @@
 
 ## CURRENT VER= 0.5.0-alpha / PENDING VER= 0.5.1-alpha
 
+- Real Runtime/Auth bridge: replaced the placeholder-only current-session seam with typed, credentialed `GET /auth/session` and `GET /api/studio/access` requests against the established public API origin, including cancellation and safe error normalization without persisting account or grant truth in browser storage.
+- Protected Studio route: `/studio` now shows a neutral loading state, redirects unauthenticated visitors to `/login` with a safe local return path, renders the existing shell only after access is allowed, and distinguishes denied, account-restricted, and retryable Runtime/Auth-unavailable states without an authorized-shell flash.
+- Existing login/logout integration: `/login` now uses the implemented Runtime/Auth Google, GitHub, Discord, X, Twitch, and email/password entry paths, explains that existing StreamSuites accounts are reused, checks Studio access after authentication, and uses the existing `POST /auth/logout` authority.
+- Closed-ALPHA policy UI: admins and granted creator/developer/public accounts consume the runtime response; non-granted accounts receive a clear admin-managed ALPHA message and outages are never presented as denial. No self-service ALPHA application was added.
+- Theme milestone: expanded the design-token architecture into accessible dark and light modes across public, login, denial/error, and Studio shells. Dark is the first-visit default; only `streamsuites_studio_theme` is stored locally, the toggle exposes switch semantics, and the early head script prevents an obvious wrong-theme flash.
+- Correct Studio branding: replaced the previous `assets/logos/logoshield.svg` header import with the verified existing `assets/logos/sscmattesilver.webp` asset, preserving its square aspect ratio on desktop and mobile in both themes.
+- Explicit non-capability note: rooms, guest-invite validation, Cloudflare Realtime, LiveKit, camera/microphone/screen share, broadcasting, recording, and OBS output remain unimplemented.
+- Human note: Studio now truthfully opens only when the existing StreamSuites account and runtime-owned ALPHA policy agree, while the media workspace remains an honest empty foundation.
+
 - Studio version authority: StreamSuites Runtime remains the sole product version source. This private package uses `0.0.0` only as non-authoritative npm metadata; the UI shows the ALPHA stage while numeric hydration waits for a confirmed Studio-safe publication path for the runtime `version.json` export.
 - Initial frontend scaffold: added a React + TypeScript + Vite foundation with application bootstrap, clean browser routing, reusable public and Studio shells, focused UI primitives, provisional Runtime/Auth adapters and domain types, tokenized responsive dark styling, and focused tests.
 - Initial routes: added `/`, `/login`, `/studio`, `/join/:inviteCode`, and a not-found route. Each surface is explicit about closed access and unavailable backend/media behavior; no fake authenticated state, active rooms, participants, analytics, broadcasts, or invite validation is shown.
