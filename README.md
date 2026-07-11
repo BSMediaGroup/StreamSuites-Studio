@@ -15,6 +15,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - responsive public shell and access-protected Studio workspace shell
 - credentialed `GET /auth/session` and `GET /api/studio/access` bridge with typed normalization
 - existing Google, GitHub, Discord, X, Twitch, and email/password Auth entry paths
+- Runtime/Auth-owned Cloudflare Turnstile protection for all five OAuth starts and password login, with ephemeral in-memory tokens only
 - Runtime/Auth logout through `POST /auth/logout`
 - explicit loading, unauthenticated, allowed, denied, restricted, and unavailable states
 - dark/light token system with dark as the first-visit default and theme-only local persistence
@@ -30,7 +31,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 | Route | Current behavior |
 | --- | --- |
 | `/` | Closed-ALPHA product and access overview. |
-| `/login` | Uses existing StreamSuites OAuth or email/password login, then checks runtime-owned Studio access. |
+| `/login` | Uses the existing Turnstile-protected StreamSuites OAuth or email/password login, then checks runtime-owned Studio access. |
 | `/studio` | Fails closed until session and Studio access are confirmed; renders the existing truthful workspace only when allowed. |
 | `/join/:inviteCode` | Safely displays a format-checked but explicitly unverified invite code. |
 | `*` | Not-found surface. |
@@ -75,6 +76,10 @@ npm run preview
 The production build is written to `dist/`. Cloudflare Pages should use `npm run build` as the build command and `dist` as the output directory. `public/_redirects` provides direct-load SPA fallback behavior.
 
 `VITE_RUNTIME_API_BASE_URL` is the public Runtime/Auth origin. The client falls back to `https://api.streamsuites.app` in production and `http://127.0.0.1:18087` on Vite localhost, while remaining configurable for Pages. `VITE_RUNTIME_VERSION_URL` stays optional. Every `VITE_*` value is browser-public; secrets, provider credentials, room tokens, API tokens, and Cloudflare identifiers must never be placed there.
+
+Turnstile uses the same runtime-owned configuration as Public, Creator, Dashboard, and Developer: Studio fetches `GET /auth/turnstile/config` from `VITE_RUNTIME_API_BASE_URL`, renders the returned public site key, and sends the ephemeral `turnstile_token` only to the selected Auth start. The Runtime/Auth environment variables remain `CLOUDFLARE_TURNSTILE_SITEKEY`, `CLOUDFLARE_TURNSTILE_SECRET`, and the existing `CLOUDFLARE_TURNSTILE_ENABLED` switch. There is deliberately no Studio `VITE_*` site-key variable and no Turnstile secret in Cloudflare Pages.
+
+The challenge uses Cloudflare's supported dark appearance in Studio dark mode and light appearance in light mode. A theme change removes and re-renders the single widget without clearing email/password input; challenge tokens are cleared on expiry, widget failure, theme change, password-login failure, or backend rejection and are never written to local or session storage, cookies, URLs, or persisted app state. Runtime/Auth must be deployed, reachable, and configured with the site key and secret for a real production challenge/login test. Local development follows the same contract against `http://127.0.0.1:18087`; no local production bypass is added by Studio.
 
 ## Authority boundaries
 
@@ -146,6 +151,8 @@ StreamSuites-Studio/
 │   │   ├── StudioAuthProvider.tsx
 │   │   └── studioAuthContext.ts
 │   ├── components/
+│   │   ├── TurnstileWidget.test.tsx
+│   │   ├── TurnstileWidget.tsx
 │   │   ├── shell/
 │   │   │   ├── SiteShell.tsx
 │   │   │   └── StudioShell.tsx

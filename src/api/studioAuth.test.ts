@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildOAuthLoginUrl,
   loadStudioAccess,
+  loadTurnstileConfig,
+  loginWithPassword,
   normalizeStudioAccess,
   safeStudioReturnPath,
 } from "./studioAuth";
@@ -95,6 +97,78 @@ describe("Studio Runtime/Auth adapter", () => {
     const oauthUrl = new URL(buildOAuthLoginUrl("google", "/studio"));
     expect(oauthUrl.pathname).toBe("/auth/login/google");
     expect(oauthUrl.searchParams.get("surface")).toBe("studio");
+    expect(oauthUrl.searchParams.has("turnstile_token")).toBe(false);
     expect(new URL(oauthUrl.searchParams.get("return_to")!).origin).toBe(window.location.origin);
+    expect(new URL(buildOAuthLoginUrl("twitch", "/studio", "oauth-token")).searchParams.get("turnstile_token")).toBe(
+      "oauth-token",
+    );
+  });
+
+  it("loads the runtime-owned public Turnstile configuration", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          enabled: true,
+          runtime_enabled: true,
+          configured: true,
+          sitekey: "public-site-key",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(loadTurnstileConfig()).resolves.toEqual({
+      enabled: true,
+      runtimeEnabled: true,
+      configured: true,
+      sitekey: "public-site-key",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/turnstile/config"),
+      expect.objectContaining({ credentials: "include", cache: "no-store" }),
+    );
+  });
+
+  it("submits the ephemeral token under the canonical password-login field", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(loginWithPassword("tester@example.com", "StrongPass123!", "fresh-token")).resolves.toEqual({
+      ok: true,
+    });
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual({
+      email: "tester@example.com",
+      password: "StrongPass123!",
+      surface: "studio",
+      turnstile_token: "fresh-token",
+    });
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it("keeps invalid credentials distinct from backend Turnstile rejection", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ reason: "turnstile_invalid", error: "provider detail" }),
+          { status: 403 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(loginWithPassword("tester@example.com", "wrong", "token-1")).resolves.toMatchObject({
+      ok: false,
+      error: { code: "invalid_credentials", message: "Invalid email or password." },
+    });
+    await expect(loginWithPassword("tester@example.com", "wrong", "token-2")).resolves.toMatchObject({
+      ok: false,
+      error: { code: "turnstile_invalid", message: expect.not.stringContaining("provider detail") },
+    });
   });
 });

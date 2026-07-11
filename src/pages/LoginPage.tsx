@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   buildOAuthLoginUrl,
@@ -8,10 +8,16 @@ import {
 } from "../api/studioAuth";
 import { useStudioAuth } from "../auth/studioAuthContext";
 import { SiteShell } from "../components/shell/SiteShell";
+import {
+  TurnstileWidget,
+  type TurnstileState,
+  type TurnstileWidgetHandle,
+} from "../components/TurnstileWidget";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
+import { useTheme } from "../theme/themeContext";
 
 const oauthProviders: readonly { id: OAuthProvider; label: string }[] = [
   { id: "google", label: "Google" },
@@ -23,12 +29,20 @@ const oauthProviders: readonly { id: OAuthProvider; label: string }[] = [
 
 export function LoginPage() {
   const { access, refresh, logout } = useStudioAuth();
+  const { theme } = useTheme();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState("");
+  const [oauthSubmitting, setOauthSubmitting] = useState(false);
+  const [formError, setFormError] = useState<{ code: string; message: string } | null>(null);
+  const [turnstile, setTurnstile] = useState<TurnstileState>({
+    enabled: null,
+    token: "",
+    phase: "loading",
+  });
+  const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const returnPath = useMemo(
     () => safeStudioReturnPath(searchParams.get("return_to")),
     [searchParams],
@@ -38,18 +52,40 @@ export function LoginPage() {
     if (access.status === "allowed") navigate(returnPath, { replace: true });
   }, [access.status, navigate, returnPath]);
 
+  const handleTurnstileState = useCallback((next: TurnstileState) => {
+    setTurnstile(next);
+    if (next.phase === "ready") {
+      setFormError((current) =>
+        current?.code.startsWith("turnstile_") ? null : current,
+      );
+    }
+  }, []);
+
+  const challengeReady =
+    turnstile.enabled === false || (turnstile.enabled === true && Boolean(turnstile.token));
+  const fieldsReady = Boolean(email.trim() && password);
+
   async function handlePasswordLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting || !fieldsReady || !challengeReady) return;
     setSubmitting(true);
-    setFormError("");
-    const result = await loginWithPassword(email, password);
+    setFormError(null);
+    const result = await loginWithPassword(email, password, turnstile.token);
     if (!result.ok) {
-      setFormError(result.error.message);
+      setFormError({ code: result.error.code, message: result.error.message });
+      turnstileRef.current?.reset();
       setSubmitting(false);
       return;
     }
     await refresh();
     setSubmitting(false);
+  }
+
+  function handleOAuthLogin(provider: OAuthProvider) {
+    if (oauthSubmitting || !challengeReady) return;
+    setOauthSubmitting(true);
+    setFormError(null);
+    window.location.assign(buildOAuthLoginUrl(provider, returnPath, turnstile.token));
   }
 
   async function handleLogout() {
@@ -122,18 +158,24 @@ export function LoginPage() {
               </p>
               <div className="oauth-grid" aria-label="OAuth login options">
                 {oauthProviders.map((provider) => (
-                  <a
-                    className="button button--secondary"
-                    href={buildOAuthLoginUrl(provider.id, returnPath)}
+                  <Button
+                    variant="secondary"
+                    disabled={oauthSubmitting || submitting || !challengeReady}
+                    onClick={() => handleOAuthLogin(provider.id)}
                     key={provider.id}
                   >
                     Continue with {provider.label}
-                  </a>
+                  </Button>
                 ))}
               </div>
               <div className="auth-divider" role="separator">
                 <span>or use email/password</span>
               </div>
+              <TurnstileWidget
+                ref={turnstileRef}
+                theme={theme}
+                onStateChange={handleTurnstileState}
+              />
               <form className="login-form" onSubmit={(event) => void handlePasswordLogin(event)}>
                 <FormField
                   label="Email"
@@ -151,8 +193,21 @@ export function LoginPage() {
                   required
                   onChange={(event) => setPassword(event.target.value)}
                 />
-                {formError && <p className="form-error" role="alert">{formError}</p>}
-                <Button type="submit" disabled={submitting}>
+                {formError && (
+                  <div className="notice-box notice-box--danger auth-error" role="alert">
+                    <strong>
+                      {formError.code === "invalid_credentials"
+                        ? "Credentials not accepted"
+                        : formError.code.startsWith("turnstile_")
+                          ? "Security verification rejected"
+                          : formError.code === "auth_unavailable" || formError.code === "login_request_failed"
+                            ? "Runtime/Auth unavailable"
+                            : "Sign-in not completed"}
+                    </strong>
+                    <p>{formError.message}</p>
+                  </div>
+                )}
+                <Button type="submit" disabled={submitting || oauthSubmitting || !fieldsReady || !challengeReady}>
                   {submitting ? "Signing in…" : "Sign in with StreamSuites"}
                 </Button>
               </form>

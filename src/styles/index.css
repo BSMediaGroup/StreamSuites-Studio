@@ -674,12 +674,64 @@ p {
   content: "";
 }
 
+.turnstile-panel {
+  display: grid;
+  min-width: 0;
+  gap: 0.55rem;
+  margin: 1rem 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--chip-bg);
+  padding: 0.85rem;
+}
+
+.turnstile-slot {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.turnstile-slot iframe {
+  max-width: 100% !important;
+}
+
+.turnstile-panel__status {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.turnstile-panel__status[data-phase="ready"] {
+  color: var(--accent-bright);
+}
+
+.turnstile-panel__status[data-phase="expired"],
+.turnstile-panel__status[data-phase="failed"],
+.turnstile-panel__status[data-phase="provider_unavailable"] {
+  color: var(--danger-text);
+}
+
+.turnstile-panel__status .button {
+  min-height: 34px;
+  flex: 0 0 auto;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.68rem;
+}
+
 .login-form .form-field {
   margin-block: 1rem;
 }
 
 .login-form .button {
   width: 100%;
+}
+
+.auth-error {
+  margin-block: 1rem;
 }
 
 .form-error {
@@ -1135,6 +1187,15 @@ p {
 
   .oauth-grid .button:last-child {
     grid-column: auto;
+  }
+
+  .turnstile-panel {
+    padding: 0.65rem;
+  }
+
+  .turnstile-panel__status {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .studio-main {

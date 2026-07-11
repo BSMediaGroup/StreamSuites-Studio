@@ -57,6 +57,35 @@ function requestError(code: string, message: string, status?: number): SafeApiEr
   return { code, message, status, retryable: !status || status >= 500 };
 }
 
+export interface TurnstileConfig {
+  readonly enabled: boolean;
+  readonly runtimeEnabled: boolean;
+  readonly configured: boolean;
+  readonly sitekey: string;
+}
+
+export async function loadTurnstileConfig(signal?: AbortSignal): Promise<TurnstileConfig> {
+  const response = await fetch(apiUrl("/auth/turnstile/config"), {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (!response.ok) throw new Error("turnstile_config_unavailable");
+  const payload = await readPayload(response);
+  if (!isRecord(payload)) throw new Error("turnstile_config_invalid");
+  const sitekey = stringOrNull(payload.sitekey) ?? "";
+  const enabled = payload.enabled === true;
+  if (enabled && !sitekey) throw new Error("turnstile_config_invalid");
+  return {
+    enabled,
+    runtimeEnabled: payload.runtime_enabled !== false,
+    configured: payload.configured === true,
+    sitekey,
+  };
+}
+
 function unavailable(error: SafeApiError): StudioAccessState {
   return {
     status: "unavailable",
@@ -175,24 +204,76 @@ export async function loadStudioAccess(signal?: AbortSignal): Promise<StudioAcce
 export async function loginWithPassword(
   email: string,
   password: string,
+  turnstileToken: string,
   signal?: AbortSignal,
 ): Promise<{ ok: true } | { ok: false; error: SafeApiError }> {
   try {
+    const body: Record<string, string> = { email, password, surface: "studio" };
+    const normalizedToken = turnstileToken.trim();
+    if (normalizedToken) body.turnstile_token = normalizedToken;
     const response = await fetch(apiUrl("/auth/login/password"), {
       method: "POST",
       credentials: "include",
-      redirect: "follow",
+      redirect: "manual",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, surface: "studio" }),
+      body: JSON.stringify(body),
       signal,
     });
-    if (response.ok || response.redirected) return { ok: true };
+    if (
+      response.ok ||
+      response.type === "opaqueredirect" ||
+      [302, 303, 307, 308].includes(response.status)
+    ) {
+      return { ok: true };
+    }
     const payload = await readPayload(response);
-    const message =
-      isRecord(payload) && typeof payload.error === "string"
-        ? payload.error
-        : "StreamSuites login was not accepted.";
-    return { ok: false, error: requestError("login_failed", message, response.status) };
+    const reason = isRecord(payload) ? stringOrNull(payload.reason) : null;
+    if (reason === "turnstile_required") {
+      return {
+        ok: false,
+        error: requestError("turnstile_required", "Complete the security check before continuing.", response.status),
+      };
+    }
+    if (reason === "turnstile_invalid") {
+      return {
+        ok: false,
+        error: requestError("turnstile_invalid", "The security check expired or was rejected. Complete it again.", response.status),
+      };
+    }
+    if (reason === "turnstile_unavailable") {
+      return {
+        ok: false,
+        error: requestError("turnstile_unavailable", "Security verification is temporarily unavailable. Please try again.", response.status),
+      };
+    }
+    if (response.status === 401) {
+      return {
+        ok: false,
+        error: requestError("invalid_credentials", "Invalid email or password.", response.status),
+      };
+    }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        error: requestError("login_rate_limited", "Too many login attempts. Please wait and try again.", response.status),
+      };
+    }
+    if (isRecord(payload) && payload.verification_required === true) {
+      return {
+        ok: false,
+        error: requestError("email_unverified", "Verify your email before signing in.", response.status),
+      };
+    }
+    if (response.status >= 500) {
+      return {
+        ok: false,
+        error: requestError("auth_unavailable", "Runtime/Auth is currently unavailable.", response.status),
+      };
+    }
+    return {
+      ok: false,
+      error: requestError("login_rejected", "StreamSuites login was not accepted.", response.status),
+    };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     return {
@@ -248,9 +329,15 @@ export function safeStudioReturnPath(value: string | null, fallback = "/studio")
   }
 }
 
-export function buildOAuthLoginUrl(provider: OAuthProvider, returnPath: string): string {
+export function buildOAuthLoginUrl(
+  provider: OAuthProvider,
+  returnPath: string,
+  turnstileToken = "",
+): string {
   const url = new URL(oauthPaths[provider], `${publicStudioConfig.runtimeApiBaseUrl}/`);
   url.searchParams.set("surface", "studio");
   url.searchParams.set("return_to", new URL(safeStudioReturnPath(returnPath), window.location.origin).toString());
+  const normalizedToken = turnstileToken.trim();
+  if (normalizedToken) url.searchParams.set("turnstile_token", normalizedToken);
   return url.toString();
 }
