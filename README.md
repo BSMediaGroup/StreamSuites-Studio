@@ -56,7 +56,7 @@ The following are explicitly not shipped:
 
 - media-provider room tokens or connectivity
 - camera, microphone, screen share, WebRTC, TURN, or SFU behavior
-- Cloudflare Realtime credentials or media integration
+- Cloudflare RealtimeKit credentials in the browser (participant tokens are issued privately by Runtime/Auth and held only in memory)
 - LiveKit, Egress, recording, RTMP, or provider destination integration
 - real audio/video tracks, chat, alerts, clips, polls, games, automation, or analytics
 - an OBS program-output route or server-side broadcast output
@@ -116,7 +116,7 @@ See [System architecture](docs/system-architecture.md) for the complete boundary
 
 ## Media direction
 
-The current Stage, Backstage tray, participant menus, ordering, layout, and intended microphone/camera controls are authoritative room-control UI but remain pre-media. The intended next ALPHA media path is browser-to-browser media through Cloudflare Realtime SFU/TURN. The planned production migration is self-hosted LiveKit plus Egress. Neither media path is implemented here.
+The current Stage, Backstage tray, participant menus, ordering, and layout remain Runtime-authoritative. Cloudflare RealtimeKit Core 2.0.0 now supplies an explicit, participant-token-gated media connection and local microphone/camera/screen controls beneath the custom UI. The planned production migration remains self-hosted LiveKit plus Egress.
 
 The Python runtime/Auth API will orchestrate rooms, permissions, invitations, access, and token minting, but audio and video must bypass the Python runtime. During early ALPHA, final output is expected to use an OBS-capturable program view before server-side egress exists.
 
@@ -128,7 +128,7 @@ The roadmap is phased and describes planned work, not current capability:
 2. existing StreamSuites Auth/session bridge and closed-ALPHA access authority — **current milestone complete**
 3. runtime-owned Studio rooms, short-code invites, temporary sessions, lobby admission, real-time events, and cohosts — **current milestone complete**
 4. polished pre-media stage, Backstage, guest identity, and production-control interactions — **current milestone complete**
-5. Cloudflare Realtime camera, microphone, and screen share — **pending**
+5. Cloudflare RealtimeKit Core connection and local camera, microphone, and screen share — **implemented foundation**
 6. OBS-capturable program output
 7. provider destinations and recording foundations
 8. later self-hosted LiveKit and Egress migration
@@ -156,6 +156,7 @@ StreamSuites-Studio/
 │   └── sounds/
 ├── docs/
 │   ├── alpha-roadmap.md
+│   ├── cloudflare-realtimekit-media.md
 │   └── system-architecture.md
 ├── public/
 │   └── _redirects

@@ -58,9 +58,10 @@ No camera, microphone, screen sharing, media track, broadcast output, or recordi
 
 No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime connection, recording, or broadcast output was delivered by this phase. Cloudflare Realtime remains the next media milestone.
 
-## 5. Cloudflare Realtime media — planned
+## 5. Cloudflare RealtimeKit Core media — foundation implemented
 
-- integrate camera, microphone, and screen sharing through Cloudflare Realtime SFU/TURN
+- connect through Runtime/Auth-issued participant tokens and integrate local camera, microphone, and screen sharing through RealtimeKit Core
+- follow up with complete device preflight, remote tile/audio registration, active speaker, provider Stage/host controls, and reconciliation polish
 - request room/media authorization from Runtime/Auth
 - keep audio and video transport outside the Python runtime
 - verify real browser permission, reconnect, device-change, and participant behavior

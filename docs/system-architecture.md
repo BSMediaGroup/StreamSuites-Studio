@@ -59,7 +59,7 @@ flowchart LR
 - The separate `streamsuites_studio_guest` HttpOnly cookie lasts up to 12 hours, never overwrites `streamsuites_session`, uses shared secure production scope, and follows the existing host-only local/private development policy.
 - Room lifecycle is `draft`, `open`, `closed`, and final `ended`. Owner/admin controls and `BEGIN IMMEDIATE` admission transactions enforce no more than nine admitted guest occupants while leaving lobby waiting capacity separate; the host/director is outside the guest cap.
 - Runtime/Auth may authorize and mint media access, but the Python runtime does not carry audio or video packets.
-- Cloudflare Realtime is the initial planned SFU/TURN media layer.
+- Cloudflare RealtimeKit Core 2.0.0 is the initial ALPHA media transport; Runtime/Auth owns mappings and participant-token issuance while Studio owns the custom media UI.
 - Self-hosted LiveKit plus Egress is the later planned production media path, not the current implementation.
 - Public viewers are broadcast-destination audiences and are not placed in Studio WebRTC rooms.
 - No provider API detail is assumed until its contract is verified in the implementation phase that needs it.

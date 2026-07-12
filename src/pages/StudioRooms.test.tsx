@@ -119,7 +119,8 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   expect(screen.getAllByText("Stage Guest").length).toBeGreaterThanOrEqual(2);
   expect(screen.getAllByText("creator").length).toBeGreaterThan(0);
   expect(screen.getByText("OFF AIR")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Microphone. Media is not connected" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Microphone. Media status unavailable" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Connect media. Media status unavailable" })).toBeEnabled();
 
   fireEvent.click(screen.getByRole("button", { name: "View options" }));
   fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Enter cinematic/i }));

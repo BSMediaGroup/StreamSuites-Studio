@@ -2,6 +2,9 @@
 
 ## CURRENT VER= 0.5.0-alpha / PENDING VER= 0.5.1-alpha
 
+- RealtimeKit Core milestone: installed the official Cloudflare Core/React SDK 2.0.0 packages, added a room-scoped in-memory lifecycle, explicit participant-token provisioning, connect/leave cleanup, truthful media status/error states, and functional local microphone, camera, and screen-share controls while preserving the custom Stage/Backstage workspace and SSE connection.
+- Security and scope: Runtime/Auth remains canonical; no Cloudflare API token or configuration enters Studio, participant tokens are never persisted, hosts cannot force-enable another participant's hardware, and OFF AIR remains unchanged. Remote tile registration, full device preflight, provider Stage/host synchronization, and signed webhooks remain follow-up work; recording/broadcast/LiveKit/Egress were not added.
+
 - Invite-page Auth: replaced the full-page sign-in departure with a focus-trapped responsive sheet that reuses the existing Turnstile, development bypass, password, OAuth, error, and loading implementation. Password auth refreshes in place; OAuth stores only display name, subtitle, supported initials color, and a 15-minute timestamp before returning to the exact invite route. Closing the sheet preserves the form and anonymous join remains available.
 - Guest identity: replaced the initials-color select with keyboard-accessible visual swatches. Guest avatar previews remain temporary object URLs, while canonical responses accept only versioned `https://cdn.streamsuites.app/...` URLs and never render data/local paths.
 - Guest room experience: successful join now navigates to the canonical short-code room workspace. Backstage guests can see the safe Stage plus their horizontal Backstage tile; ordinary guests cannot self-admit but can move themselves Backstage, and authorized cohosts can move themselves both ways.

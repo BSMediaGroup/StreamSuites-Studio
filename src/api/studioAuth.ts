@@ -88,6 +88,46 @@ async function studioRequest(path: string, options: RequestInit = {}): Promise<R
   return payload;
 }
 
+export interface StudioMediaStatus {
+  provider: "cloudflare_realtimekit";
+  enabled: boolean;
+  configured: boolean;
+  meetingProvisioned: boolean;
+  participantMapped: boolean;
+  reasonCode: string;
+}
+
+export interface StudioMediaSession {
+  provider: "cloudflare_realtimekit";
+  authToken: string;
+  participantId: string;
+  customParticipantId: string;
+  runtimeParticipantId: string;
+  runtime: Record<string, unknown>;
+}
+
+export async function loadStudioMediaStatus(roomId: string, signal?: AbortSignal): Promise<StudioMediaStatus> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/media/status`, { signal });
+  const media = isRecord(payload.media) ? payload.media : {};
+  return { provider: "cloudflare_realtimekit", enabled: media.enabled === true, configured: media.configured === true,
+    meetingProvisioned: media.meeting_provisioned === true, participantMapped: media.participant_mapped === true,
+    reasonCode: stringOrNull(media.reason_code) ?? "unavailable" };
+}
+
+export async function createStudioMediaSession(roomId: string, signal?: AbortSignal): Promise<StudioMediaSession> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/media/session`, { method: "POST", signal });
+  const media = isRecord(payload.media_session) ? payload.media_session : {};
+  const token = stringOrNull(media.auth_token), participantId = stringOrNull(media.participant_id);
+  const customId = stringOrNull(media.custom_participant_id), runtimeId = stringOrNull(media.runtime_participant_id);
+  if (!token || !participantId || !customId || !runtimeId) throw new StudioApiError(requestError("invalid_media_session", "Runtime/Auth returned incomplete media initialization data."));
+  return { provider: "cloudflare_realtimekit", authToken: token, participantId, customParticipantId: customId,
+    runtimeParticipantId: runtimeId, runtime: isRecord(media.runtime) ? media.runtime : {} };
+}
+
+export async function leaveStudioMediaSession(roomId: string, signal?: AbortSignal): Promise<void> {
+  await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/media/leave`, { method: "POST", signal });
+}
+
 function numberOr(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }

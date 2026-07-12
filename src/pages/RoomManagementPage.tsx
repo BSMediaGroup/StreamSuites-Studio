@@ -15,6 +15,7 @@ import { usePresentationPreferences } from "../presentation/presentationContext"
 import { GuestRoomWorkspace } from "./GuestRoomWorkspace";
 import exitIcon from "../../assets/icons/ui/backspace.svg";
 import removePersonIcon from "../../assets/icons/ui/personremove.svg";
+import { useStudioMedia } from "../media/useStudioMedia";
 
 type WorkspacePanel = "backstage" | "invites" | "room";
 const layoutLabels: Record<StageLayout, string> = {
@@ -100,6 +101,7 @@ function HostRoomManagementPage() {
   const panelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const goLiveTriggerRef = useRef<HTMLElement | null>(null);
   const { preferences, setCinematic, toggleCinematic } = usePresentationPreferences();
+  const media = useStudioMedia(roomId);
   const cinematic = preferences.cinematic === "on";
   const fullscreenSupported = typeof document !== "undefined" && typeof document.documentElement.requestFullscreen === "function";
   useGlobalActivity(status === "loading" || Boolean(busy) || Boolean(guestBusy), "Loading room authority");
@@ -951,9 +953,10 @@ function HostRoomManagementPage() {
         </div>
 
         <div className="control-dock" aria-label="Production control dock">
-          <ControlButton label="Microphone" helper="Media is not connected" disabled />
-          <ControlButton label="Camera" helper="Media is not connected" disabled />
-          <ControlButton label="Screen share" helper="Media is not connected" disabled />
+          <ControlButton label="Microphone" helper={media.state === "connected" ? (media.audioEnabled ? "Mute microphone" : "Enable microphone") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.audioEnabled} onClick={() => void media.toggleAudio()} />
+          <ControlButton label="Camera" helper={media.state === "connected" ? (media.videoEnabled ? "Turn camera off" : "Enable camera") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.videoEnabled} onClick={() => void media.toggleVideo()} />
+          <ControlButton label="Screen share" helper={media.state === "connected" ? (media.screenEnabled ? "Stop sharing" : "Share a screen") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.screenEnabled} onClick={() => void media.toggleScreen()} />
+          <ControlButton label={media.state === "connected" ? "Disconnect media" : "Connect media"} helper={media.reason} disabled={["provisioning", "connecting"].includes(media.state)} active={media.state === "connected"} onClick={() => void (media.state === "connected" ? media.leave() : media.connect())} />
           <ControlButton
             label="Layout"
             helper={`${layoutLabels[layout]} preview`}
