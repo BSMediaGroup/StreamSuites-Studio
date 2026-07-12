@@ -33,7 +33,14 @@ const oauthProviders: readonly { id: OAuthProvider; label: string; icon: string 
   { id: "twitch", label: "Twitch", icon: twitchIcon },
 ];
 
-export function LoginPage() {
+interface LoginPageProps {
+  readonly embedded?: boolean;
+  readonly returnTo?: string;
+  readonly onAuthenticated?: () => void;
+  readonly onOAuthStart?: () => void;
+}
+
+export function LoginPage({ embedded = false, returnTo, onAuthenticated, onOAuthStart }: LoginPageProps = {}) {
   const { access, authGate, refresh, refreshAuthGate, unlockAuthGate, logout } = useStudioAuth();
   const { theme } = useTheme();
   const [searchParams] = useSearchParams();
@@ -54,13 +61,14 @@ export function LoginPage() {
   useGlobalActivity(submitting || oauthSubmitting || bypassSubmitting, "Completing sign-in");
   const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const returnPath = useMemo(
-    () => safeStudioReturnPath(searchParams.get("return_to")),
-    [searchParams],
+    () => safeStudioReturnPath(returnTo ?? searchParams.get("return_to")),
+    [returnTo, searchParams],
   );
 
   useEffect(() => {
-    if (access.status === "allowed") navigate(returnPath, { replace: true });
-  }, [access.status, navigate, returnPath]);
+    if (embedded && access.account) onAuthenticated?.();
+    else if (!embedded && access.status === "allowed") navigate(returnPath, { replace: true });
+  }, [access.account, access.status, embedded, navigate, onAuthenticated, returnPath]);
 
   const handleTurnstileState = useCallback((next: TurnstileState) => {
     setTurnstile(next);
@@ -116,6 +124,7 @@ export function LoginPage() {
     if (oauthSubmitting || gateBlocked || !challengeReady) return;
     setOauthSubmitting(true);
     setFormError(null);
+    onOAuthStart?.();
     window.location.assign(buildOAuthLoginUrl(provider, returnPath, turnstile.token));
   }
 
@@ -123,8 +132,7 @@ export function LoginPage() {
     if (await logout()) await refresh();
   }
 
-  return (
-    <SiteShell>
+  const content = (
       <section className="centered-page page-width">
         <Card className="access-card">
           <div className="access-card__mark" aria-hidden="true">
@@ -293,6 +301,6 @@ export function LoginPage() {
           )}
         </Card>
       </section>
-    </SiteShell>
   );
+  return embedded ? content : <SiteShell>{content}</SiteShell>;
 }

@@ -5,6 +5,7 @@ import { AuthAccessBanner } from "../AuthAccessBanner";
 import { BrandMark } from "../BrandMark";
 import { ThemeToggle } from "../ThemeToggle";
 import { StatusChip } from "../ui/StatusChip";
+import { StudioFooter } from "../StudioFooter";
 
 interface SiteShellProps {
   readonly children: ReactNode;
@@ -29,11 +30,7 @@ export function SiteShell({ children }: SiteShellProps) {
       <GlobalLoadingBar />
       <AuthAccessBanner />
       <main id="main-content">{children}</main>
-      <footer className="site-footer">
-        <span>StreamSuites Studio</span>
-        <span aria-hidden="true">•</span>
-        <span>Closed access foundation</span>
-      </footer>
+      <StudioFooter />
     </div>
   );
 }

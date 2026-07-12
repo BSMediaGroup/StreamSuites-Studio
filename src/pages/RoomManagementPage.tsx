@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Navigate, useParams } from "react-router-dom";
-import { createStudioInvite, connectStudioEvents, invitePermanentCohost, listStudioInvites, listStudioLobby, loadRoomCohosts, loadStudioRoomContext, revokeStudioInvite, setSessionCohost, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
+import { createStudioInvite, connectStudioEvents, invitePermanentCohost, listStudioInvites, listStudioLobby, loadRoomCohosts, loadStudioRoomContext, moveStudioParticipant, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioAuth } from "../auth/studioAuthContext";
 import { SiteShell } from "../components/shell/SiteShell";
@@ -10,16 +10,18 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
-import type { InvitePolicy, RoomCohosts, RoomConnectionState, RoomInvite, RoomPermissions, RoomSummary, StudioGuest } from "../domain/studio";
+import type { InvitePolicy, RoomCohosts, RoomConnectionState, RoomInvite, RoomPermissions, RoomSummary, StageLayout, StudioGuest } from "../domain/studio";
 import { usePresentationPreferences } from "../presentation/presentationContext";
+import { GuestRoomWorkspace } from "./GuestRoomWorkspace";
+import exitIcon from "../../assets/icons/ui/backspace.svg";
+import removePersonIcon from "../../assets/icons/ui/personremove.svg";
 
 type WorkspacePanel = "backstage" | "invites" | "room";
-type StageLayout = "grid" | "interview" | "spotlight";
-
 const layoutLabels: Record<StageLayout, string> = {
   grid: "Grid",
   interview: "Interview",
   spotlight: "Spotlight",
+  presentation: "Presentation",
 };
 
 function date(value: string | null) {
@@ -58,6 +60,11 @@ function ControlButton({ label, helper, disabled = false, active = false, onClic
 }
 
 export function RoomManagementPage() {
+  const { access } = useStudioAuth();
+  return access.status === "allowed" ? <HostRoomManagementPage /> : <GuestRoomWorkspace />;
+}
+
+function HostRoomManagementPage() {
   const { roomId = "" } = useParams<{ roomId: string }>();
   const { access } = useStudioAuth();
   const [room, setRoom] = useState<RoomSummary | null>(null);
@@ -72,6 +79,7 @@ export function RoomManagementPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [guestBusy, setGuestBusy] = useState("");
+  const [draggedGuestId, setDraggedGuestId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [inviteLabel, setInviteLabel] = useState("");
@@ -110,6 +118,7 @@ export function RoomManagementPage() {
         setCohosts(nextCohosts);
         setTitle(nextRoom.title);
         setDescription(nextRoom.description ?? "");
+        setLayout(nextRoom.presentation.layoutMode);
         if (roomId !== nextRoom.id) window.history.replaceState(null, "", `/studio/rooms/${encodeURIComponent(nextRoom.id)}`);
         setStatus("ready");
       } catch (error) {
@@ -151,8 +160,8 @@ export function RoomManagementPage() {
     return () => window.clearInterval(timer);
   }, [connection, refreshAuthority]);
 
-  const waiting = useMemo(() => guests.filter((guest) => guest.state === "waiting"), [guests]);
-  const admitted = useMemo(() => guests.filter((guest) => guest.state === "admitted"), [guests]);
+  const waiting = useMemo(() => guests.filter((guest) => guest.state === "backstage"), [guests]);
+  const admitted = useMemo(() => guests.filter((guest) => guest.state === "on_stage").sort((a, b) => (a.stagePosition ?? 999) - (b.stagePosition ?? 999)), [guests]);
 
   useEffect(() => {
     const update = () => setFullscreenActive(Boolean(document.fullscreenElement));
@@ -378,6 +387,63 @@ export function RoomManagementPage() {
     }
   }
 
+  async function moveParticipant(guest: StudioGuest, location: "stage" | "backstage") {
+    if (!room || guestBusy) return;
+    setGuestBusy(guest.id); setMessage("");
+    try {
+      await moveStudioParticipant(room.id, guest.id, location);
+      await refreshAuthority(false);
+      setMessage(`${guest.displayName} moved ${location === "stage" ? "onto Stage" : "Backstage"}. No guest session was invalidated.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Participant location could not be changed."); }
+    finally { setGuestBusy(""); }
+  }
+
+  async function mediaIntent(guest: StudioGuest, field: "microphone" | "camera") {
+    if (!room || guestBusy) return;
+    setGuestBusy(guest.id);
+    try {
+      await updateStudioMediaIntent(field === "microphone" ? { roomId: room.id, guestId: guest.id, microphoneMuted: !guest.microphoneMuted } : { roomId: room.id, guestId: guest.id, cameraHidden: !guest.cameraHidden });
+      await refreshAuthority(false);
+      setMessage("Intended participant state updated. No physical media track was changed.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Participant intended state could not be updated."); }
+    finally { setGuestBusy(""); }
+  }
+
+  async function changeLayout(next: StageLayout) {
+    if (!room || busy || next === layout) return;
+    const previous = layout; setLayout(next); setBusy("layout");
+    try { const updated = await updateStudioPresentation(room.id, { layoutMode: next }); setRoom(updated); setAnnouncement(`Stage layout changed to ${layoutLabels[next]}.`); }
+    catch (error) { setLayout(previous); setMessage(error instanceof Error ? error.message : "Stage layout could not be synchronized."); }
+    finally { setBusy(""); }
+  }
+
+  async function moveStageOrder(guestId: string, direction: -1 | 1) {
+    if (!room || guestBusy) return;
+    const ids = admitted.map((guest) => guest.id);
+    const from = ids.indexOf(guestId), to = from + direction;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    const previous = guests; const order = new Map(ids.map((id, index) => [id, index]));
+    setGuests((items) => items.map((item) => order.has(item.id) ? { ...item, stagePosition: order.get(item.id)! } : item));
+    setGuestBusy("stage-order");
+    try { await reorderStudioStage(room.id, ids); await refreshAuthority(false); setAnnouncement(`${admitted[from].displayName} moved ${direction < 0 ? "earlier" : "later"} on Stage.`); }
+    catch (error) { setGuests(previous); setMessage(error instanceof Error ? error.message : "Stage order could not be saved."); }
+    finally { setGuestBusy(""); }
+  }
+
+  async function dropStageOrder(targetId: string) {
+    if (!room || !draggedGuestId || draggedGuestId === targetId || guestBusy) { setDraggedGuestId(""); return; }
+    const ids = admitted.map((guest) => guest.id), from = ids.indexOf(draggedGuestId), to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) { setDraggedGuestId(""); return; }
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    const previous = guests, order = new Map(ids.map((id, index) => [id, index]));
+    setGuests((items) => items.map((item) => order.has(item.id) ? { ...item, stagePosition: order.get(item.id)! } : item));
+    setGuestBusy("stage-order"); setDraggedGuestId("");
+    try { await reorderStudioStage(room.id, ids); await refreshAuthority(false); setAnnouncement("Stage order updated."); }
+    catch (error) { setGuests(previous); setMessage(error instanceof Error ? error.message : "Stage order could not be saved."); }
+    finally { setGuestBusy(""); }
+  }
+
   async function sessionCohost(guest: StudioGuest, enabled: boolean) {
     if (!room || guestBusy) return;
     setGuestBusy(guest.id);
@@ -409,6 +475,22 @@ export function RoomManagementPage() {
     } finally {
       setGuestBusy("");
     }
+  }
+
+  async function changeCohostScope(id: string, scope: "all_rooms" | "selected_rooms") {
+    if (!room || guestBusy) return;
+    setGuestBusy(id);
+    try { await updateCohostScope(id, scope, scope === "selected_rooms" ? [room.id] : []); await refreshAuthority(false); setMessage("Permanent cohost scope updated by Runtime/Auth."); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Cohost scope could not be updated."); }
+    finally { setGuestBusy(""); }
+  }
+
+  async function revokePermanentCohost(id: string) {
+    if (!window.confirm("Revoke this permanent cohost relationship?")) return;
+    setGuestBusy(id);
+    try { await revokeCohostRelationship(id); await refreshAuthority(false); setMessage("Permanent cohost relationship revoked."); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Cohost relationship could not be revoked."); }
+    finally { setGuestBusy(""); }
   }
 
   if (status === "loading") {
@@ -454,11 +536,12 @@ export function RoomManagementPage() {
         <header className="room-status-strip">
           <div className="room-status-strip__identity">
             <ButtonLink to="/studio" variant="quiet">
-              ← Rooms
+              <img className="button-prefix-icon" src={exitIcon} alt="" /> Rooms
             </ButtonLink>
             <div>
-              <p className="eyebrow">Runtime-owned room</p>
+              <p className="eyebrow">ROOM DETAILS</p>
               <h1>{room.title}</h1>
+              <code className="room-id-chip" title="Room ID">{room.id}</code>
               <p>{room.description || "No room description."}</p>
             </div>
           </div>
@@ -475,9 +558,6 @@ export function RoomManagementPage() {
             </span>
             <span className={`connection-state connection-state--${connection.replace(" ", "-")}`}>
               <i aria-hidden="true" /> {connection}
-            </span>
-            <span className="runtime-indicator">
-              <i aria-hidden="true" /> Runtime authority
             </span>
           </div>
           <div className="broadcast-state" aria-label="Broadcast state">
@@ -537,19 +617,20 @@ export function RoomManagementPage() {
           <main className="program-panel">
             <div className="program-panel__toolbar">
               <div>
-                <p className="eyebrow">Program output</p>
-                <strong>Stage</strong>
+                <p className="eyebrow">STAGE OUTPUT</p>
+                <strong className="sr-only">Stage output</strong>
                 <span>Preview only · Media not connected</span>
               </div>
               <div className="layout-picker" ref={layoutRef} role="group" aria-label="Stage layout">
                 {(Object.keys(layoutLabels) as StageLayout[]).map((option) => (
-                  <button key={option} type="button" className={layout === option ? "is-selected" : ""} aria-pressed={layout === option} onClick={() => setLayout(option)}>
+                  <button key={option} type="button" disabled={busy === "layout" || !permissions?.updatePresentation} className={layout === option ? "is-selected" : ""} aria-pressed={layout === option} onClick={() => void changeLayout(option)}>
                     {layoutLabels[option]}
                   </button>
                 ))}
               </div>
             </div>
             <div className={`program-canvas program-canvas--${layout}`} data-testid="program-canvas" data-layout={layout}>
+              {layout === "presentation" && <div className="presentation-source-placeholder">Presentation source not connected</div>}
               <div className="program-safe-area" aria-hidden="true">
                 <span>Safe area</span>
               </div>
@@ -561,14 +642,27 @@ export function RoomManagementPage() {
                 </span>
               </button>
               {visibleAdmitted.map((guest) => (
-                <button type="button" className={`participant-tile ${selectedParticipant === guest.id ? "is-selected" : ""}`} key={guest.id} onClick={() => setSelectedParticipant(guest.id)} aria-pressed={selectedParticipant === guest.id}>
+                <article className={`participant-tile ${selectedParticipant === guest.id ? "is-selected" : ""}`} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => setSelectedParticipant(guest.id)}>
                   {guest.avatarUrl ? <img className="participant-avatar" src={guest.avatarUrl} alt="" crossOrigin="use-credentials" /> : <span className={`participant-avatar guest-avatar--${guest.avatarColor}`}>{initial(guest.displayName)}</span>}
                   <span className="participant-identity">
                     <strong>{guest.displayName}</strong>
                     {room.presentation.showParticipantSubtitles && guest.subtitle && <small>{guest.subtitle}</small>}
-                    <small>On stage · Awaiting media</small>
+                    <small>{guest.microphoneMuted ? "Intended muted" : "Intended unmuted"} · {guest.cameraHidden ? "Camera hidden" : "Camera visible"} · Awaiting media</small>
                   </span>
-                </button>
+                  {permissions?.manageParticipants && <details className="participant-menu" onClick={(event) => event.stopPropagation()}>
+                    <summary aria-label={`Actions for ${guest.displayName}`}>…</summary>
+                    <div role="menu">
+                      <button role="menuitem" type="button" onClick={() => void moveParticipant(guest, "backstage")}>Move backstage</button>
+                      <button role="menuitem" type="button" onClick={() => void mediaIntent(guest, "microphone")}>{guest.microphoneMuted ? "Unmute intent" : "Mute intent"}</button>
+                      <button role="menuitem" type="button" onClick={() => void mediaIntent(guest, "camera")}>{guest.cameraHidden ? "Show camera intent" : "Hide camera intent"}</button>
+                      <button role="menuitem" type="button" disabled={admitted[0]?.id === guest.id} onClick={() => void moveStageOrder(guest.id, -1)}>Move earlier</button>
+                      <button role="menuitem" type="button" disabled={admitted.at(-1)?.id === guest.id} onClick={() => void moveStageOrder(guest.id, 1)}>Move later</button>
+                      <button role="menuitem" type="button" onClick={() => void sessionCohost(guest, !guest.sessionCohost)}>{guest.sessionCohost ? "Revoke session cohost" : "Session / this room only"}</button>
+                      {permissions.managePermanentCohosts && <button role="menuitem" type="button" disabled={guest.pendingPermanentCohost} onClick={() => void permanentCohost(guest)}>Invite permanent cohost</button>}
+                      <button className="is-destructive" role="menuitem" type="button" onClick={() => { if (window.confirm(`Remove ${guest.displayName} from the room?`)) void guestAction(guest, "remove"); }}>Remove from room</button>
+                    </div>
+                  </details>}
+                </article>
               ))}
               {Array.from({ length: emptySlots }, (_, index) => (
                 <div className="participant-tile participant-tile--empty" key={`empty-${index}`}>
@@ -597,6 +691,18 @@ export function RoomManagementPage() {
                 <span>No camera, microphone, screen share, track, or broadcast output is active.</span>
               </div>
             </div>
+            <section className="backstage-tray" aria-labelledby="backstage-tray-heading">
+              <div className="backstage-tray__heading"><h2 id="backstage-tray-heading">Backstage</h2><StatusChip tone={waiting.length ? "pending" : "neutral"}>{waiting.length}</StatusChip></div>
+              {waiting.length ? <div className="backstage-tray__scroll">{waiting.map((guest) => <article className="backstage-tile" key={guest.id}>
+                <GuestAvatar guest={guest} />
+                <div><strong>{guest.displayName}</strong><small>{guest.subtitle || (guest.sessionCohost ? "Session cohost" : "Waiting Backstage")}</small></div>
+                <div className="participant-actions">
+                  <Button disabled={Boolean(guestBusy) || room.onStageGuestCount >= room.maxGuestStageOccupants} onClick={() => void moveParticipant(guest, "stage")}>Move to Stage</Button>
+                  <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "microphone")}>{guest.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button>
+                  <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "camera")}>{guest.cameraHidden ? "Show camera" : "Hide camera"}</Button>
+                </div>
+              </article>)}</div> : <EmptyState title="Backstage is clear"><p>Guests using a valid invite will appear here.</p></EmptyState>}
+            </section>
           </main>
 
           {cinematic && cinematicPanelOpen && <button className="cinematic-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
@@ -615,10 +721,8 @@ export function RoomManagementPage() {
                 <section aria-labelledby="waiting-backstage-heading">
                   <div className="side-panel-heading">
                     <div>
-                      <p className="eyebrow">Waiting lobby</p>
-                      <h2 id="waiting-backstage-heading" ref={backstageHeadingRef} tabIndex={-1}>
-                        Waiting backstage
-                      </h2>
+                      <p className="eyebrow">WAITING BACKSTAGE</p>
+                      <h2 id="waiting-backstage-heading" ref={backstageHeadingRef} tabIndex={-1} className="sr-only">Waiting Backstage</h2>
                     </div>
                     <StatusChip tone={waiting.length ? "pending" : "neutral"}>{waiting.length}</StatusChip>
                   </div>
@@ -640,8 +744,8 @@ export function RoomManagementPage() {
                             {guest.sessionCohost && <StatusChip tone="alpha">Session cohost</StatusChip>}
                           </div>
                           <div className="guest-card__actions">
-                            <Button disabled={Boolean(guestBusy) || room.admittedGuestCount >= room.maxGuestStageOccupants} onClick={() => void guestAction(guest, "admit")}>
-                              {guestBusy === guest.id ? "Working…" : "Admit"}
+                            <Button disabled={Boolean(guestBusy) || room.onStageGuestCount >= room.maxGuestStageOccupants} onClick={() => void moveParticipant(guest, "stage")}>
+                              {guestBusy === guest.id ? "Working…" : "Move to Stage"}
                             </Button>
                             <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void guestAction(guest, "deny")}>
                               Deny
@@ -671,8 +775,8 @@ export function RoomManagementPage() {
                 <section aria-labelledby="on-stage-heading">
                   <div className="side-panel-heading">
                     <div>
-                      <p className="eyebrow">Admitted authority</p>
-                      <h2 id="on-stage-heading">On stage</h2>
+                      <p className="eyebrow">ON STAGE</p>
+                      <h2 id="on-stage-heading" className="sr-only">On Stage</h2>
                     </div>
                     <StatusChip tone="alpha">
                       {admitted.length} / {room.maxGuestStageOccupants}
@@ -694,9 +798,10 @@ export function RoomManagementPage() {
                             {guest.sessionCohost && <StatusChip tone="alpha">Session cohost</StatusChip>}
                           </div>
                           <div className="guest-card__actions">
-                            <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void guestAction(guest, "remove")}>
-                              {guestBusy === guest.id ? "Removing…" : "Remove from stage"}
+                            <Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void moveParticipant(guest, "backstage")}>
+                              <img className="button-prefix-icon" src={removePersonIcon} alt="" /> {guestBusy === guest.id ? "Moving…" : "Remove from stage"}
                             </Button>
+                            <Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => { if (window.confirm(`Remove ${guest.displayName} from the room?`)) void guestAction(guest, "remove"); }}>Remove from room</Button>
                             {permissions?.endRoom && (
                               <Button variant="secondary" disabled={Boolean(guestBusy)} onClick={() => void sessionCohost(guest, !guest.sessionCohost)}>
                                 {guest.sessionCohost ? "Revoke cohost" : "Session cohost"}
@@ -711,8 +816,8 @@ export function RoomManagementPage() {
                 <section aria-labelledby="cohosts-heading">
                   <div className="side-panel-heading">
                     <div>
-                      <p className="eyebrow">Scoped authority</p>
-                      <h2 id="cohosts-heading">Cohosts</h2>
+                      <p className="eyebrow">CO-HOSTS</p>
+                      <h2 id="cohosts-heading" className="sr-only">Co-hosts</h2>
                     </div>
                   </div>
                   <div className="cohost-list">
@@ -724,6 +829,7 @@ export function RoomManagementPage() {
                       <article key={guest.id}>
                         <strong>{guest.displayName}</strong>
                         <span>Session cohost · this room</span>
+                        {permissions?.endRoom && <Button variant="quiet" onClick={() => void sessionCohost(guest, false)}>Revoke session access</Button>}
                       </article>
                     ))}
                     {cohosts?.permanent.map((relationship) => (
@@ -732,6 +838,7 @@ export function RoomManagementPage() {
                         <span>
                           {relationship.status} · {relationship.scopeType === "all_rooms" ? "All rooms" : `${relationship.roomIds.length} selected room${relationship.roomIds.length === 1 ? "" : "s"}`}
                         </span>
+                        {permissions?.managePermanentCohosts && relationship.status === "accepted" && <div className="cohost-scope-actions"><Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void changeCohostScope(relationship.id, relationship.scopeType === "all_rooms" ? "selected_rooms" : "all_rooms")}>{relationship.scopeType === "all_rooms" ? "Limit to this room" : "All current/future rooms"}</Button><Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void revokePermanentCohost(relationship.id)}>Revoke permanent relationship</Button></div>}
                       </article>
                     ))}
                   </div>

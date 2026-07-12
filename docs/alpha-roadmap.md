@@ -33,11 +33,11 @@ No self-service application, room, guest invite, or media behavior was delivered
 - retain internal UUIDs while publishing immutable eight-character room codes and stable nine-character HMAC-derived invite codes with temporary UUID-route compatibility
 - support single-use, capped, and open invitations with transactional entrant counts, authorized re-copy, default 24-hour expiry, optional no-expiry, exhaustion, revocation, and rate-limited entry
 - create separate temporary room-scoped guest sessions without replacing the shared account cookie
-- persist waiting/admitted/denied/removed/left/expired lobby state and expose guest-self plus owner/admin management APIs
-- enforce a transactional maximum of nine admitted guest stage occupants while keeping the host/director and waiting lobby outside that cap
+- persist canonical backstage/on_stage/denied/removed/left/expired participant location, repeatably migrate legacy waiting/admitted rows, and expose permission-aware guest-self plus director/cohost management APIs
+- enforce a transactional maximum of nine on-stage guest occupants while keeping the host/director and Backstage outside that cap; ordinary guests can self-Backstage but cannot self-admit, while cohosts can move themselves both ways
 - ship the room dashboard, protected management workspace, and real join/lobby UI without claiming media connectivity
 - persist monotonic safe room events and expose credentialed host/cohost and guest-isolated SSE with replay, heartbeat, reconnect, and disconnected-only fallback polling
-- support normalized guest display names, optional subtitles, initials colors, safe room-only raster fallback avatars, and a room-owned subtitle visibility setting
+- support normalized guest display names, optional subtitles, visual initials colors, CDN-backed room-only WebP fallback avatars, intended microphone/camera state, persistent Stage order, and Runtime-owned Grid/Interview/Spotlight/Presentation state
 - support room-session cohosts plus authenticated permanent cohost invitation/acceptance/decline/revoke with all-room and selected-room scope
 
 No camera, microphone, screen sharing, media track, broadcast output, or recording was delivered by this phase.
@@ -45,15 +45,16 @@ No camera, microphone, screen sharing, media track, broadcast output, or recordi
 ## 4. Pre-media stage and production controls — complete
 
 - present existing rooms with a primary Enter room action while ended rooms remain visibly unavailable
-- render a responsive 16:9 Stage/Program preview with confirmed host and admitted-guest identities, meaningful empty positions, safe-area guides, and explicit awaiting-media treatment
-- separate Waiting backstage from On stage, with Runtime-backed admit, deny, remove, capacity-conflict, refresh, and pending states
+- render a responsive Stage output with confirmed host/on-stage identities, a Presentation placeholder, meaningful empty positions, safe-area guides, and explicit awaiting-media treatment
+- show a horizontal Backstage tray below Stage plus distinct right-side management, with Runtime-backed Stage/Backstage moves, deny/kick distinction, intended mic/camera controls, capacity conflicts, and pending states
 - integrate policy-controlled reusable invite links, revocation/exhaustion, confirmed room/presentation settings, scoped cohost controls, and lifecycle controls into the room workspace
 - surface live connection state, immediate Backstage arrivals/profile/status updates, accessible announcements, waiting/on-stage/cohost sections, and account-optional guest identity editing
-- provide local-only Grid, Interview, and Spotlight placeholder layouts without claiming they are broadcast
+- synchronize Grid, Interview, Spotlight, and Presentation layouts plus drag/keyboard Stage order without claiming screen sharing or broadcast output
 - orient future production work with a control dock, truthful `OFF AIR` state, inactive timer, unavailable media controls, and explanatory Go live dialog
 - validate keyboard-accessible controls, mobile stacking, light/dark themes, and reduced-motion behavior while keeping local interaction state separate from authoritative Runtime/Auth room state
 - ship expanded/compact/hidden desktop navigation plus standard/slim/auto-hide headers through one validated presentation-only preference provider, while preserving the mobile drawer
 - provide a room-scoped cinematic Stage mode, waiting-count-aware Backstage drawer using the existing authoritative state/actions, compact truthful production dock, `F` shortcut, focus/Escape recovery, and optional `fullscreenchange`-confirmed browser fullscreen
+- preserve invite drafts through the embedded Auth sheet/OAuth return, route joined guests into the canonical room workspace, provide permission-aware participant menus and dedicated cohost scope/revoke management, and align Room ID/account badge/sidebar/footer shell details with established surfaces
 
 No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime connection, recording, or broadcast output was delivered by this phase. Cloudflare Realtime remains the next media milestone.
 

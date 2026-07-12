@@ -275,7 +275,7 @@ describe("Studio Runtime/Auth adapter", () => {
       guest: { id: "guest-1", room_id: "room-1", display_name: "Guest", account_id: null, state: "waiting", created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", expires_at: "2026-07-11T12:00:00Z", admitted_at: null, denied_at: null, removed_at: null, left_at: null },
     }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(joinStudioInvite("invite-code", "Guest")).resolves.toMatchObject({ id: "guest-1", state: "waiting" });
+    await expect(joinStudioInvite("invite-code", "Guest")).resolves.toMatchObject({ id: "guest-1", state: "backstage" });
     const request = fetchMock.mock.calls[0][1] as RequestInit;
     expect(request.credentials).toBe("include");
     expect(JSON.parse(String(request.body))).toEqual({ invite_code: "invite-code", display_name: "Guest" });

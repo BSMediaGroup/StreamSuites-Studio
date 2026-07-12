@@ -9,8 +9,19 @@ import { Button } from "../ui/Button";
 import { StatusChip } from "../ui/StatusChip";
 import { ViewOptionsMenu } from "../ViewOptionsMenu";
 import { usePresentationPreferences } from "../../presentation/presentationContext";
+import { StudioFooter } from "../StudioFooter";
+import studioIcon from "../../../assets/icons/ui/tvlive.svg";
+import brandIcon from "../../../assets/icons/ui/starform.svg";
+import mediaIcon from "../../../assets/icons/ui/media.svg";
+import destinationsIcon from "../../../assets/icons/ui/sharelinks.svg";
+import settingsIcon from "../../../assets/icons/ui/settingsquare.svg";
 
-const futureNavigation = ["Brand", "Media", "Destinations", "Settings"];
+const futureNavigation = [
+  { label: "Brand", icon: brandIcon },
+  { label: "Media", icon: mediaIcon },
+  { label: "Destinations", icon: destinationsIcon },
+  { label: "Settings", icon: settingsIcon },
+];
 
 interface StudioShellProps {
   readonly children: ReactNode;
@@ -87,12 +98,12 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
       <aside id="studio-sidebar" className="studio-sidebar" aria-label="Studio workspace">
         <nav>
           <Link className="studio-nav-link studio-nav-link--active" to="/studio" title="Studio" aria-label="Studio">
-            <span aria-hidden="true">◉</span>
+            <img src={studioIcon} alt="" aria-hidden="true" />
             <span className="studio-nav-link__label">Studio</span>
           </Link>
-          {futureNavigation.map((label) => (
+          {futureNavigation.map(({ label, icon }) => (
             <button key={label} className="studio-nav-link" type="button" disabled title={`${label} (Later)`} aria-label={`${label}, unavailable, later`}>
-              <span aria-hidden="true">○</span>
+              <img src={icon} alt="" aria-hidden="true" />
               <span className="studio-nav-link__label">{label}</span>
               <span className="studio-nav-link__future">Later</span>
             </button>
@@ -111,6 +122,7 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
       <main id="main-content" className="studio-main">
         {children}
       </main>
+      <StudioFooter />
     </div>
   );
 }

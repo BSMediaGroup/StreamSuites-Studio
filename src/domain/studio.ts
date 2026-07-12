@@ -45,6 +45,8 @@ export interface RoomSummary {
   readonly maxGuestStageOccupants: number;
   readonly waitingGuestCount: number;
   readonly admittedGuestCount: number;
+  readonly backstageGuestCount: number;
+  readonly onStageGuestCount: number;
   readonly presentation: RoomPresentation;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -54,7 +56,12 @@ export interface RoomSummary {
 
 export interface RoomPresentation {
   readonly showParticipantSubtitles: boolean;
+  readonly layoutMode: StageLayout;
+  readonly spotlightGuestId: string | null;
+  readonly presentationGuestId: string | null;
 }
+
+export type StageLayout = "grid" | "interview" | "spotlight" | "presentation";
 
 export interface RoomPermissions {
   readonly owner: boolean;
@@ -63,6 +70,11 @@ export interface RoomPermissions {
   readonly permanentCohost: boolean;
   readonly pendingPermanentCohost: boolean;
   readonly manageBackstage: boolean;
+  readonly manageParticipants: boolean;
+  readonly reorderStage: boolean;
+  readonly updateMediaIntent: boolean;
+  readonly selfBackstage: boolean;
+  readonly selfStage: boolean;
   readonly manageInvites: boolean;
   readonly updateRoom: boolean;
   readonly updatePresentation: boolean;
@@ -100,7 +112,7 @@ export interface InviteValidation {
   } | null;
 }
 
-export type GuestLobbyState = "waiting" | "admitted" | "denied" | "removed" | "left" | "expired";
+export type GuestLobbyState = "backstage" | "on_stage" | "denied" | "removed" | "left" | "expired";
 
 export interface StudioGuest {
   readonly id: string;
@@ -114,6 +126,9 @@ export interface StudioGuest {
   readonly pendingPermanentCohost: boolean;
   readonly accountId: string | null;
   readonly state: GuestLobbyState;
+  readonly microphoneMuted: boolean;
+  readonly cameraHidden: boolean;
+  readonly stagePosition: number | null;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly expiresAt: string;
@@ -122,6 +137,13 @@ export interface StudioGuest {
   readonly removedAt: string | null;
   readonly leftAt: string | null;
   readonly room?: InviteValidation["room"];
+}
+
+export interface GuestRoomView {
+  readonly room: NonNullable<StudioGuest["room"]> & { readonly presentation: RoomPresentation };
+  readonly self: StudioGuest;
+  readonly stage: readonly StudioGuest[];
+  readonly permissions: RoomPermissions;
 }
 
 export type RoomConnectionState = "live" | "reconnecting" | "fallback polling" | "unavailable";

@@ -27,12 +27,14 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, safe count states, and an Enter-room-first card presentation
 - protected `/studio/rooms/:roomId` pre-media production workspace with canonical short-code URLs, a 16:9 Stage/Program canvas, responsive real-time Backstage waiting/on-stage/cohost panels, policy-controlled reusable invites, room settings, lifecycle controls, and a production control dock
 - route-scoped cinematic room mode with a stage-first canvas, compact truthful production state, waiting/on-stage badges, the existing authoritative Backstage/tools panel as a focus-managed drawer, obvious exit controls, and optional event-confirmed browser fullscreen
-- local presentation-only Grid, Interview, and Spotlight layouts that rearrange placeholders without persisting or broadcasting layout state
+- Runtime-owned Grid, Interview, Spotlight, and Presentation layouts synchronized for authorized clients; Presentation truthfully shows `Presentation source not connected` until screen-share media exists
 - truthful `OFF AIR` orientation with an inactive `00:00:00` timer and explanatory Go live dialog; camera, microphone, screen share, and live output controls remain explicitly unavailable
 - credentialed room and guest SSE with live/reconnecting/fallback-polling/unavailable status, burst-coalesced authoritative refetch, bounded polling only while disconnected, and manual refresh as secondary recovery
-- real `/join/:inviteCode` validation with optional account sign-in, display name, subtitle, initials color, validated raster fallback avatar, waiting/admitted/denied/removed/left/expired states, live updates, profile editing, and leave flow
+- real `/join/:inviteCode` validation with an in-page reusable login sheet, bounded safe OAuth draft restoration, account-optional joining, visual keyboard-accessible initials colors, validated CDN-backed fallback avatar, and canonical Backstage/On Stage states
+- guest room workspace showing the real safe Stage while the caller waits Backstage, a horizontal Backstage tray, permission-aware participant menus, self/cohost transitions, intended mic/camera state, drag and keyboard Stage ordering, and distinct move-Backstage versus remove-from-room actions
 - single-use, capped, and open invite controls with 24-hour default expiry or no-expiry, use/status summaries, and securely regenerable canonical copy links; no invite code, guest credential, avatar binary, or cohost authority is stored in browser storage
-- runtime-scoped session cohost controls plus permanent cohost invitations, same-guest-session account binding after anonymous sign-in, authenticated acceptance/decline, and all-room or selected-room scope summaries
+- dedicated cohost management for the director, session cohosts, pending/accepted/declined/revoked permanent relationships, authenticated acceptance/decline, revoke actions, and all-current/future versus selected-room scope changes
+- canonical Room ID chips, exact Stage/Backstage/Co-host label cleanup, committed sidebar SVG icons, avatar/name/role/tier account-chip parity, and a slim Runtime version/health footer across public and authenticated shells
 - confirmed typed boundaries for Runtime/Auth sessions, Studio access, rooms, invites, lobby entries, guest self-state, media direction, and runtime-version view models
 - focused tests for auth/access normalization, safe return paths, no authorized-shell flash, theme and presentation preference validation/persistence, shell modes, auto-hide behavior, cinematic/SSE continuity, fullscreen state/rejection, invite-code safety, and runtime-version parsing
 - architecture and phased ALPHA roadmap documentation
@@ -44,8 +46,8 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 | `/` | Closed-ALPHA product and access overview. |
 | `/login` | Uses the existing Turnstile-protected StreamSuites OAuth or email/password login, then checks runtime-owned Studio access. |
 | `/studio` | Fails closed until session/access are confirmed; admins and eligible creators create rooms and use the primary Enter room flow while public accounts receive truthful invite-participation guidance. |
-| `/studio/rooms/:roomId` | Protected director/cohost pre-media Stage/Program, live Backstage, invite-policy, presentation, lifecycle, and room-settings workspace. UUID routes are accepted temporarily and replaced with the canonical short-code URL. |
-| `/join/:inviteCode` | Validates the short code through Runtime/Auth in a POST body and provides account-optional guest identity/lobby flow with live guest-state updates. |
+| `/studio/rooms/:roomId` | Canonical short-code room workspace: director/cohost management when authorized, otherwise the caller's guest-safe Stage/Backstage experience. UUID host routes remain temporarily accepted and are replaced with the short code. |
+| `/join/:inviteCode` | Validates the short code through Runtime/Auth, preserves the invitation while embedded Auth runs, restores safe OAuth draft fields, and joins anonymously or signed in before navigating to the room. |
 | `*` | Not-found surface. |
 
 ## Not implemented
@@ -56,7 +58,7 @@ The following are explicitly not shipped:
 - camera, microphone, screen share, WebRTC, TURN, or SFU behavior
 - Cloudflare Realtime credentials or media integration
 - LiveKit, Egress, recording, RTMP, or provider destination integration
-- active participants, chat, alerts, clips, polls, games, automation, or analytics
+- real audio/video tracks, chat, alerts, clips, polls, games, automation, or analytics
 - an OBS program-output route or server-side broadcast output
 - deployment, DNS, Pages project, or account-specific Cloudflare configuration
 
@@ -108,13 +110,13 @@ Invite codes are sent to Runtime/Auth only in JSON POST bodies. Authorized invit
 
 The Runtime/Auth repository owns the persistent grant table and admin management endpoints. Admin accounts do not consume tester slots. Creator, developer, and public accounts keep their existing classifications and require an enabled grant. Access is re-evaluated server-side; unavailable Runtime/Auth is shown as unavailable rather than denied.
 
-The canonical runtime version is defined by `StreamSuites/runtime/version.py` and exported through `StreamSuites/runtime/exports/version.json`. This package uses `0.0.0` only as private npm metadata; it is not a Studio product version. The UI shows the ALPHA stage only. Numeric version hydration is pending confirmation of the deployed Studio-safe publication/CORS path for the existing runtime export contract.
+The canonical runtime version is defined by `StreamSuites/runtime/version.py` and exported through `StreamSuites/runtime/exports/version.json`. This package uses `0.0.0` only as private npm metadata; it is not a Studio product version. The slim footer hydrates the configured Runtime export and checks the established Auth health route once per shell mount, distinguishing loading, online, and degraded/unavailable state without aggressive polling.
 
 See [System architecture](docs/system-architecture.md) for the complete boundary diagram.
 
 ## Media direction
 
-The current Stage/Program, Backstage, layouts, and control dock are pre-media UI only. The intended next ALPHA media path is browser-to-browser media through Cloudflare Realtime SFU/TURN. The planned production migration is self-hosted LiveKit plus Egress. Neither media path is implemented here.
+The current Stage, Backstage tray, participant menus, ordering, layout, and intended microphone/camera controls are authoritative room-control UI but remain pre-media. The intended next ALPHA media path is browser-to-browser media through Cloudflare Realtime SFU/TURN. The planned production migration is self-hosted LiveKit plus Egress. Neither media path is implemented here.
 
 The Python runtime/Auth API will orchestrate rooms, permissions, invitations, access, and token minting, but audio and video must bypass the Python runtime. During early ALPHA, final output is expected to use an OBS-capturable program view before server-side egress exists.
 
@@ -179,6 +181,8 @@ StreamSuites-Studio/
 │   │   ├── AuthAccessBanner.tsx
 │   │   ├── StudioAccountMenu.test.tsx
 │   │   ├── StudioAccountMenu.tsx
+│   │   ├── InitialsColorPicker.tsx
+│   │   ├── StudioFooter.tsx
 │   │   ├── ViewOptionsMenu.tsx
 │   │   ├── TurnstileWidget.test.tsx
 │   │   ├── TurnstileWidget.tsx
@@ -203,6 +207,7 @@ StreamSuites-Studio/
 │   │   └── inviteCode.ts
 │   ├── pages/
 │   │   ├── JoinPage.tsx
+│   │   ├── GuestRoomWorkspace.tsx
 │   │   ├── LandingPage.tsx
 │   │   ├── LoginPage.test.tsx
 │   │   ├── LoginPage.tsx

@@ -1,5 +1,5 @@
 import { publicStudioConfig } from "../config/env";
-import type { GuestLobbyState, InviteValidation, RoomInvite, RoomLifecycle, RoomSummary, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
+import type { GuestLobbyState, GuestRoomView, InviteValidation, RoomInvite, RoomLifecycle, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
 
 const ACCOUNT_TYPES = new Set<StreamSuitesAccountType>(["admin", "creator", "developer", "public"]);
@@ -96,6 +96,10 @@ function roomLifecycle(value: unknown): RoomLifecycle {
   return value === "open" || value === "closed" || value === "ended" ? value : "draft";
 }
 
+function stageLayout(value: unknown): StageLayout {
+  return value === "interview" || value === "spotlight" || value === "presentation" ? value : "grid";
+}
+
 function normalizeRoom(value: unknown): RoomSummary {
   if (!isRecord(value)) throw new StudioApiError(requestError("invalid_room_response", "Runtime/Auth returned invalid room data."));
   const id = stringOrNull(value.id);
@@ -115,8 +119,13 @@ function normalizeRoom(value: unknown): RoomSummary {
     maxGuestStageOccupants: numberOr(value.max_guest_stage_occupants, 9),
     waitingGuestCount: numberOr(value.waiting_guest_count),
     admittedGuestCount: numberOr(value.admitted_guest_count),
+    backstageGuestCount: numberOr(value.backstage_guest_count, numberOr(value.waiting_guest_count)),
+    onStageGuestCount: numberOr(value.on_stage_guest_count, numberOr(value.admitted_guest_count)),
     presentation: {
       showParticipantSubtitles: !isRecord(value.presentation) || value.presentation.show_participant_subtitles !== false,
+      layoutMode: stageLayout(isRecord(value.presentation) ? value.presentation.layout_mode : null),
+      spotlightGuestId: isRecord(value.presentation) ? stringOrNull(value.presentation.spotlight_guest_id) : null,
+      presentationGuestId: isRecord(value.presentation) ? stringOrNull(value.presentation.presentation_guest_id) : null,
     },
     createdAt,
     updatedAt,
@@ -156,7 +165,8 @@ function normalizeGuest(value: unknown): StudioGuest {
   const id = stringOrNull(value.id);
   const roomId = stringOrNull(value.room_id);
   const displayName = stringOrNull(value.display_name);
-  const state = stringOrNull(value.state) as GuestLobbyState | null;
+  const rawState = stringOrNull(value.state);
+  const state = (rawState === "waiting" ? "backstage" : rawState === "admitted" ? "on_stage" : rawState) as GuestLobbyState | null;
   const createdAt = stringOrNull(value.created_at);
   const updatedAt = stringOrNull(value.updated_at);
   const expiresAt = stringOrNull(value.expires_at);
@@ -167,6 +177,12 @@ function normalizeGuest(value: unknown): StudioGuest {
         title: stringOrNull(value.room.title) ?? "Studio room",
         description: stringOrNull(value.room.description),
         lifecycleState: roomLifecycle(value.room.lifecycle_state),
+        presentation: {
+          showParticipantSubtitles: !isRecord(value.room.presentation) || value.room.presentation.show_participant_subtitles !== false,
+          layoutMode: stageLayout(isRecord(value.room.presentation) ? value.room.presentation.layout_mode : null),
+          spotlightGuestId: isRecord(value.room.presentation) ? stringOrNull(value.room.presentation.spotlight_guest_id) : null,
+          presentationGuestId: isRecord(value.room.presentation) ? stringOrNull(value.room.presentation.presentation_guest_id) : null,
+        },
       }
     : undefined;
   const rawAvatarUrl = stringOrNull(value.avatar_url);
@@ -182,6 +198,9 @@ function normalizeGuest(value: unknown): StudioGuest {
     pendingPermanentCohost: value.pending_permanent_cohost === true,
     accountId: stringOrNull(value.account_id),
     state,
+    microphoneMuted: value.microphone_muted === true,
+    cameraHidden: value.camera_hidden === true,
+    stagePosition: typeof value.stage_position === "number" ? value.stage_position : null,
     createdAt,
     updatedAt,
     expiresAt,
@@ -213,6 +232,11 @@ function normalizePermissions(value: unknown): RoomPermissions {
     permanentCohost: item.permanent_cohost === true,
     pendingPermanentCohost: item.pending_permanent_cohost === true,
     manageBackstage: item.manage_backstage === true,
+    manageParticipants: item.manage_participants === true || item.manage_backstage === true,
+    reorderStage: item.reorder_stage === true,
+    updateMediaIntent: item.update_media_intent === true,
+    selfBackstage: item.self_backstage === true,
+    selfStage: item.self_stage === true,
     manageInvites: item.manage_invites === true,
     updateRoom: item.update_room === true,
     updatePresentation: item.update_presentation === true,
@@ -403,6 +427,32 @@ export async function loadStudioGuestSession(signal?: AbortSignal): Promise<Stud
   return normalizeGuest((await studioRequest("/api/studio/guest/session", { signal })).guest);
 }
 
+export async function loadStudioGuestRoomView(signal?: AbortSignal): Promise<GuestRoomView> {
+  const payload = await studioRequest("/api/studio/guest/session", { signal });
+  const view = payload.room_view;
+  if (!isRecord(view) || !isRecord(view.room) || !Array.isArray(view.stage)) {
+    throw new StudioApiError(requestError("invalid_guest_room_response", "Runtime/Auth returned an invalid guest room view."));
+  }
+  const self = normalizeGuest(view.self ?? payload.guest);
+  return {
+    room: {
+      id: stringOrNull(view.room.id) ?? self.roomId,
+      title: stringOrNull(view.room.title) ?? "Studio room",
+      description: stringOrNull(view.room.description),
+      lifecycleState: roomLifecycle(view.room.lifecycle_state),
+      presentation: {
+        showParticipantSubtitles: !isRecord(view.room.presentation) || view.room.presentation.show_participant_subtitles !== false,
+        layoutMode: stageLayout(isRecord(view.room.presentation) ? view.room.presentation.layout_mode : null),
+        spotlightGuestId: isRecord(view.room.presentation) ? stringOrNull(view.room.presentation.spotlight_guest_id) : null,
+        presentationGuestId: isRecord(view.room.presentation) ? stringOrNull(view.room.presentation.presentation_guest_id) : null,
+      },
+    },
+    self,
+    stage: view.stage.map(normalizeGuest),
+    permissions: normalizePermissions(view.permissions),
+  };
+}
+
 export async function leaveStudioGuestSession(signal?: AbortSignal): Promise<StudioGuest> {
   return normalizeGuest((await studioRequest("/api/studio/guest/leave", { method: "POST", signal })).guest);
 }
@@ -416,12 +466,41 @@ export async function transitionStudioGuest(roomId: string, guestId: string, act
   return normalizeGuest((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/lobby/${encodeURIComponent(guestId)}/${action}`, { method: "POST", signal })).guest);
 }
 
-export async function updateStudioPresentation(roomId: string, showParticipantSubtitles: boolean, signal?: AbortSignal): Promise<RoomSummary> {
+export async function moveStudioParticipant(roomId: string, guestId: string, location: "stage" | "backstage", signal?: AbortSignal): Promise<StudioGuest> {
+  return normalizeGuest((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/participants/${encodeURIComponent(guestId)}/${location}`, { method: "POST", signal })).guest);
+}
+
+export async function moveStudioGuestSelf(location: "stage" | "backstage", signal?: AbortSignal): Promise<StudioGuest> {
+  return normalizeGuest((await studioRequest(`/api/studio/guest/${location}`, { method: "POST", signal })).guest);
+}
+
+export async function updateStudioMediaIntent(input: { roomId?: string; guestId?: string; microphoneMuted?: boolean; cameraHidden?: boolean }, signal?: AbortSignal): Promise<StudioGuest> {
+  const path = input.roomId && input.guestId
+    ? `/api/studio/rooms/${encodeURIComponent(input.roomId)}/participants/${encodeURIComponent(input.guestId)}/media-intent`
+    : "/api/studio/guest/media-intent";
+  return normalizeGuest((await studioRequest(path, { method: "PATCH", body: body({
+    ...(input.microphoneMuted === undefined ? {} : { microphone_muted: input.microphoneMuted }),
+    ...(input.cameraHidden === undefined ? {} : { camera_hidden: input.cameraHidden }),
+  }), signal })).guest);
+}
+
+export async function reorderStudioStage(roomId: string, guestIds: readonly string[], signal?: AbortSignal): Promise<StudioGuest[]> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/stage/order`, { method: "PATCH", body: body({ guest_ids: guestIds }), signal });
+  return Array.isArray(payload.items) ? payload.items.map(normalizeGuest) : [];
+}
+
+export async function updateStudioPresentation(roomId: string, input: boolean | { showParticipantSubtitles?: boolean; layoutMode?: StageLayout; spotlightGuestId?: string | null; presentationGuestId?: string | null }, signal?: AbortSignal): Promise<RoomSummary> {
+  const normalized = typeof input === "boolean" ? { showParticipantSubtitles: input } : input;
   return normalizeRoom(
     (
       await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation`, {
         method: "PATCH",
-        body: body({ show_participant_subtitles: showParticipantSubtitles }),
+        body: body({
+          ...(normalized.showParticipantSubtitles === undefined ? {} : { show_participant_subtitles: normalized.showParticipantSubtitles }),
+          ...(normalized.layoutMode === undefined ? {} : { layout_mode: normalized.layoutMode }),
+          ...(normalized.spotlightGuestId === undefined ? {} : { spotlight_guest_id: normalized.spotlightGuestId }),
+          ...(normalized.presentationGuestId === undefined ? {} : { presentation_guest_id: normalized.presentationGuestId }),
+        }),
         signal,
       })
     ).room,
@@ -509,7 +588,7 @@ export function connectStudioEvents(options: { roomId?: string; guest?: boolean;
   let source: EventSource | null = null;
   let reconnects = 0;
   let timer = 0;
-  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "guest.waiting", "guest.profile_updated", "guest.admitted", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated", "presentation.updated"];
+  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
   const open = () => {
     if (closed) return;
     options.onState(reconnects ? "reconnecting" : "unavailable");

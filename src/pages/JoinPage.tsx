@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { connectStudioEvents, joinStudioInvite, leaveStudioGuestSession, listCohostRelationships, loadStudioGuestSession, removeStudioGuestAvatar, respondCohostInvitation, StudioApiError, updateStudioGuestProfile, uploadStudioGuestAvatar, validateStudioInvite } from "../api/studioAuth";
 import { SiteShell } from "../components/shell/SiteShell";
 import { Button, ButtonLink } from "../components/ui/Button";
@@ -9,6 +9,12 @@ import { StatusChip } from "../components/ui/StatusChip";
 import type { CohostRelationship, InviteValidation, RoomConnectionState, StudioGuest } from "../domain/studio";
 import { checkInviteCode } from "../lib/inviteCode";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
+import { useStudioAuth } from "../auth/studioAuthContext";
+import { InitialsColorPicker } from "../components/InitialsColorPicker";
+import { LoginPage } from "./LoginPage";
+
+const INVITE_DRAFT_KEY = "streamsuites.studio.invite-draft.v1";
+const INVITE_DRAFT_MAX_AGE_MS = 15 * 60 * 1000;
 
 type PageState = "validating" | "valid" | "invalid" | "revoked" | "expired" | "exhausted" | "closed" | "ended" | "session_expired" | "unavailable" | "joining" | "guest";
 
@@ -74,6 +80,8 @@ const copy: Record<Exclude<PageState, "valid" | "joining" | "guest">, { chip: st
 export function JoinPage() {
   const { inviteCode } = useParams<{ inviteCode: string }>();
   const checked = checkInviteCode(inviteCode);
+  const navigate = useNavigate();
+  const { refresh } = useStudioAuth();
   const [state, setState] = useState<PageState>(checked.isSafeFormat ? "validating" : "invalid");
   const [validation, setValidation] = useState<InviteValidation | null>(null);
   const [guest, setGuest] = useState<StudioGuest | null>(null);
@@ -86,8 +94,48 @@ export function JoinPage() {
   const [cohostInvitations, setCohostInvitations] = useState<CohostRelationship[]>([]);
   const [message, setMessage] = useState("");
   const [guestBusy, setGuestBusy] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
   useGlobalActivity(state === "validating" || state === "joining" || guestBusy, "Resolving guest access");
   const profileHeadingRef = useRef<HTMLHeadingElement>(null);
+  const loginTriggerRef = useRef<HTMLButtonElement>(null);
+  const loginDialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(INVITE_DRAFT_KEY);
+      sessionStorage.removeItem(INVITE_DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof draft.savedAt !== "number" || Date.now() - draft.savedAt > INVITE_DRAFT_MAX_AGE_MS) return;
+      if (typeof draft.displayName === "string") setDisplayName(draft.displayName.slice(0, 60));
+      if (typeof draft.subtitle === "string") setSubtitle(draft.subtitle.slice(0, 100));
+      if (typeof draft.avatarColor === "string" && ["blue", "violet", "teal", "amber", "rose", "slate"].includes(draft.avatarColor)) setAvatarColor(draft.avatarColor);
+    } catch {
+      sessionStorage.removeItem(INVITE_DRAFT_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loginOpen) return;
+    const dialog = loginDialogRef.current;
+    const trigger = loginTriggerRef.current;
+    window.setTimeout(() => dialog?.querySelector<HTMLElement>('input,button')?.focus(), 0);
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setLoginOpen(false); return; }
+      if (event.key !== "Tab") return;
+      const items = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])') ?? []);
+      if (!items.length) return;
+      const first = items[0], last = items.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", key, true);
+    return () => { document.removeEventListener("keydown", key, true); window.setTimeout(() => trigger?.focus(), 0); };
+  }, [loginOpen]);
+
+  function persistOAuthDraft() {
+    sessionStorage.setItem(INVITE_DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), displayName: displayName.slice(0, 60), subtitle: subtitle.slice(0, 100), avatarColor }));
+  }
 
   const validate = useCallback(async () => {
     if (!checked.isSafeFormat) {
@@ -124,6 +172,7 @@ export function JoinPage() {
       if (avatarFile) joined = await uploadStudioGuestAvatar(avatarFile);
       setGuest(joined);
       setState("guest");
+      navigate(`/studio/rooms/${encodeURIComponent(joined.roomId)}`, { replace: true });
     } catch (error) {
       setState(stateForError(error));
       setMessage(error instanceof Error ? error.message : "Guest entry failed.");
@@ -133,7 +182,7 @@ export function JoinPage() {
   const liveGuestId = guest?.id;
   const liveGuestState = guest?.state;
   useEffect(() => {
-    if (state !== "guest" || !liveGuestId || !liveGuestState || !["waiting", "admitted"].includes(liveGuestState)) return;
+    if (state !== "guest" || !liveGuestId || !liveGuestState || !["backstage", "on_stage"].includes(liveGuestState)) return;
     const handle = connectStudioEvents({
       guest: true,
       onState: setConnection,
@@ -234,10 +283,22 @@ export function JoinPage() {
     }
   }
 
+  const embeddedLogin = loginOpen ? (
+    <div className="auth-sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setLoginOpen(false); }}>
+      <div ref={loginDialogRef} className="auth-sheet" role="dialog" aria-modal="true" aria-labelledby="invite-login-title">
+        <div className="auth-sheet__header">
+          <div><p className="eyebrow">Invitation stays open</p><h2 id="invite-login-title">Sign in with StreamSuites</h2></div>
+          <Button variant="quiet" aria-label="Close sign in" onClick={() => setLoginOpen(false)}>×</Button>
+        </div>
+        <LoginPage embedded returnTo={`/join/${checked.normalized}`} onOAuthStart={persistOAuthDraft} onAuthenticated={() => { void refresh(); setLoginOpen(false); }} />
+      </div>
+    </div>
+  ) : null;
+
   if (state === "guest" && guest) {
     const stateCopy = {
-      waiting: ["Waiting in lobby", "The host can now admit or deny this temporary guest identity."],
-      admitted: ["Admission granted", "You have room authority, but camera, microphone, and media are not connected."],
+      backstage: ["Waiting Backstage", "You can watch the Stage while the director decides when to bring you on."],
+      on_stage: ["On Stage", "Your intended controls are ready, but camera, microphone, and media are not connected."],
       denied: ["Entry denied", "The host denied this lobby request. Admission will not retry automatically."],
       removed: ["Removed from room", "The host removed this temporary guest authority. It will not retry automatically."],
       left: ["You left the room", "This temporary room session is no longer active."],
@@ -248,7 +309,7 @@ export function JoinPage() {
         <section className="centered-page page-width">
           <Card className="access-card join-card">
             <div className="join-status-row">
-              <StatusChip tone={guest.state === "admitted" ? "alpha" : ["denied", "removed", "expired"].includes(guest.state) ? "blocked" : "pending"}>{stateCopy[0]}</StatusChip>
+              <StatusChip tone={guest.state === "on_stage" ? "alpha" : ["denied", "removed", "expired"].includes(guest.state) ? "blocked" : "pending"}>{stateCopy[0]}</StatusChip>
               <span className={`connection-state connection-state--${connection.replace(" ", "-")}`}>{connection}</span>
             </div>
             <p className="eyebrow">{guest.room?.title ?? validation?.room.title ?? "Studio room"}</p>
@@ -268,23 +329,14 @@ export function JoinPage() {
                 <dd>Not connected</dd>
               </div>
             </dl>
-            {["waiting", "admitted"].includes(guest.state) && (
+            {["backstage", "on_stage"].includes(guest.state) && (
               <form className="stack-form guest-profile-editor" onSubmit={saveProfile}>
                 <h2 ref={profileHeadingRef} tabIndex={-1}>
                   Room identity
                 </h2>
                 <FormField label="Display name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={60} />
                 <FormField label="Subtitle (optional)" value={subtitle} onChange={(event) => setSubtitle(event.target.value)} maxLength={100} />
-                <label className="field">
-                  <span className="field__label">Initials color</span>
-                  <select value={avatarColor} onChange={(event) => setAvatarColor(event.target.value)}>
-                    {["blue", "violet", "teal", "amber", "rose", "slate"].map((color) => (
-                      <option key={color} value={color}>
-                        {color}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <InitialsColorPicker value={avatarColor} onChange={setAvatarColor} disabled={guestBusy} />
                 <label className="field">
                   <span className="field__label">Fallback avatar (PNG, JPEG, or WebP)</span>
                   <input type="file" accept="image/png,image/jpeg,image/webp" onChange={chooseAvatar} />
@@ -331,8 +383,8 @@ export function JoinPage() {
               </section>
             ))}
             <div className="access-actions">
-              {["waiting", "admitted"].includes(guest.state) && <Button onClick={() => void refreshGuest()}>Refresh room state</Button>}
-              {["waiting", "admitted"].includes(guest.state) && (
+              {["backstage", "on_stage"].includes(guest.state) && <Button onClick={() => void refreshGuest()}>Refresh room state</Button>}
+              {["backstage", "on_stage"].includes(guest.state) && (
                 <Button variant="secondary" onClick={() => void leave()}>
                   Leave room
                 </Button>
@@ -392,16 +444,7 @@ export function JoinPage() {
           <form className="stack-form" onSubmit={join}>
             <FormField label="Display name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} minLength={1} maxLength={60} autoComplete="name" disabled={state === "joining"} hint="Runtime/Auth normalizes this room-scoped name. Joining does not admit you." />
             <FormField label="Subtitle (optional)" value={subtitle} onChange={(event) => setSubtitle(event.target.value)} maxLength={100} disabled={state === "joining"} />
-            <label className="field">
-              <span className="field__label">Initials color</span>
-              <select value={avatarColor} onChange={(event) => setAvatarColor(event.target.value)}>
-                {["blue", "violet", "teal", "amber", "rose", "slate"].map((color) => (
-                  <option key={color} value={color}>
-                    {color}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <InitialsColorPicker value={avatarColor} onChange={setAvatarColor} disabled={state === "joining"} />
             <label className="field">
               <span className="field__label">Fallback avatar (optional)</span>
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={chooseAvatar} disabled={state === "joining"} />
@@ -414,12 +457,13 @@ export function JoinPage() {
             <Button type="submit" disabled={!displayName.trim() || state === "joining"}>
               {state === "joining" ? "Joining lobby…" : "Join as guest"}
             </Button>
-            <ButtonLink variant="secondary" to={`/login?return_to=${encodeURIComponent(`/join/${checked.normalized}`)}`}>
+            <button ref={loginTriggerRef} type="button" className="button button--secondary" onClick={() => setLoginOpen(true)}>
               Sign in with StreamSuites
-            </ButtonLink>
+            </button>
           </form>
           <p className="fine-print">An account is optional. Guest authority uses a separate secure HttpOnly cookie; the invite code, credential, avatar binary, and cohost authority are never persisted in browser storage.</p>
         </Card>
+        {embeddedLogin}
       </section>
     </SiteShell>
   );

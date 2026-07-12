@@ -44,7 +44,10 @@ describe("StudioAccountMenu", () => {
     render(<StudioAuthContext.Provider value={value("https://example.test/avatar.png")}><StudioAccountMenu /></StudioAuthContext.Provider>);
     fireEvent.click(screen.getByRole("button", { name: /Alpha Tester/ }));
     expect(document.querySelector(".studio-account-avatar img")).toHaveAttribute("src", "https://example.test/avatar.png");
-    expect(screen.getByText("creator · CORE")).toBeVisible();
+    expect(screen.getByText("Account type: creator")).toBeVisible();
+    expect(screen.getByText("Tier: CORE")).toBeVisible();
+    expect(screen.getByAltText("creator account")).toBeVisible();
+    expect(screen.getByAltText("CORE tier")).toBeVisible();
     expect(screen.getByRole("menuitem", { name: "Logout" })).toBeEnabled();
   });
 
