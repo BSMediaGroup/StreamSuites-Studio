@@ -52,6 +52,8 @@ No camera, microphone, screen sharing, media track, broadcast output, or recordi
 - provide local-only Grid, Interview, and Spotlight placeholder layouts without claiming they are broadcast
 - orient future production work with a control dock, truthful `OFF AIR` state, inactive timer, unavailable media controls, and explanatory Go live dialog
 - validate keyboard-accessible controls, mobile stacking, light/dark themes, and reduced-motion behavior while keeping local interaction state separate from authoritative Runtime/Auth room state
+- ship expanded/compact/hidden desktop navigation plus standard/slim/auto-hide headers through one validated presentation-only preference provider, while preserving the mobile drawer
+- provide a room-scoped cinematic Stage mode, waiting-count-aware Backstage drawer using the existing authoritative state/actions, compact truthful production dock, `F` shortcut, focus/Escape recovery, and optional `fullscreenchange`-confirmed browser fullscreen
 
 No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime connection, recording, or broadcast output was delivered by this phase. Cloudflare Realtime remains the next media milestone.
 

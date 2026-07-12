@@ -11,6 +11,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
 import type { InvitePolicy, RoomCohosts, RoomConnectionState, RoomInvite, RoomPermissions, RoomSummary, StudioGuest } from "../domain/studio";
+import { usePresentationPreferences } from "../presentation/presentationContext";
 
 type WorkspacePanel = "backstage" | "invites" | "room";
 type StageLayout = "grid" | "interview" | "spotlight";
@@ -44,10 +45,10 @@ function GuestAvatar({ guest }: { readonly guest: StudioGuest }) {
   );
 }
 
-function ControlButton({ label, helper, disabled = false, active = false, onClick }: { readonly label: string; readonly helper: string; readonly disabled?: boolean; readonly active?: boolean; readonly onClick?: () => void }) {
+function ControlButton({ label, helper, disabled = false, active = false, onClick, buttonRef }: { readonly label: string; readonly helper: string; readonly disabled?: boolean; readonly active?: boolean; readonly onClick?: () => void; readonly buttonRef?: React.Ref<HTMLButtonElement> }) {
   return (
     <span className="control-dock__item" title={helper}>
-      <button type="button" className={active ? "is-active" : ""} aria-label={`${label}. ${helper}`} aria-pressed={active || undefined} disabled={disabled} onClick={onClick}>
+      <button ref={buttonRef} type="button" className={active ? "is-active" : ""} aria-label={`${label}. ${helper}`} aria-pressed={active || undefined} disabled={disabled} onClick={onClick}>
         <span className="control-dock__indicator" aria-hidden="true" />
         <strong>{label}</strong>
         <small>{disabled ? "Unavailable" : helper}</small>
@@ -82,8 +83,17 @@ export function RoomManagementPage() {
   const [layout, setLayout] = useState<StageLayout>("grid");
   const [selectedParticipant, setSelectedParticipant] = useState("host");
   const [showGoLiveInfo, setShowGoLiveInfo] = useState(false);
+  const [cinematicPanelOpen, setCinematicPanelOpen] = useState(false);
+  const [fullscreenActive, setFullscreenActive] = useState(false);
   const backstageHeadingRef = useRef<HTMLHeadingElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
+  const roomWorkspaceRef = useRef<HTMLElement>(null);
+  const sidePanelRef = useRef<HTMLElement>(null);
+  const panelTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const goLiveTriggerRef = useRef<HTMLElement | null>(null);
+  const { preferences, setCinematic, toggleCinematic } = usePresentationPreferences();
+  const cinematic = preferences.cinematic === "on";
+  const fullscreenSupported = typeof document !== "undefined" && typeof document.documentElement.requestFullscreen === "function";
   useGlobalActivity(status === "loading" || Boolean(busy) || Boolean(guestBusy), "Loading room authority");
 
   const refreshAuthority = useCallback(
@@ -143,6 +153,95 @@ export function RoomManagementPage() {
 
   const waiting = useMemo(() => guests.filter((guest) => guest.state === "waiting"), [guests]);
   const admitted = useMemo(() => guests.filter((guest) => guest.state === "admitted"), [guests]);
+
+  useEffect(() => {
+    const update = () => setFullscreenActive(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", update);
+    update();
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+
+  useEffect(() => {
+    if (!cinematic) setCinematicPanelOpen(false);
+  }, [cinematic]);
+
+  useEffect(() => {
+    if (!cinematic || !cinematicPanelOpen) return;
+    const panelElement = sidePanelRef.current;
+    const focusable = () => Array.from(panelElement?.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])') ?? []);
+    const first = focusable()[0];
+    window.setTimeout(() => first?.focus(), 0);
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setCinematicPanelOpen(false);
+        window.setTimeout(() => panelTriggerRef.current?.focus(), 0);
+      } else if (event.key === "Tab") {
+        const items = focusable();
+        if (!items.length) return;
+        const firstItem = items[0];
+        const lastItem = items.at(-1)!;
+        if (event.shiftKey && document.activeElement === firstItem) { event.preventDefault(); lastItem.focus(); }
+        else if (!event.shiftKey && document.activeElement === lastItem) { event.preventDefault(); firstItem.focus(); }
+      }
+    };
+    document.addEventListener("keydown", key, true);
+    return () => document.removeEventListener("keydown", key, true);
+  }, [cinematic, cinematicPanelOpen]);
+
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (event.defaultPrevented || event.key.toLowerCase() !== "f" || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey || (target instanceof HTMLElement && target.matches("input, textarea, select, [contenteditable=true]"))) return;
+      event.preventDefault();
+      toggleCinematic();
+    };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [toggleCinematic]);
+
+  useEffect(() => {
+    if (!showGoLiveInfo) return;
+    window.setTimeout(() => document.querySelector<HTMLButtonElement>(".studio-dialog .button")?.focus(), 0);
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setShowGoLiveInfo(false);
+      window.setTimeout(() => goLiveTriggerRef.current?.focus(), 0);
+    };
+    document.addEventListener("keydown", key, true);
+    return () => document.removeEventListener("keydown", key, true);
+  }, [showGoLiveInfo]);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (!fullscreenSupported) return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else {
+        setCinematic("on");
+        const target = roomWorkspaceRef.current?.closest<HTMLElement>(".studio-main") ?? roomWorkspaceRef.current;
+        await target?.requestFullscreen();
+      }
+    } catch {
+      setMessage("Browser fullscreen was not allowed. Cinematic mode remains available.");
+    }
+  }, [fullscreenSupported, setCinematic]);
+
+  function openWorkspacePanel(next: WorkspacePanel, trigger?: HTMLButtonElement | null) {
+    setPanel(next);
+    if (trigger) panelTriggerRef.current = trigger;
+    if (cinematic) setCinematicPanelOpen(true);
+  }
+
+  function openGoLiveInfo() {
+    goLiveTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setShowGoLiveInfo(true);
+  }
+
+  function closeGoLiveInfo() {
+    setShowGoLiveInfo(false);
+    window.setTimeout(() => goLiveTriggerRef.current?.focus(), 0);
+  }
 
   useEffect(() => {
     if (selectedParticipant !== "host" && !admitted.some((guest) => guest.id === selectedParticipant)) {
@@ -346,8 +445,12 @@ export function RoomManagementPage() {
   const emptySlots = layout === "grid" ? Math.max(0, 4 - (1 + visibleAdmitted.length)) : layout === "interview" && visibleAdmitted.length === 0 ? 1 : 0;
 
   return (
-    <StudioShell>
-      <section className="room-workspace" aria-label={`${room.title} Studio workspace`}>
+    <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()}>
+      <section ref={roomWorkspaceRef} className="room-workspace" aria-label={`${room.title} Studio workspace`}>
+        {cinematic && <div className="cinematic-room-actions" aria-label="Cinematic workspace controls">
+          <button type="button" onClick={toggleCinematic}>Exit cinematic <kbd>F</kbd></button>
+          {fullscreenSupported && <button type="button" onClick={() => void toggleFullscreen()}>{fullscreenActive ? "Exit fullscreen" : "Fullscreen"}</button>}
+        </div>}
         <header className="room-status-strip">
           <div className="room-status-strip__identity">
             <ButtonLink to="/studio" variant="quiet">
@@ -383,7 +486,7 @@ export function RoomManagementPage() {
               <strong>OFF AIR</strong>
               <time>00:00:00</time>
             </div>
-            <Button onClick={() => setShowGoLiveInfo(true)}>Go live</Button>
+            <Button onClick={openGoLiveInfo}>Go live</Button>
           </div>
         </header>
 
@@ -420,13 +523,13 @@ export function RoomManagementPage() {
 
         <div className="production-workspace">
           <aside className="production-rail" aria-label="Production tools">
-            <button type="button" className={panel === "backstage" ? "is-active" : ""} onClick={() => setPanel("backstage")} aria-pressed={panel === "backstage"}>
+            <button type="button" className={panel === "backstage" ? "is-active" : ""} onClick={(event) => openWorkspacePanel("backstage", event.currentTarget)} aria-pressed={panel === "backstage"}>
               Backstage <span>{waiting.length}</span>
             </button>
-            <button type="button" className={panel === "invites" ? "is-active" : ""} onClick={() => setPanel("invites")} aria-pressed={panel === "invites"}>
+            <button type="button" className={panel === "invites" ? "is-active" : ""} onClick={(event) => openWorkspacePanel("invites", event.currentTarget)} aria-pressed={panel === "invites"}>
               Invites <span>{invites.filter((invite) => invite.active).length}</span>
             </button>
-            <button type="button" className={panel === "room" ? "is-active" : ""} onClick={() => setPanel("room")} aria-pressed={panel === "room"}>
+            <button type="button" className={panel === "room" ? "is-active" : ""} onClick={(event) => openWorkspacePanel("room", event.currentTarget)} aria-pressed={panel === "room"}>
               Room
             </button>
           </aside>
@@ -496,7 +599,9 @@ export function RoomManagementPage() {
             </div>
           </main>
 
-          <aside className="workspace-side-panel" aria-label="Room tools">
+          {cinematic && cinematicPanelOpen && <button className="cinematic-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
+          <aside ref={sidePanelRef} className={`workspace-side-panel${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Room tools" {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
+            {cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
             <nav className="workspace-tabs" aria-label="Workspace panels">
               {(["backstage", "invites", "room"] as WorkspacePanel[]).map((item) => (
                 <button type="button" key={item} className={panel === item ? "is-active" : ""} onClick={() => setPanel(item)} aria-pressed={panel === item}>
@@ -754,9 +859,10 @@ export function RoomManagementPage() {
               layoutRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
             }}
           />
-          <ControlButton label="Invite" helper="Open secure invites" active={panel === "invites"} onClick={() => setPanel("invites")} />
-          <ControlButton label="Settings" helper="Open room settings" active={panel === "room"} onClick={() => setPanel("room")} />
-          <ControlButton label="Go live" helper="Output integration not connected" onClick={() => setShowGoLiveInfo(true)} />
+          <ControlButton buttonRef={panelTriggerRef} label="Backstage" helper={`${waiting.length} waiting, ${admitted.length} on stage`} active={panel === "backstage" && (!cinematic || cinematicPanelOpen)} onClick={() => openWorkspacePanel("backstage")} />
+          <ControlButton label="Invite" helper="Open secure invites" active={panel === "invites" && (!cinematic || cinematicPanelOpen)} onClick={() => openWorkspacePanel("invites")} />
+          <ControlButton label="Settings" helper="Open room settings" active={panel === "room" && (!cinematic || cinematicPanelOpen)} onClick={() => openWorkspacePanel("room")} />
+          <ControlButton label="Go live" helper="Output integration not connected" onClick={openGoLiveInfo} />
         </div>
       </section>
 
@@ -765,14 +871,14 @@ export function RoomManagementPage() {
           className="modal-backdrop"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowGoLiveInfo(false);
+            if (event.target === event.currentTarget) closeGoLiveInfo();
           }}
         >
           <section className="studio-dialog" role="dialog" aria-modal="true" aria-labelledby="go-live-title">
             <StatusChip tone="blocked">OFF AIR</StatusChip>
             <h2 id="go-live-title">Live output is not connected yet.</h2>
             <p>This pre-media workspace shows the intended production flow without starting a timer, requesting device access, connecting media, or sending a broadcast. Cloudflare Realtime is the next media milestone.</p>
-            <Button onClick={() => setShowGoLiveInfo(false)}>Got it</Button>
+            <Button onClick={closeGoLiveInfo}>Got it</Button>
           </section>
         </div>
       )}

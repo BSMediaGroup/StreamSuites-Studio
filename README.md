@@ -13,6 +13,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - React + TypeScript + Vite application foundation
 - clean browser routes with a Cloudflare Pages SPA fallback
 - responsive public shell and access-protected Studio workspace shell
+- persisted presentation-only shell preferences with expanded, compact icons-only, or hidden desktop navigation and standard, slim, or inactivity auto-hiding headers; mobile retains the explicit navigation drawer and treats auto-hide as slim
 - credentialed `GET /auth/session` and `GET /api/studio/access` bridge with typed normalization
 - existing Google, GitHub, Discord, X, Twitch, and email/password Auth entry paths
 - Runtime/Auth-owned Cloudflare Turnstile protection for all five OAuth starts and password login, with ephemeral in-memory tokens only
@@ -25,6 +26,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - reusable buttons, cards, status chips, empty states, and form fields
 - runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, safe count states, and an Enter-room-first card presentation
 - protected `/studio/rooms/:roomId` pre-media production workspace with canonical short-code URLs, a 16:9 Stage/Program canvas, responsive real-time Backstage waiting/on-stage/cohost panels, policy-controlled reusable invites, room settings, lifecycle controls, and a production control dock
+- route-scoped cinematic room mode with a stage-first canvas, compact truthful production state, waiting/on-stage badges, the existing authoritative Backstage/tools panel as a focus-managed drawer, obvious exit controls, and optional event-confirmed browser fullscreen
 - local presentation-only Grid, Interview, and Spotlight layouts that rearrange placeholders without persisting or broadcasting layout state
 - truthful `OFF AIR` orientation with an inactive `00:00:00` timer and explanatory Go live dialog; camera, microphone, screen share, and live output controls remain explicitly unavailable
 - credentialed room and guest SSE with live/reconnecting/fallback-polling/unavailable status, burst-coalesced authoritative refetch, bounded polling only while disconnected, and manual refresh as secondary recovery
@@ -32,7 +34,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - single-use, capped, and open invite controls with 24-hour default expiry or no-expiry, use/status summaries, and securely regenerable canonical copy links; no invite code, guest credential, avatar binary, or cohost authority is stored in browser storage
 - runtime-scoped session cohost controls plus permanent cohost invitations, same-guest-session account binding after anonymous sign-in, authenticated acceptance/decline, and all-room or selected-room scope summaries
 - confirmed typed boundaries for Runtime/Auth sessions, Studio access, rooms, invites, lobby entries, guest self-state, media direction, and runtime-version view models
-- focused tests for auth/access normalization, safe return paths, no authorized-shell flash, theme accessibility/persistence, invite-code safety, and runtime-version parsing
+- focused tests for auth/access normalization, safe return paths, no authorized-shell flash, theme and presentation preference validation/persistence, shell modes, auto-hide behavior, cinematic/SSE continuity, fullscreen state/rejection, invite-code safety, and runtime-version parsing
 - architecture and phased ALPHA roadmap documentation
 
 ### Routes
@@ -92,13 +94,15 @@ The challenge uses Cloudflare's supported dark appearance in Studio dark mode an
 
 Studio also consumes the established Runtime gate contract. `GET /auth/access-state` supplies the public-safe mode/message/banner/bypass flags. When development or maintenance mode is active and bypass is enabled, Studio submits `{ "code": "..." }` to `POST /auth/debug/unlock`, preserves the Runtime-issued `ss_auth_access_bypass` HttpOnly cookie through credentialed requests, refreshes the public-safe access state, and keeps only the returned expiry in component memory so the prompt returns when the short-lived unlock expires. `AUTH_ACCESS_MODE`, `AUTH_ACCESS_MESSAGE`, `AUTH_ACCESS_BYPASS_ENABLED`, `ADMIN_DEBUG_BYPASS_CODE`, `AUTH_ACCESS_BYPASS_TTL_MINUTES`, and `SHOW_LOCKOUT_BANNER` remain Runtime environment settings; the bypass code is never a Studio environment value and is never prefilled, logged, echoed, or persisted.
 
-The shell loader is a reference-counted in-memory UI signal derived from auth/access resolution and room, invite, login, bypass, and OAuth-start activity. It occupies a fixed four-pixel row directly under each header, remains idle when no work is active, and uses a non-animated full-width treatment under reduced-motion preferences. The signed-in header menu uses only the Runtime session display name, avatar, account type, and tier; it provides a local initial fallback and Runtime-owned logout without inventing account routes.
+The shell loader is a reference-counted in-memory UI signal derived from auth/access resolution and room, invite, login, bypass, and OAuth-start activity. It occupies a fixed four-pixel row directly under each header—including when auto-hide or cinematic chrome retracts—remains idle when no work is active, and uses a non-animated full-width treatment under reduced-motion preferences. The signed-in header menu uses only the Runtime session display name, avatar, account type, and tier; it provides a local initial fallback and Runtime-owned logout without inventing account routes. The adjacent View menu changes validated local sidebar/header/cinematic preferences. `F` toggles cinematic mode outside editable controls; Escape closes the active menu or cinematic drawer first.
 
 ## Authority boundaries
 
 StreamSuites remains the single authority for runtime state, Auth API behavior, accounts, sessions, roles, tiers, permissions, room orchestration, invitations, access control, token minting, alerts, audit state, persistence, exports, and canonical version/build metadata.
 
-Studio is a client/UI surface only. It validates confirmed current-session, access, room, invite, and lobby payloads through the existing typed adapter and never persists canonical account, session, grant, role, tier, room, invite, or lobby state in `localStorage`. The only persisted browser preference is `streamsuites_studio_theme`.
+Studio is a client/UI surface only. It validates confirmed current-session, access, room, invite, and lobby payloads through the existing typed adapter and never persists canonical account, session, grant, role, tier, room, invite, lobby, permission, SSE, or media state in `localStorage`. The only persisted browser values are presentation preferences: `streamsuites_studio_theme` and the validated `streamsuites_studio_presentation` object containing sidebar, header, and cinematic modes.
+
+Browser fullscreen is never a stored preference or inferred success state. A room-only user action targets the Studio workspace through the standard Fullscreen API, actual state follows `fullscreenchange`, rejection leaves cinematic mode usable, and browser/Escape exit does not silently rewrite the saved sidebar or header choices.
 
 Invite codes are sent to Runtime/Auth only in JSON POST bodies. Authorized invite lists return the stable short canonical code derived by Runtime/Auth so an active link can be copied again; Studio holds that response only in React memory and never writes it to local/session storage or logs. Temporary guest authority is represented only by Runtime/Auth's `streamsuites_studio_guest` HttpOnly cookie: production uses the shared `.streamsuites.app` scope with `Secure`, `SameSite=Lax`, and `/`; localhost/private development follows the runtime's host-only non-Secure convention. Its implemented lifetime is 12 hours, and it never overwrites `streamsuites_session`.
 
@@ -175,10 +179,12 @@ StreamSuites-Studio/
 │   │   ├── AuthAccessBanner.tsx
 │   │   ├── StudioAccountMenu.test.tsx
 │   │   ├── StudioAccountMenu.tsx
+│   │   ├── ViewOptionsMenu.tsx
 │   │   ├── TurnstileWidget.test.tsx
 │   │   ├── TurnstileWidget.tsx
 │   │   ├── shell/
 │   │   │   ├── SiteShell.tsx
+│   │   │   ├── StudioShell.test.tsx
 │   │   │   └── StudioShell.tsx
 │   │   ├── ui/
 │   │   │   ├── Button.tsx
@@ -205,6 +211,11 @@ StreamSuites-Studio/
 │   │   ├── StudioPage.test.tsx
 │   │   ├── StudioRooms.test.tsx
 │   │   └── StudioPage.tsx
+│   ├── presentation/
+│   │   ├── PresentationProvider.tsx
+│   │   ├── presentationContext.ts
+│   │   ├── presentationPreferences.test.ts
+│   │   └── presentationPreferences.ts
 │   ├── styles/
 │   │   ├── index.css
 │   │   └── tokens.css

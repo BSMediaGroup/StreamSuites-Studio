@@ -3,14 +3,17 @@ import { studioRouter } from "./app/router";
 import { GlobalActivityProvider } from "./activity/GlobalActivityProvider";
 import { StudioAuthProvider } from "./auth/StudioAuthProvider";
 import { ThemeProvider } from "./theme/ThemeProvider";
+import { PresentationProvider } from "./presentation/PresentationProvider";
 
 export function App() {
   return (
     <ThemeProvider>
       <GlobalActivityProvider>
-        <StudioAuthProvider>
-          <RouterProvider router={studioRouter} future={{ v7_startTransition: true }} />
-        </StudioAuthProvider>
+        <PresentationProvider>
+          <StudioAuthProvider>
+            <RouterProvider router={studioRouter} future={{ v7_startTransition: true }} />
+          </StudioAuthProvider>
+        </PresentationProvider>
       </GlobalActivityProvider>
     </ThemeProvider>
   );

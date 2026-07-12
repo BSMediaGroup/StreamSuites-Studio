@@ -5,7 +5,7 @@ function fallbackInitial(value: string) {
   return value.trim().charAt(0).toUpperCase() || "S";
 }
 
-export function StudioAccountMenu() {
+export function StudioAccountMenu({ onOpenChange }: { readonly onOpenChange?: (open: boolean) => void }) {
   const { access, logout } = useStudioAuth();
   const [open, setOpen] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
@@ -13,6 +13,8 @@ export function StudioAccountMenu() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const account = access.account;
   const displayName = account?.displayName ?? account?.userCode ?? "StreamSuites account";
+
+  useEffect(() => onOpenChange?.(open), [onOpenChange, open]);
 
   function close(restoreFocus = false) {
     setOpen(false);
@@ -52,6 +54,7 @@ export function StudioAccountMenu() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-controls="studio-account-dropdown"
+        aria-label={`Account menu for ${displayName}`}
         onClick={() => setOpen((current) => !current)}
       >
         <span className="studio-account-avatar" aria-hidden="true">
