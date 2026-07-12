@@ -1,6 +1,6 @@
 # StreamSuites Studio
 
-> **Status: ALPHA room-authority foundation — closed access, pre-media**
+> **Status: ALPHA pre-media Studio workspace — closed access**
 > **Flagship surface:** <https://studio.streamsuites.app>
 > **Deployment target:** Cloudflare Pages
 
@@ -17,14 +17,16 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - existing Google, GitHub, Discord, X, Twitch, and email/password Auth entry paths
 - Runtime/Auth-owned Cloudflare Turnstile protection for all five OAuth starts and password login, with ephemeral in-memory tokens only
 - Runtime/Auth-owned `GET /auth/access-state` and `POST /auth/debug/unlock` development/maintenance gate parity, using only the signed short-lived HttpOnly bypass cookie issued by Runtime
-- provider SVG icons, the Studio favicon, an overlap-safe animated loading bar, and a keyboard-accessible authenticated avatar menu
+- Vite-compiled Google, GitHub, Discord, X, and Twitch SVG icon-and-label OAuth buttons, the Studio favicon, an overlap-safe animated loading bar, and a keyboard-accessible authenticated avatar menu
 - Runtime/Auth logout through `POST /auth/logout`
 - explicit loading, unauthenticated, allowed, denied, restricted, and unavailable states
 - dark/light token system with dark as the first-visit default and theme-only local persistence
 - the existing `assets/logos/sscmattesilver.webp` header logo in both themes
 - reusable buttons, cards, status chips, empty states, and form fields
-- runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, and safe count states
-- protected `/studio/rooms/:roomId` management workspace for details, lifecycle, one-time invite creation, revocation, lobby admission/denial, and admitted-guest removal
+- runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, safe count states, and an Enter-room-first card presentation
+- protected `/studio/rooms/:roomId` pre-media production workspace with a 16:9 Stage/Program canvas, host and admitted-guest identity placeholders, responsive Backstage waiting/on-stage panels, one-time secure invites, room settings, lifecycle controls, and a production control dock
+- local presentation-only Grid, Interview, and Spotlight layouts that rearrange placeholders without persisting or broadcasting layout state
+- truthful `OFF AIR` orientation with an inactive `00:00:00` timer and explanatory Go live dialog; camera, microphone, screen share, and live output controls remain explicitly unavailable
 - real `/join/:inviteCode` validation, display-name entry, waiting/admitted/denied/removed/left/expired states, refresh, and leave flow
 - one-time raw invite links held only in component memory, cleared by reload/navigation, and never persisted; guest credentials remain in Runtime/Auth's separate HttpOnly cookie
 - confirmed typed boundaries for Runtime/Auth sessions, Studio access, rooms, invites, lobby entries, guest self-state, media direction, and runtime-version view models
@@ -37,8 +39,8 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 | --- | --- |
 | `/` | Closed-ALPHA product and access overview. |
 | `/login` | Uses the existing Turnstile-protected StreamSuites OAuth or email/password login, then checks runtime-owned Studio access. |
-| `/studio` | Fails closed until session/access are confirmed; admins and eligible creators manage runtime-owned rooms while public accounts receive truthful invite-participation guidance. |
-| `/studio/rooms/:roomId` | Protected owner/admin room lifecycle, invite, and lobby authority workspace. |
+| `/studio` | Fails closed until session/access are confirmed; admins and eligible creators create rooms and use the primary Enter room flow while public accounts receive truthful invite-participation guidance. |
+| `/studio/rooms/:roomId` | Protected owner/admin pre-media Stage/Program, Backstage, invite, lifecycle, room-settings, and production-orientation workspace. |
 | `/join/:inviteCode` | Validates the code through Runtime/Auth in a POST body and provides the temporary pre-media guest/lobby flow. |
 | `*` | Not-found surface. |
 
@@ -106,7 +108,7 @@ See [System architecture](docs/system-architecture.md) for the complete boundary
 
 ## Media direction
 
-The intended initial ALPHA media path is browser-to-browser media through Cloudflare Realtime SFU/TURN. The planned production migration is self-hosted LiveKit plus Egress. Neither path is implemented here.
+The current Stage/Program, Backstage, layouts, and control dock are pre-media UI only. The intended next ALPHA media path is browser-to-browser media through Cloudflare Realtime SFU/TURN. The planned production migration is self-hosted LiveKit plus Egress. Neither media path is implemented here.
 
 The Python runtime/Auth API will orchestrate rooms, permissions, invitations, access, and token minting, but audio and video must bypass the Python runtime. During early ALPHA, final output is expected to use an OBS-capturable program view before server-side egress exists.
 
@@ -117,7 +119,7 @@ The roadmap is phased and describes planned work, not current capability:
 1. frontend scaffold and design foundation — **complete**
 2. existing StreamSuites Auth/session bridge and closed-ALPHA access authority — **current milestone complete**
 3. runtime-owned Studio rooms, guest invites, temporary sessions, and lobby admission — **current milestone complete**
-4. pre-media stage and production-control interactions
+4. pre-media stage and production-control interactions — **current milestone complete**
 5. Cloudflare Realtime camera, microphone, and screen share
 6. OBS-capturable program output
 7. provider destinations and recording foundations

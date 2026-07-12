@@ -19,13 +19,18 @@ import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
 import { useTheme } from "../theme/themeContext";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
+import googleIcon from "../../assets/icons/google.svg";
+import githubIcon from "../../assets/icons/github.svg";
+import discordIcon from "../../assets/icons/discord.svg";
+import xIcon from "../../assets/icons/x.svg";
+import twitchIcon from "../../assets/icons/twitch.svg";
 
 const oauthProviders: readonly { id: OAuthProvider; label: string; icon: string }[] = [
-  { id: "google", label: "Google", icon: "/assets/icons/google.svg" },
-  { id: "github", label: "GitHub", icon: "/assets/icons/github.svg" },
-  { id: "discord", label: "Discord", icon: "/assets/icons/discord.svg" },
-  { id: "x", label: "X", icon: "/assets/icons/x.svg" },
-  { id: "twitch", label: "Twitch", icon: "/assets/icons/twitch.svg" },
+  { id: "google", label: "Google", icon: googleIcon },
+  { id: "github", label: "GitHub", icon: githubIcon },
+  { id: "discord", label: "Discord", icon: discordIcon },
+  { id: "x", label: "X", icon: xIcon },
+  { id: "twitch", label: "Twitch", icon: twitchIcon },
 ];
 
 export function LoginPage() {
@@ -233,7 +238,7 @@ export function LoginPage() {
                     onClick={() => handleOAuthLogin(provider.id)}
                     key={provider.id}
                   >
-                    <img src={provider.icon} alt="" aria-hidden="true" />
+                    <img src={provider.icon} alt="" aria-hidden="true" data-provider-icon={provider.id} />
                     <span>Continue with {provider.label}</span>
                   </Button>
                 ))}

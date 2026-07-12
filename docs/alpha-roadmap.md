@@ -38,11 +38,17 @@ No self-service application, room, guest invite, or media behavior was delivered
 
 No camera, microphone, screen sharing, media track, broadcast output, or recording was delivered by this phase.
 
-## 4. Pre-media stage and production controls — planned
+## 4. Pre-media stage and production controls — complete
 
-- build interactive layout and control behavior without claiming live media
-- validate keyboard, screen-reader, mobile, and reduced-motion use
-- keep local interaction state clearly separate from authoritative Runtime/Auth room state
+- present existing rooms with a primary Enter room action while ended rooms remain visibly unavailable
+- render a responsive 16:9 Stage/Program preview with confirmed host and admitted-guest identities, meaningful empty positions, safe-area guides, and explicit awaiting-media treatment
+- separate Waiting backstage from On stage, with Runtime-backed admit, deny, remove, capacity-conflict, refresh, and pending states
+- integrate secure one-time invites, revocation, confirmed room settings, and lifecycle controls into the room workspace
+- provide local-only Grid, Interview, and Spotlight placeholder layouts without claiming they are broadcast
+- orient future production work with a control dock, truthful `OFF AIR` state, inactive timer, unavailable media controls, and explanatory Go live dialog
+- validate keyboard-accessible controls, mobile stacking, light/dark themes, and reduced-motion behavior while keeping local interaction state separate from authoritative Runtime/Auth room state
+
+No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime connection, recording, or broadcast output was delivered by this phase. Cloudflare Realtime remains the next media milestone.
 
 ## 5. Cloudflare Realtime media — planned
 
