@@ -66,9 +66,11 @@ flowchart LR
 
 - `src/config/env.ts` accepts a public Runtime/Auth override, with established production/local fallbacks, plus the optional runtime-version URL.
 - `src/api/studioAuth.ts` validates Auth/access plus room, invite, guest-session, and lobby contracts, always sends credentials, supports cancellation, and normalizes machine-readable errors.
-- `/login` uses existing Runtime/Auth OAuth and email/password paths with a validated same-origin return target. `/studio` renders no authorized shell until access is confirmed, `/studio/rooms/:roomId` is owner/admin protected, and `/join/:inviteCode` remains available to temporary guests. Logout uses `POST /auth/logout`.
+- `/login` uses existing Runtime/Auth OAuth and email/password paths with a validated same-origin return target. It separately consumes `GET /auth/access-state` and `POST /auth/debug/unlock`; the latter issues Runtime's short-lived signed HttpOnly bypass cookie and never substitutes for Turnstile. `/studio` renders no authorized shell until access is confirmed, `/studio/rooms/:roomId` is owner/admin protected, and `/join/:inviteCode` remains available to temporary guests. Logout uses `POST /auth/logout`.
 - The room dashboard, management workspace, and guest join flow hold fetched server state only in React memory. The one-time raw invite disappears on reload/navigation; no room, lobby, invite, guest token, or guest credential is persisted or logged by Studio.
-- No canonical auth/access state is saved to browser storage. `streamsuites_studio_theme` is the only new local preference.
+- No canonical auth/access state, Turnstile token, bypass code, or bypass flag is saved to browser storage. The bypass response expiry and Turnstile completion live only in component memory; the authoritative bypass is Runtime's HttpOnly cookie. `streamsuites_studio_theme` is the only new local preference.
+- Turnstile script/config loading is shared, one render generation owns the visible widget, and normal auth/access/form rerenders cannot recreate it. The shell loading bar uses reference-counted transient UI activity and does not participate in the widget lifecycle.
+- The authenticated topbar menu renders only safe session fields already returned by Runtime/Auth and delegates logout to `POST /auth/logout`; no Studio-owned account destination or session copy is introduced.
 - `src/api/runtimeVersion.ts` validates the existing runtime-owned `version.json` shape but does not hydrate the UI until a Studio-safe deployed URL is confirmed.
 - `src/domain/studio.ts` contains confirmed normalized session/access, room, invite, and guest view models plus media direction models. These client view models are not backend schemas.
 
@@ -77,6 +79,7 @@ flowchart LR
 - Dark is the first-visit default; light mode is token-driven across all routes and reusable components.
 - The accessible header switch persists only the theme choice and an early head script applies it before React/CSS render.
 - Headers use the existing `assets/logos/sscmattesilver.webp` asset in both modes.
+- The document favicon is `/assets/icons/studiofavicon.ico`; OAuth buttons reuse the committed Google, GitHub, Discord, X, and Twitch SVG assets already present under `/assets/icons/`.
 
 ## Early ALPHA output
 

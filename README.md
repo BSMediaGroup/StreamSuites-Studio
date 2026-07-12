@@ -16,6 +16,8 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - credentialed `GET /auth/session` and `GET /api/studio/access` bridge with typed normalization
 - existing Google, GitHub, Discord, X, Twitch, and email/password Auth entry paths
 - Runtime/Auth-owned Cloudflare Turnstile protection for all five OAuth starts and password login, with ephemeral in-memory tokens only
+- Runtime/Auth-owned `GET /auth/access-state` and `POST /auth/debug/unlock` development/maintenance gate parity, using only the signed short-lived HttpOnly bypass cookie issued by Runtime
+- provider SVG icons, the Studio favicon, an overlap-safe animated loading bar, and a keyboard-accessible authenticated avatar menu
 - Runtime/Auth logout through `POST /auth/logout`
 - explicit loading, unauthenticated, allowed, denied, restricted, and unavailable states
 - dark/light token system with dark as the first-visit default and theme-only local persistence
@@ -82,7 +84,11 @@ The production build is written to `dist/`. Cloudflare Pages should use `npm run
 
 Turnstile uses the same runtime-owned configuration as Public, Creator, Dashboard, and Developer: Studio fetches `GET /auth/turnstile/config` from `VITE_RUNTIME_API_BASE_URL`, renders the returned public site key, and sends the ephemeral `turnstile_token` only to the selected Auth start. The Runtime/Auth environment variables remain `CLOUDFLARE_TURNSTILE_SITEKEY`, `CLOUDFLARE_TURNSTILE_SECRET`, and the existing `CLOUDFLARE_TURNSTILE_ENABLED` switch. There is deliberately no Studio `VITE_*` site-key variable and no Turnstile secret in Cloudflare Pages.
 
-The challenge uses Cloudflare's supported dark appearance in Studio dark mode and light appearance in light mode. A theme change removes and re-renders the single widget without clearing email/password input; challenge tokens are cleared on expiry, widget failure, theme change, password-login failure, or backend rejection and are never written to local or session storage, cookies, URLs, or persisted app state. Runtime/Auth must be deployed, reachable, and configured with the site key and secret for a real production challenge/login test. Local development follows the same contract against `http://127.0.0.1:18087`; no local production bypass is added by Studio.
+The challenge uses Cloudflare's supported dark appearance in Studio dark mode and light appearance in light mode. A render-generation guard keeps one widget active, prevents ordinary React/auth/access rerenders from replacing it, and allows only an explicit theme change, retry, or unmount to recreate it. A completed token remains in component memory until expiry, provider failure, a consumed login attempt, backend rejection, or deliberate widget replacement; it is never written to local/session storage or Studio route state. Runtime/Auth must be deployed, reachable, and configured with the site key and secret for a real production challenge/login test.
+
+Studio also consumes the established Runtime gate contract. `GET /auth/access-state` supplies the public-safe mode/message/banner/bypass flags. When development or maintenance mode is active and bypass is enabled, Studio submits `{ "code": "..." }` to `POST /auth/debug/unlock`, preserves the Runtime-issued `ss_auth_access_bypass` HttpOnly cookie through credentialed requests, refreshes the public-safe access state, and keeps only the returned expiry in component memory so the prompt returns when the short-lived unlock expires. `AUTH_ACCESS_MODE`, `AUTH_ACCESS_MESSAGE`, `AUTH_ACCESS_BYPASS_ENABLED`, `ADMIN_DEBUG_BYPASS_CODE`, `AUTH_ACCESS_BYPASS_TTL_MINUTES`, and `SHOW_LOCKOUT_BANNER` remain Runtime environment settings; the bypass code is never a Studio environment value and is never prefilled, logged, echoed, or persisted.
+
+The shell loader is a reference-counted in-memory UI signal derived from auth/access resolution and room, invite, login, bypass, and OAuth-start activity. It occupies a fixed four-pixel row directly under each header, remains idle when no work is active, and uses a non-animated full-width treatment under reduced-motion preferences. The signed-in header menu uses only the Runtime session display name, avatar, account type, and tier; it provides a local initial fallback and Runtime-owned logout without inventing account routes.
 
 ## Authority boundaries
 
@@ -150,12 +156,21 @@ StreamSuites-Studio/
 │   │   ├── runtimeVersion.ts
 │   │   ├── studioAuth.test.ts
 │   │   └── studioAuth.ts
+│   ├── activity/
+│   │   ├── GlobalActivityProvider.test.tsx
+│   │   ├── GlobalActivityProvider.tsx
+│   │   ├── GlobalLoadingBar.tsx
+│   │   ├── globalActivityContext.ts
+│   │   └── useGlobalActivity.ts
 │   ├── app/
 │   │   └── router.tsx
 │   ├── auth/
 │   │   ├── StudioAuthProvider.tsx
 │   │   └── studioAuthContext.ts
 │   ├── components/
+│   │   ├── AuthAccessBanner.tsx
+│   │   ├── StudioAccountMenu.test.tsx
+│   │   ├── StudioAccountMenu.tsx
 │   │   ├── TurnstileWidget.test.tsx
 │   │   ├── TurnstileWidget.tsx
 │   │   ├── shell/
@@ -179,6 +194,7 @@ StreamSuites-Studio/
 │   ├── pages/
 │   │   ├── JoinPage.tsx
 │   │   ├── LandingPage.tsx
+│   │   ├── LoginPage.test.tsx
 │   │   ├── LoginPage.tsx
 │   │   ├── NotFoundPage.tsx
 │   │   ├── RoomManagementPage.tsx

@@ -6,9 +6,11 @@ import {
   joinStudioInvite,
   listStudioRooms,
   loadTurnstileConfig,
+  loadAuthAccessGate,
   loginWithPassword,
   normalizeStudioAccess,
   safeStudioReturnPath,
+  unlockAuthAccess,
 } from "./studioAuth";
 
 const sessionPayload = {
@@ -131,6 +133,60 @@ describe("Studio Runtime/Auth adapter", () => {
       expect.stringContaining("/auth/turnstile/config"),
       expect.objectContaining({ credentials: "include", cache: "no-store" }),
     );
+  });
+
+  it("normalizes the Runtime access gate without persisting bypass state", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      mode: "development",
+      message: "Restricted development access.",
+      show_lockout_banner: true,
+      login_allowed: false,
+      bypass_enabled: true,
+    }), { status: 200 })));
+
+    await expect(loadAuthAccessGate()).resolves.toMatchObject({
+      status: "ready",
+      mode: "development",
+      bypassEnabled: true,
+      bypassUnlocked: false,
+      showLockoutBanner: true,
+    });
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it("uses the canonical debug unlock payload and keeps the code out of storage", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      unlocked: true,
+      mode: "development",
+      message: "Restricted development access.",
+      expires_at: "2099-01-01T00:00:00Z",
+      ttl_minutes: 15,
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(unlockAuthAccess("private-code")).resolves.toMatchObject({
+      ok: true,
+      mode: "development",
+      expiresAt: "2099-01-01T00:00:00Z",
+    });
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual({ code: "private-code" });
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it("maps invalid debug access codes to the canonical safe error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: false,
+      error: "backend detail",
+      error_code: "AUTH_BYPASS_INVALID_CODE",
+    }), { status: 403 })));
+    await expect(unlockAuthAccess("wrong-code")).resolves.toMatchObject({
+      ok: false,
+      error: { code: "AUTH_BYPASS_INVALID_CODE", message: "Invalid access code." },
+    });
   });
 
   it("submits the ephemeral token under the canonical password-login field", async () => {

@@ -76,6 +76,11 @@ describe("TurnstileWidget", () => {
     });
     act(() => callback?.("ephemeral-token"));
     expect(states.at(-1)).toMatchObject({ phase: "ready", token: "ephemeral-token" });
+    view.rerender(
+      <TurnstileWidget theme="dark" onStateChange={(state) => states.push(state)} />,
+    );
+    expect(renderWidget).toHaveBeenCalledTimes(1);
+    expect(states.at(-1)).toMatchObject({ phase: "ready", token: "ephemeral-token" });
     act(() => expiredCallback?.());
     expect(states.at(-1)).toMatchObject({ phase: "expired", token: "" });
 
@@ -88,5 +93,25 @@ describe("TurnstileWidget", () => {
 
     view.unmount();
     expect(remove).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps one widget under Strict Mode and removes it cleanly", async () => {
+    loadConfigMock.mockResolvedValue({
+      enabled: true,
+      runtimeEnabled: true,
+      configured: true,
+      sitekey: "public-site-key",
+    });
+    const renderWidget = vi.fn(() => "widget-1");
+    const remove = vi.fn();
+    window.turnstile = { render: renderWidget, reset: vi.fn(), remove };
+    const view = render(
+      <StrictMode>
+        <TurnstileWidget theme="dark" onStateChange={() => undefined} />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(renderWidget).toHaveBeenCalledTimes(1));
+    view.unmount();
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 });

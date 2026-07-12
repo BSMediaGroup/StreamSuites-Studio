@@ -18,17 +18,18 @@ import { Card } from "../components/ui/Card";
 import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
 import { useTheme } from "../theme/themeContext";
+import { useGlobalActivity } from "../activity/useGlobalActivity";
 
-const oauthProviders: readonly { id: OAuthProvider; label: string }[] = [
-  { id: "google", label: "Google" },
-  { id: "github", label: "GitHub" },
-  { id: "discord", label: "Discord" },
-  { id: "x", label: "X" },
-  { id: "twitch", label: "Twitch" },
+const oauthProviders: readonly { id: OAuthProvider; label: string; icon: string }[] = [
+  { id: "google", label: "Google", icon: "/assets/icons/google.svg" },
+  { id: "github", label: "GitHub", icon: "/assets/icons/github.svg" },
+  { id: "discord", label: "Discord", icon: "/assets/icons/discord.svg" },
+  { id: "x", label: "X", icon: "/assets/icons/x.svg" },
+  { id: "twitch", label: "Twitch", icon: "/assets/icons/twitch.svg" },
 ];
 
 export function LoginPage() {
-  const { access, refresh, logout } = useStudioAuth();
+  const { access, authGate, refresh, refreshAuthGate, unlockAuthGate, logout } = useStudioAuth();
   const { theme } = useTheme();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -36,12 +37,16 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
+  const [bypassCode, setBypassCode] = useState("");
+  const [bypassSubmitting, setBypassSubmitting] = useState(false);
+  const [bypassFeedback, setBypassFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [formError, setFormError] = useState<{ code: string; message: string } | null>(null);
   const [turnstile, setTurnstile] = useState<TurnstileState>({
     enabled: null,
     token: "",
     phase: "loading",
   });
+  useGlobalActivity(submitting || oauthSubmitting || bypassSubmitting, "Completing sign-in");
   const turnstileRef = useRef<TurnstileWidgetHandle>(null);
   const returnPath = useMemo(
     () => safeStudioReturnPath(searchParams.get("return_to")),
@@ -64,10 +69,31 @@ export function LoginPage() {
   const challengeReady =
     turnstile.enabled === false || (turnstile.enabled === true && Boolean(turnstile.token));
   const fieldsReady = Boolean(email.trim() && password);
+  const gateActive = authGate.mode === "maintenance" || authGate.mode === "development";
+  const gateBlocked = authGate.status !== "ready" || (gateActive && !authGate.bypassUnlocked);
+
+  async function handleBypassUnlock(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const code = bypassCode.trim();
+    if (!code || bypassSubmitting) {
+      if (!code) setBypassFeedback({ tone: "error", message: "Enter the access code." });
+      return;
+    }
+    setBypassSubmitting(true);
+    setBypassFeedback(null);
+    const result = await unlockAuthGate(code);
+    setBypassSubmitting(false);
+    if (!result.ok) {
+      setBypassFeedback({ tone: "error", message: result.error.message });
+      return;
+    }
+    setBypassCode("");
+    setBypassFeedback({ tone: "success", message: "Access unlocked. Continue with login." });
+  }
 
   async function handlePasswordLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting || !fieldsReady || !challengeReady) return;
+    if (submitting || gateBlocked || !fieldsReady || !challengeReady) return;
     setSubmitting(true);
     setFormError(null);
     const result = await loginWithPassword(email, password, turnstile.token);
@@ -82,7 +108,7 @@ export function LoginPage() {
   }
 
   function handleOAuthLogin(provider: OAuthProvider) {
-    if (oauthSubmitting || !challengeReady) return;
+    if (oauthSubmitting || gateBlocked || !challengeReady) return;
     setOauthSubmitting(true);
     setFormError(null);
     window.location.assign(buildOAuthLoginUrl(provider, returnPath, turnstile.token));
@@ -156,15 +182,59 @@ export function LoginPage() {
                 Sign in through the existing StreamSuites Auth API. Studio does not create a
                 separate account, session, role, or creator identity.
               </p>
+              {authGate.status === "loading" && (
+                <div className="notice-box notice-box--neutral" role="status">
+                  <strong>Checking access mode</strong>
+                  <p>Loading the Runtime/Auth access gate.</p>
+                </div>
+              )}
+              {authGate.status === "unavailable" && (
+                <div className="notice-box notice-box--danger" role="alert">
+                  <strong>Access state unavailable</strong>
+                  <p>{authGate.message}</p>
+                  <Button variant="secondary" onClick={() => void refreshAuthGate()}>Retry access state</Button>
+                </div>
+              )}
+              {authGate.status === "ready" && gateActive && (
+                <div className={`notice-box ${authGate.bypassUnlocked ? "notice-box--success" : "notice-box--danger"}`} role="status">
+                  <strong>{authGate.mode === "development" ? "Development access mode" : "Maintenance access mode"}</strong>
+                  <p>{authGate.message}</p>
+                  {authGate.bypassUnlocked ? (
+                    <p>Access unlocked. Continue with login.</p>
+                  ) : authGate.bypassEnabled ? (
+                    <form className="access-bypass-form" onSubmit={(event) => void handleBypassUnlock(event)}>
+                      <FormField
+                        label="Access code"
+                        type="password"
+                        autoComplete="off"
+                        value={bypassCode}
+                        onChange={(event) => {
+                          setBypassCode(event.target.value);
+                          setBypassFeedback(null);
+                        }}
+                        disabled={bypassSubmitting}
+                        required
+                      />
+                      {bypassFeedback && <p className={`access-bypass-feedback access-bypass-feedback--${bypassFeedback.tone}`}>{bypassFeedback.message}</p>}
+                      <Button type="submit" disabled={bypassSubmitting || !bypassCode.trim()}>
+                        {bypassSubmitting ? "Unlocking…" : "Unlock"}
+                      </Button>
+                    </form>
+                  ) : (
+                    <p>Normal login is paused right now.</p>
+                  )}
+                </div>
+              )}
               <div className="oauth-grid" aria-label="OAuth login options">
                 {oauthProviders.map((provider) => (
                   <Button
                     variant="secondary"
-                    disabled={oauthSubmitting || submitting || !challengeReady}
+                    disabled={oauthSubmitting || submitting || bypassSubmitting || gateBlocked || !challengeReady}
                     onClick={() => handleOAuthLogin(provider.id)}
                     key={provider.id}
                   >
-                    Continue with {provider.label}
+                    <img src={provider.icon} alt="" aria-hidden="true" />
+                    <span>Continue with {provider.label}</span>
                   </Button>
                 ))}
               </div>
@@ -207,7 +277,7 @@ export function LoginPage() {
                     <p>{formError.message}</p>
                   </div>
                 )}
-                <Button type="submit" disabled={submitting || oauthSubmitting || !fieldsReady || !challengeReady}>
+                <Button type="submit" disabled={submitting || oauthSubmitting || bypassSubmitting || gateBlocked || !fieldsReady || !challengeReady}>
                   {submitting ? "Signing in…" : "Sign in with StreamSuites"}
                 </Button>
               </form>

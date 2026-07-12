@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useStudioAuth } from "../../auth/studioAuthContext";
+import { GlobalLoadingBar } from "../../activity/GlobalLoadingBar";
 import { BrandMark } from "../BrandMark";
+import { StudioAccountMenu } from "../StudioAccountMenu";
+import { AuthAccessBanner } from "../AuthAccessBanner";
 import { ThemeToggle } from "../ThemeToggle";
 import { Button } from "../ui/Button";
 import { StatusChip } from "../ui/StatusChip";
@@ -14,15 +16,6 @@ interface StudioShellProps {
 
 export function StudioShell({ children }: StudioShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [logoutPending, setLogoutPending] = useState(false);
-  const { access, logout } = useStudioAuth();
-
-  async function handleLogout() {
-    setLogoutPending(true);
-    const completed = await logout();
-    setLogoutPending(false);
-    if (completed) window.location.assign("/login");
-  }
 
   return (
     <div className={`studio-shell${menuOpen ? " studio-shell--menu-open" : ""}`}>
@@ -41,14 +34,11 @@ export function StudioShell({ children }: StudioShellProps) {
         <div className="studio-topbar__status">
           <ThemeToggle />
           <StatusChip tone="alpha">ALPHA</StatusChip>
-          <span className="studio-account-name">
-            {access.account?.displayName ?? access.account?.userCode ?? "StreamSuites account"}
-          </span>
-          <Button variant="quiet" onClick={() => void handleLogout()} disabled={logoutPending}>
-            {logoutPending ? "Logging out…" : "Logout"}
-          </Button>
+          <StudioAccountMenu />
         </div>
       </header>
+      <GlobalLoadingBar />
+      <AuthAccessBanner />
 
       <aside id="studio-sidebar" className="studio-sidebar" aria-label="Studio workspace">
         <nav>

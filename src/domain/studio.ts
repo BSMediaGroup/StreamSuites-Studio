@@ -27,6 +27,19 @@ export interface StudioAccessState {
   readonly errorMessage?: string;
 }
 
+export type AuthAccessMode = "normal" | "maintenance" | "development";
+
+export interface AuthAccessGateState {
+  readonly status: "loading" | "ready" | "unavailable";
+  readonly mode: AuthAccessMode;
+  readonly message: string;
+  readonly showLockoutBanner: boolean;
+  readonly loginAllowed: boolean;
+  readonly bypassEnabled: boolean;
+  readonly bypassUnlocked: boolean;
+  readonly unlockExpiresAt: string | null;
+}
+
 export type RoomLifecycle = "draft" | "open" | "closed" | "ended";
 
 export interface RoomSummary {

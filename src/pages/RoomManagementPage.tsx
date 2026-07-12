@@ -19,6 +19,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
 import type { RoomInvite, RoomSummary, StudioGuest } from "../domain/studio";
+import { useGlobalActivity } from "../activity/useGlobalActivity";
 
 function date(value: string | null) {
   return value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "No expiry";
@@ -38,6 +39,7 @@ export function RoomManagementPage() {
   const [inviteLabel, setInviteLabel] = useState("");
   const [oneTimeLink, setOneTimeLink] = useState("");
   const inviteLinkRef = useRef<HTMLInputElement>(null);
+  useGlobalActivity(status === "loading" || Boolean(busy), "Loading room authority");
 
   const refresh = useCallback(async () => {
     setStatus("loading"); setMessage("");

@@ -62,6 +62,7 @@ interface TurnstileWidgetProps {
 
 let scriptPromise: Promise<TurnstileApi> | null = null;
 let configPromise: Promise<TurnstileConfig> | null = null;
+let configValue: TurnstileConfig | null = null;
 
 function loadScriptOnce(): Promise<TurnstileApi> {
   if (window.turnstile?.render) return Promise.resolve(window.turnstile);
@@ -110,10 +111,17 @@ function loadScriptOnce(): Promise<TurnstileApi> {
 }
 
 function loadConfigOnce(): Promise<TurnstileConfig> {
+  if (configValue) return Promise.resolve(configValue);
   if (!configPromise) {
-    configPromise = loadTurnstileConfig().finally(() => {
-      configPromise = null;
-    });
+    configPromise = loadTurnstileConfig()
+      .then((config) => {
+        configValue = config;
+        return config;
+      })
+      .catch((error) => {
+        configPromise = null;
+        throw error;
+      });
   }
   return configPromise;
 }
@@ -123,6 +131,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidget
     const slotRef = useRef<HTMLDivElement>(null);
     const widgetIdRef = useRef<TurnstileWidgetId | null>(null);
     const apiRef = useRef<TurnstileApi | null>(null);
+    const generationRef = useRef(0);
     const onStateChangeRef = useRef(onStateChange);
     const [config, setConfig] = useState<TurnstileConfig | null>(null);
     const [retryKey, setRetryKey] = useState(0);
@@ -147,6 +156,8 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidget
         }
       },
       retry() {
+        configValue = null;
+        configPromise = null;
         setConfig(null);
         setRetryKey((current) => current + 1);
       },
@@ -178,16 +189,23 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidget
 
       let mounted = true;
       let renderedId: TurnstileWidgetId | null = null;
+      const generation = ++generationRef.current;
       publish({ enabled: true, token: "", phase: "loading" });
       void loadScriptOnce()
         .then((turnstile) => {
-          if (!mounted) return;
+          if (!mounted || generation !== generationRef.current) return;
           apiRef.current = turnstile;
+          if (widgetIdRef.current !== null) {
+            turnstile.remove(widgetIdRef.current);
+            widgetIdRef.current = null;
+          }
+          slot.replaceChildren();
+          publish({ enabled: true, token: "", phase: "challenge_required" });
           renderedId = turnstile.render(slot, {
             sitekey: config.sitekey,
             theme,
             callback(token) {
-              if (!mounted) return;
+              if (!mounted || generation !== generationRef.current) return;
               const normalizedToken = String(token || "").trim();
               publish({
                 enabled: true,
@@ -196,21 +214,27 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidget
               });
             },
             "expired-callback"() {
-              if (mounted) publish({ enabled: true, token: "", phase: "expired" });
+              if (mounted && generation === generationRef.current) {
+                publish({ enabled: true, token: "", phase: "expired" });
+              }
             },
             "error-callback"() {
-              if (mounted) publish({ enabled: true, token: "", phase: "failed" });
+              if (mounted && generation === generationRef.current) {
+                publish({ enabled: true, token: "", phase: "failed" });
+              }
             },
           });
           widgetIdRef.current = renderedId;
-          publish({ enabled: true, token: "", phase: "challenge_required" });
         })
         .catch(() => {
-          if (mounted) publish({ enabled: true, token: "", phase: "provider_unavailable" });
+          if (mounted && generation === generationRef.current) {
+            publish({ enabled: true, token: "", phase: "provider_unavailable" });
+          }
         });
 
       return () => {
         mounted = false;
+        if (generation === generationRef.current) generationRef.current += 1;
         const widgetId = renderedId ?? widgetIdRef.current;
         if (widgetId !== null && apiRef.current?.remove) apiRef.current.remove(widgetId);
         if (widgetIdRef.current === widgetId) widgetIdRef.current = null;
@@ -235,7 +259,15 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidget
         <div className="turnstile-panel__status" aria-live="polite" data-phase={state.phase}>
           <span>{copy[state.phase]}</span>
           {retryable && (
-            <Button variant="secondary" onClick={() => setRetryKey((current) => current + 1)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                configValue = null;
+                configPromise = null;
+                setConfig(null);
+                setRetryKey((current) => current + 1);
+              }}
+            >
               Retry security check
             </Button>
           )}

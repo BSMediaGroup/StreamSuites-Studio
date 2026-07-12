@@ -8,6 +8,7 @@ import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
 import type { InviteValidation, StudioGuest } from "../domain/studio";
 import { checkInviteCode } from "../lib/inviteCode";
+import { useGlobalActivity } from "../activity/useGlobalActivity";
 
 type PageState = "validating" | "valid" | "invalid" | "revoked" | "expired" | "closed" | "ended" | "session_expired" | "unavailable" | "joining" | "guest";
 
@@ -40,6 +41,8 @@ export function JoinPage() {
   const [guest, setGuest] = useState<StudioGuest | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("");
+  const [guestBusy, setGuestBusy] = useState(false);
+  useGlobalActivity(state === "validating" || state === "joining" || guestBusy, "Resolving guest access");
 
   const validate = useCallback(async () => {
     if (!checked.isSafeFormat) { setState("invalid"); return; }
@@ -57,14 +60,18 @@ export function JoinPage() {
   }
 
   async function refreshGuest() {
+    setGuestBusy(true);
     setMessage("");
     try { const current = await loadStudioGuestSession(); setGuest(current); setState("guest"); }
     catch (error) { setGuest(null); setState(error instanceof StudioApiError && error.code === "guest_session_not_found" ? "session_expired" : "unavailable"); setMessage(error instanceof Error ? error.message : "Guest session could not be refreshed."); }
+    finally { setGuestBusy(false); }
   }
 
   async function leave() {
+    setGuestBusy(true);
     try { const left = await leaveStudioGuestSession(); setGuest(left); setMessage("You left the room. The temporary guest cookie has been cleared."); }
     catch (error) { setMessage(error instanceof Error ? error.message : "The guest session could not be left cleanly."); }
+    finally { setGuestBusy(false); }
   }
 
   if (state === "guest" && guest) {

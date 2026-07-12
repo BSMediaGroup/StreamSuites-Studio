@@ -10,6 +10,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
 import type { RoomSummary } from "../domain/studio";
+import { useGlobalActivity } from "../activity/useGlobalActivity";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -31,6 +32,8 @@ export function StudioPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [roomActionPending, setRoomActionPending] = useState(false);
+  useGlobalActivity(status === "loading" || submitting || roomActionPending, "Loading Studio rooms");
 
   const mayOwnRooms = access.status === "allowed" && ["admin", "creator", "developer"].includes(access.account?.accountType ?? "");
 
@@ -62,9 +65,12 @@ export function StudioPage() {
   }
 
   async function openRoom(room: RoomSummary) {
+    if (roomActionPending) return;
+    setRoomActionPending(true);
     setMessage("");
     try { const updated = await transitionStudioRoom(room.id, "open"); setRooms((items) => items.map((item) => item.id === room.id ? updated : item)); setMessage("Room opened for invited guest entry."); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Room could not be opened."); }
+    finally { setRoomActionPending(false); }
   }
 
   return <StudioShell>
@@ -75,7 +81,7 @@ export function StudioPage() {
         {status === "loading" && <p role="status">Loading Runtime/Auth room summaries…</p>}
         {status === "error" && <EmptyState title="Rooms unavailable"><p>{message}</p><Button onClick={() => window.location.reload()}>Retry</Button></EmptyState>}
         {status === "ready" && rooms.length === 0 && <EmptyState title="No rooms yet"><p>Create a room to establish server-owned lobby authority. It will not start a broadcast.</p></EmptyState>}
-        {status === "ready" && rooms.length > 0 && <div className="room-list">{rooms.map((room) => <article className="room-list__item" key={room.id}><div><div className="room-list__title"><h3>{room.title}</h3><StatusChip tone={room.lifecycleState === "open" ? "alpha" : room.lifecycleState === "ended" ? "blocked" : "neutral"}>{room.lifecycleState}</StatusChip></div><p>Updated {formatDate(room.updatedAt)} · {room.waitingGuestCount} waiting · {room.admittedGuestCount}/{room.maxGuestStageOccupants} admitted</p></div><div className="room-list__actions">{["draft", "closed"].includes(room.lifecycleState) && <Button variant="secondary" onClick={() => void openRoom(room)}>Open room</Button>}<ButtonLink to={`/studio/rooms/${room.id}`}>Manage</ButtonLink></div></article>)}</div>}
+        {status === "ready" && rooms.length > 0 && <div className="room-list">{rooms.map((room) => <article className="room-list__item" key={room.id}><div><div className="room-list__title"><h3>{room.title}</h3><StatusChip tone={room.lifecycleState === "open" ? "alpha" : room.lifecycleState === "ended" ? "blocked" : "neutral"}>{room.lifecycleState}</StatusChip></div><p>Updated {formatDate(room.updatedAt)} · {room.waitingGuestCount} waiting · {room.admittedGuestCount}/{room.maxGuestStageOccupants} admitted</p></div><div className="room-list__actions">{["draft", "closed"].includes(room.lifecycleState) && <Button variant="secondary" disabled={roomActionPending} onClick={() => void openRoom(room)}>Open room</Button>}<ButtonLink to={`/studio/rooms/${room.id}`}>Manage</ButtonLink></div></article>)}</div>}
       </Card>
     </div>
     {message && status !== "error" && <p className="status-banner" role="status" aria-live="polite">{message}</p>}

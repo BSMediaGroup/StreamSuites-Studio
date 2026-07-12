@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
+import { GlobalLoadingBar } from "../../activity/GlobalLoadingBar";
+import { AuthAccessBanner } from "../AuthAccessBanner";
 import { BrandMark } from "../BrandMark";
 import { ThemeToggle } from "../ThemeToggle";
 import { StatusChip } from "../ui/StatusChip";
@@ -24,6 +26,8 @@ export function SiteShell({ children }: SiteShellProps) {
           <StatusChip tone="alpha">ALPHA</StatusChip>
         </div>
       </header>
+      <GlobalLoadingBar />
+      <AuthAccessBanner />
       <main id="main-content">{children}</main>
       <footer className="site-footer">
         <span>StreamSuites Studio</span>

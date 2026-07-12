@@ -8,6 +8,7 @@ import type {
   StreamSuitesAccountType,
   StudioGuest,
   StudioAccessState,
+  AuthAccessGateState,
   StudioSessionAccount,
 } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
@@ -261,6 +262,113 @@ export async function loadTurnstileConfig(signal?: AbortSignal): Promise<Turnsti
     configured: payload.configured === true,
     sitekey,
   };
+}
+
+const authAccessMessages = {
+  normal: "Authentication is operating normally.",
+  maintenance: "Authentication is temporarily unavailable while maintenance is in progress.",
+  development: "Authentication is temporarily limited while development access mode is active.",
+} as const;
+
+export function createLoadingAuthAccessGateState(): AuthAccessGateState {
+  return {
+    status: "loading",
+    mode: "normal",
+    message: authAccessMessages.normal,
+    showLockoutBanner: false,
+    loginAllowed: false,
+    bypassEnabled: false,
+    bypassUnlocked: false,
+    unlockExpiresAt: null,
+  };
+}
+
+export async function loadAuthAccessGate(
+  previous: AuthAccessGateState | null = null,
+  signal?: AbortSignal,
+): Promise<AuthAccessGateState> {
+  try {
+    const response = await fetch(apiUrl("/auth/access-state"), {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+      signal,
+    });
+    const payload = await readPayload(response);
+    if (!response.ok || !isRecord(payload)) throw new Error("access_state_unavailable");
+    const rawMode = stringOrNull(payload.mode)?.toLowerCase();
+    const mode = rawMode === "maintenance" || rawMode === "development" ? rawMode : "normal";
+    const bypassEnabled = mode !== "normal" && payload.bypass_enabled === true;
+    const previousExpiry = previous?.unlockExpiresAt ?? null;
+    const previousUnlockActive = Boolean(
+      bypassEnabled &&
+      previous?.mode === mode &&
+      previous?.bypassUnlocked &&
+      previousExpiry &&
+      Date.parse(previousExpiry) > Date.now(),
+    );
+    return {
+      status: "ready",
+      mode,
+      message: stringOrNull(payload.message) ?? authAccessMessages[mode],
+      showLockoutBanner: payload.show_lockout_banner === true,
+      loginAllowed: payload.login_allowed === true,
+      bypassEnabled,
+      bypassUnlocked: previousUnlockActive,
+      unlockExpiresAt: previousUnlockActive ? previousExpiry : null,
+    };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    return {
+      ...createLoadingAuthAccessGateState(),
+      status: "unavailable",
+      message: "Runtime/Auth access state is currently unavailable.",
+    };
+  }
+}
+
+export async function unlockAuthAccess(
+  code: string,
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; mode: "maintenance" | "development"; message: string; expiresAt: string }
+  | { ok: false; error: SafeApiError }
+> {
+  try {
+    const response = await fetch(apiUrl("/auth/debug/unlock"), {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+      signal,
+    });
+    const payload = await readPayload(response);
+    if (response.ok && isRecord(payload) && payload.unlocked === true) {
+      const rawMode = stringOrNull(payload.mode);
+      const expiresAt = stringOrNull(payload.expires_at);
+      if ((rawMode === "maintenance" || rawMode === "development") && expiresAt) {
+        return {
+          ok: true,
+          mode: rawMode,
+          message: stringOrNull(payload.message) ?? authAccessMessages[rawMode],
+          expiresAt,
+        };
+      }
+    }
+    const codeValue = isRecord(payload) ? stringOrNull(payload.error_code) : null;
+    if (response.status === 403) {
+      return { ok: false, error: requestError(codeValue ?? "AUTH_BYPASS_INVALID_CODE", "Invalid access code.", 403) };
+    }
+    if (response.status === 429) {
+      return { ok: false, error: requestError(codeValue ?? "AUTH_BYPASS_RATE_LIMITED", "Too many attempts. Please wait and try again.", 429) };
+    }
+    return { ok: false, error: requestError(codeValue ?? "AUTH_BYPASS_UNAVAILABLE", "Unlock is unavailable right now.", response.status) };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    return { ok: false, error: requestError("AUTH_BYPASS_REQUEST_FAILED", "Unlock is unavailable right now.") };
+  }
 }
 
 function unavailable(error: SafeApiError): StudioAccessState {
