@@ -3,6 +3,7 @@ import {
   buildOAuthLoginUrl,
   loadStudioAccess,
   createStudioInvite,
+  connectStudioEvents,
   joinStudioInvite,
   listStudioRooms,
   loadTurnstileConfig,
@@ -280,5 +281,30 @@ describe("Studio Runtime/Auth adapter", () => {
     expect(JSON.parse(String(request.body))).toEqual({ invite_code: "invite-code", display_name: "Guest" });
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it("connects credentialed SSE and exposes reconnecting then fallback polling state", () => {
+    vi.useFakeTimers();
+    const instances: FakeEventSource[] = [];
+    class FakeEventSource {
+      onerror: (() => void) | null = null;
+      listeners = new Map<string, EventListener>();
+      closed = false;
+      constructor(readonly url: string, readonly options: EventSourceInit) { instances.push(this); }
+      addEventListener(name: string, listener: EventListener) { this.listeners.set(name, listener); }
+      close() { this.closed = true; }
+      emit(name: string) { this.listeners.get(name)?.(new MessageEvent(name)); }
+    }
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const states: string[] = [];
+    const connection = connectStudioEvents({ roomId: "Room234A", onState: (state) => states.push(state), onEvent: vi.fn() });
+    expect(instances[0].options.withCredentials).toBe(true);
+    instances[0].emit("connected");
+    expect(states.at(-1)).toBe("live");
+    instances[0].onerror?.(); expect(states.at(-1)).toBe("reconnecting");
+    vi.advanceTimersByTime(2000); instances[1].onerror?.(); vi.advanceTimersByTime(4000); instances[2].onerror?.();
+    expect(states.at(-1)).toBe("fallback polling");
+    connection.close(); expect(instances[2].closed).toBe(true);
+    vi.useRealTimers();
   });
 });

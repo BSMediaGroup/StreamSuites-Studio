@@ -30,11 +30,15 @@ No self-service application, room, guest invite, or media behavior was delivered
 
 - persist room ownership plus draft/open/closed/ended lifecycle in Runtime/Auth
 - authorize admins globally and active-granted creator/developer-capable owners only for their rooms, while public accounts remain invite participants
-- generate high-entropy invitations, persist only secure hashes, return the raw code once, and support revocation plus optional expiry
+- retain internal UUIDs while publishing immutable eight-character room codes and stable nine-character HMAC-derived invite codes with temporary UUID-route compatibility
+- support single-use, capped, and open invitations with transactional entrant counts, authorized re-copy, default 24-hour expiry, optional no-expiry, exhaustion, revocation, and rate-limited entry
 - create separate temporary room-scoped guest sessions without replacing the shared account cookie
 - persist waiting/admitted/denied/removed/left/expired lobby state and expose guest-self plus owner/admin management APIs
 - enforce a transactional maximum of nine admitted guest stage occupants while keeping the host/director and waiting lobby outside that cap
 - ship the room dashboard, protected management workspace, and real join/lobby UI without claiming media connectivity
+- persist monotonic safe room events and expose credentialed host/cohost and guest-isolated SSE with replay, heartbeat, reconnect, and disconnected-only fallback polling
+- support normalized guest display names, optional subtitles, initials colors, safe room-only raster fallback avatars, and a room-owned subtitle visibility setting
+- support room-session cohosts plus authenticated permanent cohost invitation/acceptance/decline/revoke with all-room and selected-room scope
 
 No camera, microphone, screen sharing, media track, broadcast output, or recording was delivered by this phase.
 
@@ -43,7 +47,8 @@ No camera, microphone, screen sharing, media track, broadcast output, or recordi
 - present existing rooms with a primary Enter room action while ended rooms remain visibly unavailable
 - render a responsive 16:9 Stage/Program preview with confirmed host and admitted-guest identities, meaningful empty positions, safe-area guides, and explicit awaiting-media treatment
 - separate Waiting backstage from On stage, with Runtime-backed admit, deny, remove, capacity-conflict, refresh, and pending states
-- integrate secure one-time invites, revocation, confirmed room settings, and lifecycle controls into the room workspace
+- integrate policy-controlled reusable invite links, revocation/exhaustion, confirmed room/presentation settings, scoped cohost controls, and lifecycle controls into the room workspace
+- surface live connection state, immediate Backstage arrivals/profile/status updates, accessible announcements, waiting/on-stage/cohost sections, and account-optional guest identity editing
 - provide local-only Grid, Interview, and Spotlight placeholder layouts without claiming they are broadcast
 - orient future production work with a control dock, truthful `OFF AIR` state, inactive timer, unavailable media controls, and explanatory Go live dialog
 - validate keyboard-accessible controls, mobile stacking, light/dark themes, and reduced-motion behavior while keeping local interaction state separate from authoritative Runtime/Auth room state

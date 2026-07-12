@@ -13,7 +13,7 @@ flowchart LR
 
     subgraph Runtime["StreamSuites runtime/Auth authority"]
         Auth["Accounts, shared sessions, roles, tiers,<br/>Studio ALPHA grants and admin APIs"]
-        Rooms["Implemented rooms, hashed invites,<br/>temporary guests and lobby admission"]
+        Rooms["Implemented short-code rooms and invites,<br/>temporary guests, cohosts, events and lobby admission"]
         MediaTokens["Planned media-token authority"]
         State["Canonical state, persistence,<br/>exports and version"]
     end
@@ -32,7 +32,7 @@ flowchart LR
 
     User --> Studio
     Studio -->|"credentialed session + access requests"| Auth
-    Studio -->|"credentialed room/invite/lobby requests"| Rooms
+    Studio -->|"credentialed room/invite/cohost/lobby requests and SSE"| Rooms
     Auth --> State
     Rooms --> State
     MediaTokens --> State
@@ -53,7 +53,9 @@ flowchart LR
 - Existing admin, creator, developer, and public account types are reused; no Studio-only account authority is introduced.
 - Admins are Studio-eligible automatically. Non-admin eligibility comes from an enabled grant keyed to the stable account ID, with a transactional maximum of 25 enabled invited grants. Grants never change role, tier, creator capability, or public-profile state.
 - `GET /api/studio/access` re-evaluates live session/account/grant truth and fails closed. Admin management is provided by `GET`/`POST /api/admin/studio/access` and `PATCH`/`DELETE /api/admin/studio/access/{account_id}` using existing admin authorization, audit, and alert-event seams.
-- Guest access is implemented as a temporary room-scoped identity granted through Runtime/Auth-validated invitation links. Raw invite codes and guest credentials are never stored; only secure hashes persist.
+- Guest access is implemented as a temporary room-scoped identity granted through Runtime/Auth-validated short invitation links. Guests may join without an account. Canonical invite codes are context-separated HMAC derivatives that Runtime/Auth can regenerate for authorized copying; only hashes are indexed and guest credentials remain hash-only.
+- Room events are persisted with monotonic IDs before an in-process signal wakes credentialed SSE streams. Studio treats every event as an invalidation hint, coalesces refetches, and polls only while SSE is disconnected.
+- Session cohosts are room/guest scoped and expire with that authority. Permanent cohost relationships require an authenticated invited account and remain separately scoped to all director rooms or selected internal room IDs; neither path changes roles, tiers, ownership, grants, billing, or public profiles.
 - The separate `streamsuites_studio_guest` HttpOnly cookie lasts up to 12 hours, never overwrites `streamsuites_session`, uses shared secure production scope, and follows the existing host-only local/private development policy.
 - Room lifecycle is `draft`, `open`, `closed`, and final `ended`. Owner/admin controls and `BEGIN IMMEDIATE` admission transactions enforce no more than nine admitted guest occupants while leaving lobby waiting capacity separate; the host/director is outside the guest cap.
 - Runtime/Auth may authorize and mint media access, but the Python runtime does not carry audio or video packets.
@@ -65,10 +67,10 @@ flowchart LR
 ## Current frontend integration
 
 - `src/config/env.ts` accepts a public Runtime/Auth override, with established production/local fallbacks, plus the optional runtime-version URL.
-- `src/api/studioAuth.ts` validates Auth/access plus room, invite, guest-session, and lobby contracts, always sends credentials, supports cancellation, and normalizes machine-readable errors.
+- `src/api/studioAuth.ts` validates Auth/access plus room, invite-policy, guest-profile, cohost, presentation, SSE, and lobby contracts, always sends credentials, supports cancellation, and normalizes machine-readable errors.
 - `/login` uses existing Runtime/Auth OAuth and email/password paths with a validated same-origin return target. It separately consumes `GET /auth/access-state` and `POST /auth/debug/unlock`; the latter issues Runtime's short-lived signed HttpOnly bypass cookie and never substitutes for Turnstile. `/studio` renders no authorized shell until access is confirmed, `/studio/rooms/:roomId` is owner/admin protected, and `/join/:inviteCode` remains available to temporary guests. Logout uses `POST /auth/logout`.
-- The room dashboard, pre-media room workspace, and guest join flow hold fetched server state only in React memory. The one-time raw invite disappears on reload/navigation; no room, lobby, invite, guest token, or guest credential is persisted or logged by Studio.
-- `/studio` presents Runtime room summaries as Enter-room-first cards. `/studio/rooms/:roomId` renders the Stage/Program canvas and Backstage together on desktop, with responsive panels for Backstage, invites, and confirmed room settings. Admit, deny, remove, invite, lifecycle, and room-detail mutations use the existing adapter and then refetch authoritative Runtime state.
+- The room dashboard, pre-media room workspace, and guest join flow hold fetched server state only in React memory. No room, lobby, invite code, guest token/credential, avatar binary, or cohost authority is persisted or logged by Studio.
+- `/studio` presents Runtime room summaries as Enter-room-first cards. `/studio/rooms/:roomId` renders Stage/Program and the live Backstage waiting/on-stage/cohost sections together, canonicalizes old UUID URLs, and exposes invite policy, subtitle visibility, session cohost, and permanent cohost controls according to the returned permission summary. Mutations and SSE events always refetch authoritative Runtime state.
 - Grid, Interview, Spotlight, selected-participant, open-panel, and explanatory-dialog state is presentation-only component memory. It is not sent to Runtime, persisted, or described as a live broadcast layout.
 - The production dock keeps microphone, camera, and screen sharing disabled, while `OFF AIR`, inactive `00:00:00`, and the Go live explanation explicitly state that media/output integration is unavailable. No permission prompt or media API is used.
 - No canonical auth/access state, Turnstile token, bypass code, or bypass flag is saved to browser storage. The bypass response expiry and Turnstile completion live only in component memory; the authoritative bypass is Runtime's HttpOnly cookie. `streamsuites_studio_theme` is the only new local preference.

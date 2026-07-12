@@ -62,6 +62,8 @@ it("keeps ended rooms visible without presenting an active Enter room action", a
 });
 
 it("renders the pre-media Stage and Backstage, changes local layout, and preserves Runtime lobby and invite actions", async () => {
+  class EventSourceStub { onerror: (() => void) | null = null; addEventListener() {} close() {} }
+  vi.stubGlobal("EventSource", EventSourceStub);
   const payload = authPayload("creator");
   let lobby = [
     { id: "guest-wait", room_id: "room-1", display_name: "Waiting Guest", account_id: null, state: "waiting", created_at: "2026-07-11T00:20:00Z", updated_at: "2026-07-11T00:20:00Z", expires_at: "2026-07-11T12:20:00Z", admitted_at: null, denied_at: null, removed_at: null, left_at: null },
@@ -78,12 +80,13 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
       return response({ success: true, guest: lobby[0] });
     }
     if (url.endsWith("/api/studio/rooms/room-1/invites") && init?.method === "POST") {
-      invites = [{ id: "invite-1", room_id: "room-1", label: "Panel", active: true, expires_at: null, created_at: "2026-07-11T00:32:00Z", updated_at: "2026-07-11T00:32:00Z", revoked_at: null }];
-      return response({ success: true, invite: invites[0], invite_code: "one-time-secret-code" }, 201);
+      invites = [{ id: "invite-1", room_id: "room-1", label: "Panel", active: true, invite_code: "Abc234Xyz", policy_type: "open", max_uses: null, successful_use_count: 0, permanent: false, exhausted: false, expires_at: "2026-07-12T00:32:00Z", created_at: "2026-07-11T00:32:00Z", updated_at: "2026-07-11T00:32:00Z", revoked_at: null }];
+      return response({ success: true, invite: invites[0], invite_code: "Abc234Xyz" }, 201);
     }
     if (url.endsWith("/api/studio/rooms/room-1/lobby")) return response({ success: true, items: lobby });
     if (url.endsWith("/api/studio/rooms/room-1/invites")) return response({ success: true, items: invites });
-    if (url.endsWith("/api/studio/rooms/room-1")) return response({ success: true, room: room() });
+    if (url.endsWith("/api/studio/rooms/room-1/cohosts")) return response({ success: true, director: { id: "creator-1", display_name: "creator", avatar_url: null }, session: [], permanent: [], permissions: { owner: true, manage_backstage: true, manage_invites: true, update_room: true, update_presentation: true, manage_permanent_cohosts: true, end_room: true } });
+    if (url.endsWith("/api/studio/rooms/room-1")) return response({ success: true, room: room(), permissions: { owner: true, manage_backstage: true, manage_invites: true, update_room: true, update_presentation: true, manage_permanent_cohosts: true, end_room: true } });
     return response({}, 404);
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -107,18 +110,20 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   fireEvent.click(screen.getByRole("button", { name: "Invite. Open secure invites" }));
   fireEvent.change(screen.getByLabelText("Invite label (optional)"), { target: { value: "Panel" } });
   fireEvent.click(screen.getByRole("button", { name: "Create invite" }));
-  expect(await screen.findByDisplayValue(/one-time-secret-code/)).toBeInTheDocument();
-  expect(window.localStorage.getItem("one-time-secret-code")).toBeNull();
+  expect(await screen.findByRole("button", { name: "Copy link" })).toBeInTheDocument();
+  expect(window.localStorage.getItem("Abc234Xyz")).toBeNull();
 
   fireEvent.click(screen.getByRole("button", { name: "Go live" }));
   expect(screen.getByRole("dialog", { name: "Live output is not connected yet." })).toBeInTheDocument();
 });
 
 it("validates an invite, joins the lobby, and displays admission-neutral waiting state", async () => {
+  class EventSourceStub { onerror: (() => void) | null = null; addEventListener() {} close() {} }
+  vi.stubGlobal("EventSource", EventSourceStub);
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/auth/session")) return response({ authenticated: false }, 401);
-    if (url.includes("/api/studio/invites/validate")) return response({ success: true, room: { id: "room-1", title: "Guest room", description: "Panel", lifecycle_state: "open" }, expires_at: null });
+    if (url.includes("/api/studio/invites/validate")) return response({ success: true, room: { id: "room-1", title: "Guest room", description: "Panel", lifecycle_state: "open", director: { id: "creator-1", display_name: "Creator", avatar_url: null } }, invite: { id: "invite-1", room_id: "room-1", label: null, active: true, invite_code: "safe-invite-code", policy_type: "open", max_uses: null, successful_use_count: 0, permanent: true, exhausted: false, expires_at: null, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", revoked_at: null }, expires_at: null });
     if (url.includes("/api/studio/invites/join")) {
       expect(JSON.parse(String(init?.body))).toMatchObject({ display_name: "Guest Person" });
       return response({ success: true, guest: { id: "guest-1", room_id: "room-1", display_name: "Guest Person", account_id: null, state: "waiting", created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", expires_at: "2026-07-11T12:00:00Z", admitted_at: null, denied_at: null, removed_at: null, left_at: null } }, 201);
@@ -129,7 +134,7 @@ it("validates an invite, joins the lobby, and displays admission-neutral waiting
   render(<ThemeProvider><StudioAuthProvider><MemoryRouter initialEntries={["/join/safe-invite-code"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/join/:inviteCode" element={<JoinPage />} /></Routes></MemoryRouter></StudioAuthProvider></ThemeProvider>);
   expect(await screen.findByText("Valid room invite")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText(/Display name/), { target: { value: "Guest Person" } });
-  fireEvent.click(screen.getByRole("button", { name: "Join lobby" }));
+  fireEvent.click(screen.getByRole("button", { name: "Join as guest" }));
   await waitFor(() => expect(screen.getByRole("heading", { name: "Waiting in lobby" })).toBeInTheDocument());
   expect(screen.getByText("Not connected")).toBeInTheDocument();
   expect(window.localStorage.length).toBe(0);

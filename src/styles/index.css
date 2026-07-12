@@ -1318,6 +1318,19 @@ p {
   font-weight: 400;
 }
 
+.join-card,
+.join-card .stack-form,
+.join-card .field,
+.join-card .form-field {
+  min-width: 0;
+}
+
+.join-card input[type="file"] {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .room-list,
 .invite-list,
 .guest-list {
@@ -1739,6 +1752,32 @@ button.participant-tile {
   color: #b9ec70;
   font-weight: 800;
 }
+
+.guest-avatar:is(img), .participant-avatar:is(img) { object-fit: cover; }
+.guest-avatar--blue { background: linear-gradient(135deg, #2563eb, #38bdf8); }
+.guest-avatar--violet { background: linear-gradient(135deg, #7c3aed, #c084fc); }
+.guest-avatar--teal { background: linear-gradient(135deg, #0f766e, #2dd4bf); }
+.guest-avatar--amber { background: linear-gradient(135deg, #b45309, #fbbf24); }
+.guest-avatar--rose { background: linear-gradient(135deg, #be123c, #fb7185); }
+.guest-avatar--slate { background: linear-gradient(135deg, #334155, #94a3b8); }
+.connection-state { display: inline-flex; align-items: center; gap: .4rem; text-transform: capitalize; }
+.connection-state i { width: .55rem; height: .55rem; border-radius: 999px; background: #64748b; }
+.connection-state--live i { background: #22c55e; box-shadow: 0 0 0 .22rem rgb(34 197 94 / .14); }
+.connection-state--reconnecting i, .connection-state--fallback-polling i { background: #f59e0b; }
+.guest-card--arrival { animation: backstage-arrival .24s ease-out; }
+.guest-card__identity small { display: block; color: var(--text-muted); }
+.cohost-list, .invite-policy-summary { display: grid; gap: .65rem; }
+.cohost-list article, .invite-policy-summary { padding: .8rem; border: 1px solid var(--border); border-radius: .75rem; background: var(--surface-raised); }
+.cohost-list article { display: flex; justify-content: space-between; gap: 1rem; }
+.join-status-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.guest-avatar-preview { display: flex; align-items: center; gap: 1rem; }
+.guest-avatar-preview img { width: 5rem; height: 5rem; border-radius: 999px; object-fit: cover; }
+.check-row { display: flex; align-items: center; gap: .65rem; }
+.field select { width: 100%; }
+@keyframes backstage-arrival { from { opacity: 0; transform: translateY(.35rem); } }
+@media (prefers-reduced-motion: reduce) { .guest-card--arrival { animation: none; } }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.cohost-invitation { padding: 1rem; border: 1px solid var(--border); border-radius: .85rem; background: var(--surface-raised); }
 
 .participant-avatar {
   width: clamp(46px, 6vw, 74px);

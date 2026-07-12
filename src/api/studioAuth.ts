@@ -1,24 +1,8 @@
 import { publicStudioConfig } from "../config/env";
-import type {
-  GuestLobbyState,
-  InviteValidation,
-  RoomInvite,
-  RoomLifecycle,
-  RoomSummary,
-  StreamSuitesAccountType,
-  StudioGuest,
-  StudioAccessState,
-  AuthAccessGateState,
-  StudioSessionAccount,
-} from "../domain/studio";
+import type { GuestLobbyState, InviteValidation, RoomInvite, RoomLifecycle, RoomSummary, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
 
-const ACCOUNT_TYPES = new Set<StreamSuitesAccountType>([
-  "admin",
-  "creator",
-  "developer",
-  "public",
-]);
+const ACCOUNT_TYPES = new Set<StreamSuitesAccountType>(["admin", "creator", "developer", "public"]);
 
 const loadingState: StudioAccessState = {
   status: "loading",
@@ -87,7 +71,7 @@ async function studioRequest(path: string, options: RequestInit = {}): Promise<R
       cache: "no-store",
       headers: {
         Accept: "application/json",
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
         ...options.headers,
       },
     });
@@ -131,6 +115,9 @@ function normalizeRoom(value: unknown): RoomSummary {
     maxGuestStageOccupants: numberOr(value.max_guest_stage_occupants, 9),
     waitingGuestCount: numberOr(value.waiting_guest_count),
     admittedGuestCount: numberOr(value.admitted_guest_count),
+    presentation: {
+      showParticipantSubtitles: !isRecord(value.presentation) || value.presentation.show_participant_subtitles !== false,
+    },
     createdAt,
     updatedAt,
     openedAt: stringOrNull(value.opened_at),
@@ -145,7 +132,23 @@ function normalizeInvite(value: unknown): RoomInvite {
   const createdAt = stringOrNull(value.created_at);
   const updatedAt = stringOrNull(value.updated_at);
   if (!id || !roomId || !createdAt || !updatedAt) throw new StudioApiError(requestError("invalid_invite_response", "Runtime/Auth returned incomplete invite data."));
-  return { id, roomId, label: stringOrNull(value.label), active: value.active === true, expiresAt: stringOrNull(value.expires_at), createdAt, updatedAt, revokedAt: stringOrNull(value.revoked_at) };
+  const policyType = value.policy_type === "single_use" || value.policy_type === "capped" ? value.policy_type : "open";
+  return {
+    id,
+    roomId,
+    label: stringOrNull(value.label),
+    active: value.active === true,
+    inviteCode: stringOrNull(value.invite_code) ?? "",
+    policyType,
+    maxUses: typeof value.max_uses === "number" ? value.max_uses : null,
+    successfulUseCount: numberOr(value.successful_use_count),
+    permanent: value.permanent === true,
+    exhausted: value.exhausted === true,
+    expiresAt: stringOrNull(value.expires_at),
+    createdAt,
+    updatedAt,
+    revokedAt: stringOrNull(value.revoked_at),
+  };
 }
 
 function normalizeGuest(value: unknown): StudioGuest {
@@ -158,13 +161,81 @@ function normalizeGuest(value: unknown): StudioGuest {
   const updatedAt = stringOrNull(value.updated_at);
   const expiresAt = stringOrNull(value.expires_at);
   if (!id || !roomId || !displayName || !state || !createdAt || !updatedAt || !expiresAt) throw new StudioApiError(requestError("invalid_guest_response", "Runtime/Auth returned incomplete guest data."));
-  const room = isRecord(value.room) ? {
-    id: stringOrNull(value.room.id) ?? roomId,
-    title: stringOrNull(value.room.title) ?? "Studio room",
-    description: stringOrNull(value.room.description),
-    lifecycleState: roomLifecycle(value.room.lifecycle_state),
-  } : undefined;
-  return { id, roomId, displayName, accountId: stringOrNull(value.account_id), state, createdAt, updatedAt, expiresAt, admittedAt: stringOrNull(value.admitted_at), deniedAt: stringOrNull(value.denied_at), removedAt: stringOrNull(value.removed_at), leftAt: stringOrNull(value.left_at), room };
+  const room = isRecord(value.room)
+    ? {
+        id: stringOrNull(value.room.id) ?? roomId,
+        title: stringOrNull(value.room.title) ?? "Studio room",
+        description: stringOrNull(value.room.description),
+        lifecycleState: roomLifecycle(value.room.lifecycle_state),
+      }
+    : undefined;
+  const rawAvatarUrl = stringOrNull(value.avatar_url);
+  return {
+    id,
+    roomId,
+    displayName,
+    subtitle: stringOrNull(value.subtitle),
+    avatarUrl: rawAvatarUrl ? apiUrl(rawAvatarUrl) : null,
+    avatarColor: stringOrNull(value.avatar_color) ?? "blue",
+    signedIn: value.signed_in === true,
+    sessionCohost: value.session_cohost === true,
+    pendingPermanentCohost: value.pending_permanent_cohost === true,
+    accountId: stringOrNull(value.account_id),
+    state,
+    createdAt,
+    updatedAt,
+    expiresAt,
+    admittedAt: stringOrNull(value.admitted_at),
+    deniedAt: stringOrNull(value.denied_at),
+    removedAt: stringOrNull(value.removed_at),
+    leftAt: stringOrNull(value.left_at),
+    room,
+  };
+}
+
+function normalizeAccount(value: unknown) {
+  if (!isRecord(value)) return null;
+  const id = stringOrNull(value.id);
+  if (!id) return null;
+  return {
+    id,
+    displayName: stringOrNull(value.display_name) ?? "StreamSuites account",
+    avatarUrl: stringOrNull(value.avatar_url),
+  };
+}
+
+function normalizePermissions(value: unknown): RoomPermissions {
+  const item = isRecord(value) ? value : {};
+  return {
+    owner: item.owner === true,
+    admin: item.admin === true,
+    sessionCohost: item.session_cohost === true,
+    permanentCohost: item.permanent_cohost === true,
+    pendingPermanentCohost: item.pending_permanent_cohost === true,
+    manageBackstage: item.manage_backstage === true,
+    manageInvites: item.manage_invites === true,
+    updateRoom: item.update_room === true,
+    updatePresentation: item.update_presentation === true,
+    managePermanentCohosts: item.manage_permanent_cohosts === true,
+    endRoom: item.end_room === true,
+  };
+}
+
+function normalizeRelationship(value: unknown): CohostRelationship {
+  if (!isRecord(value)) throw new StudioApiError(requestError("invalid_cohost_response", "Runtime/Auth returned invalid cohost data."));
+  const id = stringOrNull(value.id);
+  if (!id) throw new StudioApiError(requestError("invalid_cohost_response", "Runtime/Auth returned incomplete cohost data."));
+  const status = value.status === "accepted" || value.status === "declined" || value.status === "revoked" ? value.status : "pending";
+  return {
+    id,
+    director: normalizeAccount(value.director),
+    cohost: normalizeAccount(value.cohost),
+    status,
+    scopeType: value.scope_type === "all_rooms" ? "all_rooms" : "selected_rooms",
+    roomIds: Array.isArray(value.room_ids) ? value.room_ids.filter((item): item is string => typeof item === "string") : [],
+    createdAt: stringOrNull(value.created_at) ?? "",
+    updatedAt: stringOrNull(value.updated_at) ?? "",
+  };
 }
 
 function body(value: object): string {
@@ -177,15 +248,45 @@ export async function listStudioRooms(signal?: AbortSignal): Promise<RoomSummary
 }
 
 export async function createStudioRoom(input: { title: string; description?: string }, signal?: AbortSignal): Promise<RoomSummary> {
-  return normalizeRoom((await studioRequest("/api/studio/rooms", { method: "POST", body: body(input), signal })).room);
+  return normalizeRoom(
+    (
+      await studioRequest("/api/studio/rooms", {
+        method: "POST",
+        body: body(input),
+        signal,
+      })
+    ).room,
+  );
 }
 
 export async function loadStudioRoom(roomId: string, signal?: AbortSignal): Promise<RoomSummary> {
-  return normalizeRoom((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}`, { signal })).room);
+  return normalizeRoom(
+    (
+      await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}`, {
+        signal,
+      })
+    ).room,
+  );
+}
+
+export async function loadStudioRoomContext(roomId: string, signal?: AbortSignal): Promise<{ room: RoomSummary; permissions: RoomPermissions }> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}`, { signal });
+  return {
+    room: normalizeRoom(payload.room),
+    permissions: normalizePermissions(payload.permissions),
+  };
 }
 
 export async function updateStudioRoom(roomId: string, input: { title?: string; description?: string | null }, signal?: AbortSignal): Promise<RoomSummary> {
-  return normalizeRoom((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}`, { method: "PATCH", body: body(input), signal })).room);
+  return normalizeRoom(
+    (
+      await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}`, {
+        method: "PATCH",
+        body: body(input),
+        signal,
+      })
+    ).room,
+  );
 }
 
 export async function transitionStudioRoom(roomId: string, action: "open" | "close" | "end", signal?: AbortSignal): Promise<RoomSummary> {
@@ -197,10 +298,20 @@ export async function listStudioInvites(roomId: string, signal?: AbortSignal): P
   return Array.isArray(payload.items) ? payload.items.map(normalizeInvite) : [];
 }
 
-export async function createStudioInvite(roomId: string, input: { label?: string; expires_at?: string }, signal?: AbortSignal): Promise<{ invite: RoomInvite; inviteCode: string }> {
+export async function createStudioInvite(
+  roomId: string,
+  input: {
+    label?: string;
+    expires_at?: string;
+    permanent?: boolean;
+    policy_type?: InvitePolicy;
+    max_uses?: number;
+  },
+  signal?: AbortSignal,
+): Promise<{ invite: RoomInvite; inviteCode: string }> {
   const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/invites`, { method: "POST", body: body(input), signal });
   const inviteCode = stringOrNull(payload.invite_code);
-  if (!inviteCode) throw new StudioApiError(requestError("invalid_invite_response", "Runtime/Auth did not return the one-time invite code."));
+  if (!inviteCode) throw new StudioApiError(requestError("invalid_invite_response", "Runtime/Auth did not return the canonical invite code."));
   return { invite: normalizeInvite(payload.invite), inviteCode };
 }
 
@@ -209,13 +320,83 @@ export async function revokeStudioInvite(roomId: string, inviteId: string, signa
 }
 
 export async function validateStudioInvite(inviteCode: string, signal?: AbortSignal): Promise<InviteValidation> {
-  const payload = await studioRequest("/api/studio/invites/validate", { method: "POST", body: body({ invite_code: inviteCode }), signal });
+  const payload = await studioRequest("/api/studio/invites/validate", {
+    method: "POST",
+    body: body({ invite_code: inviteCode }),
+    signal,
+  });
   if (!isRecord(payload.room)) throw new StudioApiError(requestError("invalid_invite_response", "Runtime/Auth returned invalid room identity."));
-  return { room: { id: stringOrNull(payload.room.id) ?? "", title: stringOrNull(payload.room.title) ?? "Studio room", description: stringOrNull(payload.room.description), lifecycleState: roomLifecycle(payload.room.lifecycle_state) }, expiresAt: stringOrNull(payload.expires_at) };
+  const invite = normalizeInvite(payload.invite);
+  return {
+    room: {
+      id: stringOrNull(payload.room.id) ?? "",
+      title: stringOrNull(payload.room.title) ?? "Studio room",
+      description: stringOrNull(payload.room.description),
+      lifecycleState: roomLifecycle(payload.room.lifecycle_state),
+    },
+    expiresAt: stringOrNull(payload.expires_at),
+    invite,
+    director: normalizeAccount(payload.room.director),
+  };
 }
 
-export async function joinStudioInvite(inviteCode: string, displayName: string, signal?: AbortSignal): Promise<StudioGuest> {
-  return normalizeGuest((await studioRequest("/api/studio/invites/join", { method: "POST", body: body({ invite_code: inviteCode, display_name: displayName }), signal })).guest);
+export async function joinStudioInvite(inviteCode: string, profile: string | { displayName: string; subtitle?: string; avatarColor?: string }, signal?: AbortSignal): Promise<StudioGuest> {
+  const normalized = typeof profile === "string" ? { displayName: profile } : profile;
+  return normalizeGuest(
+    (
+      await studioRequest("/api/studio/invites/join", {
+        method: "POST",
+        body: body({
+          invite_code: inviteCode,
+          display_name: normalized.displayName,
+          subtitle: normalized.subtitle,
+          avatar_color: normalized.avatarColor,
+        }),
+        signal,
+      })
+    ).guest,
+  );
+}
+
+export async function updateStudioGuestProfile(input: { displayName: string; subtitle?: string; avatarColor?: string }, signal?: AbortSignal): Promise<StudioGuest> {
+  return normalizeGuest(
+    (
+      await studioRequest("/api/studio/guest/profile", {
+        method: "PATCH",
+        body: body({
+          display_name: input.displayName,
+          subtitle: input.subtitle,
+          avatar_color: input.avatarColor,
+        }),
+        signal,
+      })
+    ).guest,
+  );
+}
+
+export async function uploadStudioGuestAvatar(file: File, signal?: AbortSignal): Promise<StudioGuest> {
+  const form = new FormData();
+  form.append("file", file);
+  return normalizeGuest(
+    (
+      await studioRequest("/api/studio/guest/avatar", {
+        method: "POST",
+        body: form,
+        signal,
+      })
+    ).guest,
+  );
+}
+
+export async function removeStudioGuestAvatar(signal?: AbortSignal): Promise<StudioGuest> {
+  return normalizeGuest(
+    (
+      await studioRequest("/api/studio/guest/avatar", {
+        method: "DELETE",
+        signal,
+      })
+    ).guest,
+  );
 }
 
 export async function loadStudioGuestSession(signal?: AbortSignal): Promise<StudioGuest> {
@@ -233,6 +414,128 @@ export async function listStudioLobby(roomId: string, signal?: AbortSignal): Pro
 
 export async function transitionStudioGuest(roomId: string, guestId: string, action: "admit" | "deny" | "remove", signal?: AbortSignal): Promise<StudioGuest> {
   return normalizeGuest((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/lobby/${encodeURIComponent(guestId)}/${action}`, { method: "POST", signal })).guest);
+}
+
+export async function updateStudioPresentation(roomId: string, showParticipantSubtitles: boolean, signal?: AbortSignal): Promise<RoomSummary> {
+  return normalizeRoom(
+    (
+      await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation`, {
+        method: "PATCH",
+        body: body({ show_participant_subtitles: showParticipantSubtitles }),
+        signal,
+      })
+    ).room,
+  );
+}
+
+export async function loadRoomCohosts(roomId: string, signal?: AbortSignal): Promise<RoomCohosts> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/cohosts`, { signal });
+  return {
+    director: normalizeAccount(payload.director),
+    session: Array.isArray(payload.session) ? payload.session.map(normalizeGuest) : [],
+    permanent: Array.isArray(payload.permanent) ? payload.permanent.map(normalizeRelationship) : [],
+    permissions: normalizePermissions(payload.permissions),
+  };
+}
+
+export async function setSessionCohost(roomId: string, guestId: string, enabled: boolean, signal?: AbortSignal): Promise<StudioGuest> {
+  return normalizeGuest((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/cohosts/session/${encodeURIComponent(guestId)}`, { method: enabled ? "POST" : "DELETE", signal })).guest);
+}
+
+export async function invitePermanentCohost(
+  input: {
+    roomId: string;
+    guestId: string;
+    scopeType: CohostScope;
+    roomIds?: readonly string[];
+  },
+  signal?: AbortSignal,
+): Promise<CohostRelationship> {
+  return normalizeRelationship(
+    (
+      await studioRequest("/api/studio/cohosts/invitations", {
+        method: "POST",
+        body: body({
+          room_id: input.roomId,
+          guest_id: input.guestId,
+          scope_type: input.scopeType,
+          room_ids: input.roomIds ?? [],
+        }),
+        signal,
+      })
+    ).relationship,
+  );
+}
+
+export async function listCohostRelationships(invitationsOnly = false, signal?: AbortSignal): Promise<CohostRelationship[]> {
+  const payload = await studioRequest(invitationsOnly ? "/api/studio/cohosts/invitations" : "/api/studio/cohosts", { signal });
+  return Array.isArray(payload.items) ? payload.items.map(normalizeRelationship) : [];
+}
+
+export async function respondCohostInvitation(id: string, response: "accept" | "decline", signal?: AbortSignal): Promise<CohostRelationship> {
+  return normalizeRelationship((await studioRequest(`/api/studio/cohosts/invitations/${encodeURIComponent(id)}/${response}`, { method: "POST", signal })).relationship);
+}
+
+export async function updateCohostScope(id: string, scopeType: CohostScope, roomIds: readonly string[], signal?: AbortSignal): Promise<CohostRelationship> {
+  return normalizeRelationship(
+    (
+      await studioRequest(`/api/studio/cohosts/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: body({ scope_type: scopeType, room_ids: roomIds }),
+        signal,
+      })
+    ).relationship,
+  );
+}
+
+export async function revokeCohostRelationship(id: string, signal?: AbortSignal): Promise<CohostRelationship> {
+  return normalizeRelationship(
+    (
+      await studioRequest(`/api/studio/cohosts/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        signal,
+      })
+    ).relationship,
+  );
+}
+
+export interface StudioEventConnection {
+  readonly close: () => void;
+}
+
+export function connectStudioEvents(options: { roomId?: string; guest?: boolean; onState: (state: RoomConnectionState) => void; onEvent: (event: MessageEvent) => void }): StudioEventConnection {
+  const path = options.guest ? "/api/studio/guest/events" : `/api/studio/rooms/${encodeURIComponent(options.roomId ?? "")}/events`;
+  let closed = false;
+  let source: EventSource | null = null;
+  let reconnects = 0;
+  let timer = 0;
+  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "guest.waiting", "guest.profile_updated", "guest.admitted", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated", "presentation.updated"];
+  const open = () => {
+    if (closed) return;
+    options.onState(reconnects ? "reconnecting" : "unavailable");
+    source = new EventSource(apiUrl(path), { withCredentials: true });
+    source.addEventListener("connected", () => {
+      reconnects = 0;
+      options.onState("live");
+    });
+    eventNames.forEach((name) => source?.addEventListener(name, options.onEvent as EventListener));
+    source.onerror = () => {
+      source?.close();
+      if (closed) return;
+      reconnects += 1;
+      options.onState(reconnects >= 3 ? "fallback polling" : "reconnecting");
+      window.clearTimeout(timer);
+      timer = window.setTimeout(open, Math.min(1000 * 2 ** Math.min(reconnects, 4), 15000));
+    };
+  };
+  open();
+  return {
+    close: () => {
+      closed = true;
+      window.clearTimeout(timer);
+      source?.close();
+    },
+  };
 }
 
 export interface TurnstileConfig {
@@ -283,10 +586,7 @@ export function createLoadingAuthAccessGateState(): AuthAccessGateState {
   };
 }
 
-export async function loadAuthAccessGate(
-  previous: AuthAccessGateState | null = null,
-  signal?: AbortSignal,
-): Promise<AuthAccessGateState> {
+export async function loadAuthAccessGate(previous: AuthAccessGateState | null = null, signal?: AbortSignal): Promise<AuthAccessGateState> {
   try {
     const response = await fetch(apiUrl("/auth/access-state"), {
       method: "GET",
@@ -301,13 +601,7 @@ export async function loadAuthAccessGate(
     const mode = rawMode === "maintenance" || rawMode === "development" ? rawMode : "normal";
     const bypassEnabled = mode !== "normal" && payload.bypass_enabled === true;
     const previousExpiry = previous?.unlockExpiresAt ?? null;
-    const previousUnlockActive = Boolean(
-      bypassEnabled &&
-      previous?.mode === mode &&
-      previous?.bypassUnlocked &&
-      previousExpiry &&
-      Date.parse(previousExpiry) > Date.now(),
-    );
+    const previousUnlockActive = Boolean(bypassEnabled && previous?.mode === mode && previous?.bypassUnlocked && previousExpiry && Date.parse(previousExpiry) > Date.now());
     return {
       status: "ready",
       mode,
@@ -332,7 +626,12 @@ export async function unlockAuthAccess(
   code: string,
   signal?: AbortSignal,
 ): Promise<
-  | { ok: true; mode: "maintenance" | "development"; message: string; expiresAt: string }
+  | {
+      ok: true;
+      mode: "maintenance" | "development";
+      message: string;
+      expiresAt: string;
+    }
   | { ok: false; error: SafeApiError }
 > {
   try {
@@ -340,7 +639,10 @@ export async function unlockAuthAccess(
       method: "POST",
       credentials: "include",
       cache: "no-store",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ code }),
       signal,
     });
@@ -359,15 +661,27 @@ export async function unlockAuthAccess(
     }
     const codeValue = isRecord(payload) ? stringOrNull(payload.error_code) : null;
     if (response.status === 403) {
-      return { ok: false, error: requestError(codeValue ?? "AUTH_BYPASS_INVALID_CODE", "Invalid access code.", 403) };
+      return {
+        ok: false,
+        error: requestError(codeValue ?? "AUTH_BYPASS_INVALID_CODE", "Invalid access code.", 403),
+      };
     }
     if (response.status === 429) {
-      return { ok: false, error: requestError(codeValue ?? "AUTH_BYPASS_RATE_LIMITED", "Too many attempts. Please wait and try again.", 429) };
+      return {
+        ok: false,
+        error: requestError(codeValue ?? "AUTH_BYPASS_RATE_LIMITED", "Too many attempts. Please wait and try again.", 429),
+      };
     }
-    return { ok: false, error: requestError(codeValue ?? "AUTH_BYPASS_UNAVAILABLE", "Unlock is unavailable right now.", response.status) };
+    return {
+      ok: false,
+      error: requestError(codeValue ?? "AUTH_BYPASS_UNAVAILABLE", "Unlock is unavailable right now.", response.status),
+    };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
-    return { ok: false, error: requestError("AUTH_BYPASS_REQUEST_FAILED", "Unlock is unavailable right now.") };
+    return {
+      ok: false,
+      error: requestError("AUTH_BYPASS_REQUEST_FAILED", "Unlock is unavailable right now."),
+    };
   }
 }
 
@@ -399,22 +713,13 @@ function parseSessionAccount(payload: unknown): StudioSessionAccount | null {
   };
 }
 
-export function normalizeStudioAccess(
-  sessionPayload: unknown,
-  accessPayload: unknown,
-  accessStatus: number,
-): StudioAccessState {
+export function normalizeStudioAccess(sessionPayload: unknown, accessPayload: unknown, accessStatus: number): StudioAccessState {
   const account = parseSessionAccount(sessionPayload);
   if (!isRecord(accessPayload)) {
-    return unavailable(
-      requestError("invalid_access_response", "Runtime/Auth returned an invalid Studio access response."),
-    );
+    return unavailable(requestError("invalid_access_response", "Runtime/Auth returned an invalid Studio access response."));
   }
   const reasonCode = stringOrNull(accessPayload.reason_code) ?? "access_unconfirmed";
-  const testerLimit =
-    typeof accessPayload.active_tester_limit === "number" && accessPayload.active_tester_limit > 0
-      ? accessPayload.active_tester_limit
-      : 25;
+  const testerLimit = typeof accessPayload.active_tester_limit === "number" && accessPayload.active_tester_limit > 0 ? accessPayload.active_tester_limit : 25;
   const base = {
     source: "runtime-auth" as const,
     reasonCode,
@@ -462,13 +767,7 @@ export async function loadStudioAccess(signal?: AbortSignal): Promise<StudioAcce
       };
     }
     if (!sessionResponse.ok || !parseSessionAccount(sessionPayload)) {
-      return unavailable(
-        requestError(
-          "session_unavailable",
-          "Runtime/Auth could not confirm the current StreamSuites session.",
-          sessionResponse.status,
-        ),
-      );
+      return unavailable(requestError("session_unavailable", "Runtime/Auth could not confirm the current StreamSuites session.", sessionResponse.status));
     }
 
     const accessResponse = await fetch(apiUrl("/api/studio/access"), {
@@ -480,18 +779,11 @@ export async function loadStudioAccess(signal?: AbortSignal): Promise<StudioAcce
     return normalizeStudioAccess(sessionPayload, await readPayload(accessResponse), accessResponse.status);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
-    return unavailable(
-      requestError("runtime_request_failed", "Runtime/Auth is currently unavailable."),
-    );
+    return unavailable(requestError("runtime_request_failed", "Runtime/Auth is currently unavailable."));
   }
 }
 
-export async function loginWithPassword(
-  email: string,
-  password: string,
-  turnstileToken: string,
-  signal?: AbortSignal,
-): Promise<{ ok: true } | { ok: false; error: SafeApiError }> {
+export async function loginWithPassword(email: string, password: string, turnstileToken: string, signal?: AbortSignal): Promise<{ ok: true } | { ok: false; error: SafeApiError }> {
   try {
     const body: Record<string, string> = { email, password, surface: "studio" };
     const normalizedToken = turnstileToken.trim();
@@ -500,15 +792,14 @@ export async function loginWithPassword(
       method: "POST",
       credentials: "include",
       redirect: "manual",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(body),
       signal,
     });
-    if (
-      response.ok ||
-      response.type === "opaqueredirect" ||
-      [302, 303, 307, 308].includes(response.status)
-    ) {
+    if (response.ok || response.type === "opaqueredirect" || [302, 303, 307, 308].includes(response.status)) {
       return { ok: true };
     }
     const payload = await readPayload(response);
@@ -614,11 +905,7 @@ export function safeStudioReturnPath(value: string | null, fallback = "/studio")
   }
 }
 
-export function buildOAuthLoginUrl(
-  provider: OAuthProvider,
-  returnPath: string,
-  turnstileToken = "",
-): string {
+export function buildOAuthLoginUrl(provider: OAuthProvider, returnPath: string, turnstileToken = ""): string {
   const url = new URL(oauthPaths[provider], `${publicStudioConfig.runtimeApiBaseUrl}/`);
   url.searchParams.set("surface", "studio");
   url.searchParams.set("return_to", new URL(safeStudioReturnPath(returnPath), window.location.origin).toString());
