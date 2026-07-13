@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, RemoteMediaVideo, ScreenShareVideo } from "./StudioMediaElements";
+import { BackstageMediaPreview, DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, RemoteMediaVideo, ScreenShareVideo } from "./StudioMediaElements";
 import { useStudioMedia } from "./useStudioMedia";
 import * as api from "../api/studioAuth";
 
@@ -150,6 +150,19 @@ describe("RealtimeKit Studio media lifecycle", () => {
     expect(view.container.querySelector(".participant-label-overlay")).toHaveTextContent("DanielGuest");
     remote.videoEnabled = false;
     view.rerender(<MediaParticipantTile guest={guest} media={media} />);
+    expect(screen.getByTestId("participant-fallback")).toBeInTheDocument();
+  });
+
+  it("renders an existing main-room camera track in a Backstage thumbnail and falls back when it is off", () => {
+    const remote = participant();
+    const media = { remoteParticipants: new Map([["guest:guest-1", remote]]), state: "connected" } as unknown as ReturnType<typeof useStudioMedia>;
+    const guest = { id: "guest-1", displayName: "Daniel", subtitle: "Guest", avatarUrl: null, avatarColor: "blue" } as never;
+    const view = render(<BackstageMediaPreview guest={guest} media={media} />);
+    expect(screen.getByLabelText("Daniel Backstage camera")).toBeInTheDocument();
+    expect(remote.registerVideoElement).toHaveBeenCalledTimes(1);
+    expect(view.container.querySelector("audio")).toBeNull();
+    remote.videoEnabled = false;
+    view.rerender(<BackstageMediaPreview guest={guest} media={media} />);
     expect(screen.getByTestId("participant-fallback")).toBeInTheDocument();
   });
 

@@ -874,7 +874,7 @@ function HostRoomManagementPage() {
                     <div className="guest-card-list">
                       {waiting.map((guest) => (
                         <article className="guest-card guest-card--arrival" key={guest.id}>
-                          <GuestAvatar guest={guest} />
+                          <BackstageMediaPreview guest={guest} media={media} />
                           <div className="guest-card__identity">
                             <strong>{guest.displayName}</strong>
                             {guest.subtitle && <small>{guest.subtitle}</small>}

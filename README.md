@@ -32,6 +32,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - a working room Branding panel for solid/gradient/CDN-image Stage backgrounds, logo/bug placement/size/opacity, badge/subtitle styling, editor-only safe area, live Stage preview, canonical save/reset, and pending/error recovery
 - a working room Media panel for PNG/JPEG/WebP production assets with category filter, upload progress, responsive CDN-only thumbnails, select/assign, rename, and confirmed deletion; video/audio uploads and arbitrary remote URLs are not supported
 - explicit device preflight with SDK device selectors, local camera preview, microphone activity, device-off choices, join-without-devices, secure-context/support checks, and permission/device error states
+- compact 16:9 Backstage camera thumbnails that reuse each connected participant's existing main-room RealtimeKit video track, with camera-off/reconnecting avatar fallback and no separate preview session
 - SDK-registered local and remote video, SDK-managed remote audio with autoplay recovery, actual microphone/camera state, active-speaker indication, and stable guest-keyed tiles across Stage reordering
 - one room-scoped director or guest media lifecycle with Strict Mode initialization guards, listener cleanup, token refresh, reconnect state, Runtime mapping refresh, and memory-only participant tokens
 - Runtime-first Stage/Backstage synchronization, guest/cohost preset reconciliation, permission-checked host force-mute/video-disable, and reconciliation-required state on provider failure
@@ -69,7 +70,7 @@ The following are explicitly not shipped:
 - chat, alerts, clips, polls, games, automation, or analytics integration
 - an OBS program-output route or server-side broadcast output
 - freeform drag/resize custom-layout geometry or a complete brand-kit system
-- secure director-visible Backstage camera-preview transport; Backstage management remains identity/readiness only
+- an isolated or director-only Backstage camera transport separate from the existing private room meeting
 - deployment, DNS, Pages project, or account-specific Cloudflare configuration
 
 ## Local setup

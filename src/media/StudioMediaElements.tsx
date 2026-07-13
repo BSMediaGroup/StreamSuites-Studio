@@ -71,10 +71,10 @@ export function BackstageMediaPreview({ guest, media, local = false }: { guest: 
   const providerParticipant = media.remoteParticipants.get(`guest:${guest.id}`) ?? media.remoteParticipants.get(guest.id);
   const cameraReady = local ? media.videoEnabled : Boolean(providerParticipant?.videoEnabled && providerParticipant.videoTrack?.readyState === "live");
   const status = local
-    ? cameraReady ? "Private local preview" : "Local camera preview is off"
-    : cameraReady ? "Provider camera ready · Director preview transport not connected" : "No director-visible preview transport";
-  return <div className="backstage-media-preview" data-preview-scope={local ? "private-local" : "identity-only"}>
-    {local && cameraReady ? <LocalMediaVideo media={media} preview /> : <ParticipantFallback guest={guest} status={status} />}
+    ? cameraReady ? "Local camera preview" : "Local camera preview is off"
+    : media.state === "reconnecting" ? "Camera reconnecting" : cameraReady ? "Backstage camera on" : "Camera off";
+  return <div className="backstage-media-preview" data-preview-scope={local ? "local" : "room"}>
+    {local && cameraReady ? <LocalMediaVideo media={media} preview /> : cameraReady && providerParticipant ? <RemoteMediaVideo participant={providerParticipant} label={`${guest.displayName} Backstage`} /> : <ParticipantFallback guest={guest} status={status} />}
   </div>;
 }
 
