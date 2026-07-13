@@ -6,19 +6,16 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { StatusChip } from "../components/ui/StatusChip";
-import type { GuestRoomView, StudioGuest } from "../domain/studio";
+import { StudioIcon } from "../components/ui/StudioIcon";
+import type { GuestRoomView } from "../domain/studio";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioMedia } from "../media/useStudioMedia";
-import { DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, RemoteMediaVideo, ScreenShareVideo } from "../media/StudioMediaElements";
+import { BackstageMediaPreview, DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, ParticipantFallback, ParticipantLabelOverlay, RemoteMediaVideo, ScreenShareVideo } from "../media/StudioMediaElements";
 import { resolveEffectiveStageLayout } from "../layout/stageLayout";
-
-function initial(value: string) { return value.trim().charAt(0).toUpperCase() || "?"; }
-
-function Avatar({ guest }: { readonly guest: StudioGuest }) {
-  return guest.avatarUrl
-    ? <img className="participant-avatar" src={guest.avatarUrl} alt="" />
-    : <span className={`participant-avatar guest-avatar--${guest.avatarColor}`} aria-hidden="true">{initial(guest.displayName)}</span>;
-}
+import moveUpIcon from "../../assets/icons/ui/moveselectionup.svg";
+import moveUpFilledIcon from "../../assets/icons/ui/moveselectionup-filled.svg";
+import moveDownIcon from "../../assets/icons/ui/moveselectiondown.svg";
+import moveDownFilledIcon from "../../assets/icons/ui/moveselectiondown-filled.svg";
 
 export function GuestRoomWorkspace() {
   const { roomId = "" } = useParams<{ roomId: string }>();
@@ -94,18 +91,21 @@ export function GuestRoomWorkspace() {
           <p>{media.state === "connected" ? "Media connected" : media.reason} · OFF AIR</p>
           {effectiveLayout === "presentation" && (presentationShare ? <div className="presentation-source"><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
           <div className={`program-canvas program-canvas--${effectiveLayout}`} data-layout={requestedLayout} data-effective-layout={effectiveLayout} data-participant-count={guestStageCount}>
-            <article className="stage-participant" data-stage-slot="director">{directorParticipant?.videoEnabled ? <RemoteMediaVideo participant={directorParticipant} label="Director" /> : <span className="participant-avatar">D</span>}<div><strong>Director</strong><small>{directorParticipant ? `${directorParticipant.audioEnabled ? "Microphone on" : "Microphone muted"} · ${directorParticipant.videoEnabled ? "Camera on" : "Camera off"}` : "Reserved Stage slot"}</small></div></article>
-            {view.stage.length ? view.stage.slice(0, view.room.maxAdditionalStageParticipants).map((participant) => (
-              participant.id === view.self.id ? <article className={`stage-participant${media.activeRuntimeParticipantId === "self" ? " is-active-speaker" : ""}`} key={participant.id}>{media.videoEnabled ? <LocalMediaVideo media={media} /> : <Avatar guest={participant} />}<div><strong>{participant.displayName}</strong>{participant.subtitle && <small>{participant.subtitle}</small>}<small>{media.audioEnabled ? "Microphone on" : "Microphone muted"} · {media.videoEnabled ? "Camera on" : "Camera off"}</small></div></article> :
-              <MediaParticipantTile className="stage-participant" guest={participant} media={media} key={participant.id} />
-            )) : <EmptyState title="Stage is empty"><p>The director has not moved any guests on Stage.</p></EmptyState>}
+            <div className="program-safe-area" aria-hidden="true"><span>Safe area</span></div>
+            <div className="program-stage-grid">
+              <article className="stage-participant" data-stage-slot="director">{directorParticipant?.videoEnabled && directorParticipant.videoTrack?.readyState === "live" ? <RemoteMediaVideo participant={directorParticipant} label="Director" /> : <ParticipantFallback guest={{ displayName: "Director", avatarColor: "green", avatarUrl: null }} status={directorParticipant ? `${directorParticipant.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off` : "Reserved Stage slot"} />}<ParticipantLabelOverlay name="Director" /></article>
+              {view.stage.slice(0, view.room.maxAdditionalStageParticipants).map((participant) => (
+                participant.id === view.self.id ? <article className={`stage-participant${media.activeRuntimeParticipantId === "self" ? " is-active-speaker" : ""}`} key={participant.id}>{media.videoEnabled && media.meeting?.self.videoTrack?.readyState === "live" ? <LocalMediaVideo media={media} /> : <ParticipantFallback guest={participant} status={`${media.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off`} />}<ParticipantLabelOverlay name={participant.displayName} subtitle={participant.subtitle} /></article> :
+                <MediaParticipantTile className="stage-participant" guest={participant} media={media} key={participant.id} />
+              ))}
+            </div>
           </div>
         </section>
         <section className="backstage-tray" aria-labelledby="guest-backstage-title">
           <div className="backstage-tray__heading"><h2 id="guest-backstage-title">Backstage</h2><StatusChip tone="pending">{selfOnStage ? 0 : 1}</StatusChip></div>
-          {!selfOnStage ? <article className="backstage-tile">{media.videoEnabled ? <LocalMediaVideo media={media} preview /> : <Avatar guest={view.self} />}<div><strong>{view.self.displayName}</strong><small>{view.self.subtitle || "Waiting Backstage"}</small></div><div className="participant-actions"><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleAudio()}>{media.audioEnabled ? "Mute microphone" : "Enable microphone"}</Button><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleVideo()}>{media.videoEnabled ? "Turn camera off" : "Enable camera"}</Button>{view.permissions.selfStage && <Button disabled={Boolean(busy) || view.stage.length >= view.room.maxAdditionalStageParticipants} onClick={() => void move("stage")}>Move to Stage</Button>}</div></article> : <EmptyState title="You are on Stage"><p>Use your participant action to move Backstage.</p></EmptyState>}
+          {!selfOnStage ? <article className="backstage-tile"><BackstageMediaPreview guest={view.self} media={media} local /><div><strong>{view.self.displayName}</strong><small>{view.self.subtitle || "Waiting Backstage"}</small></div><div className="participant-actions"><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleAudio()}>{media.audioEnabled ? "Mute microphone" : "Enable microphone"}</Button><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleVideo()}>{media.videoEnabled ? "Turn camera off" : "Enable camera"}</Button>{view.permissions.selfStage && <Button className="icon-control" disabled={Boolean(busy) || view.stage.length >= view.room.maxAdditionalStageParticipants} onClick={() => void move("stage")}><StudioIcon regular={moveUpIcon} filled={moveUpFilledIcon} /> Move to Stage</Button>}</div></article> : <EmptyState title="You are on Stage"><p>Use your participant action to move Backstage.</p></EmptyState>}
         </section>
-        <div className="guest-self-controls"><Button variant={media.state === "connected" ? "quiet" : "secondary"} disabled={["provisioning", "connecting"].includes(media.state)} onClick={() => void (media.state === "connected" ? media.leave() : media.openPreflight())}>{media.state === "connected" ? "Disconnect media" : "Connect media"}</Button>{media.audioBlocked && <Button onClick={() => void media.enableAudio()}>Enable audio</Button>}{selfOnStage && <><Button variant="secondary" disabled={Boolean(busy)} onClick={() => void move("backstage")}>Move backstage</Button><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleAudio()}>{media.audioEnabled ? "Mute microphone" : "Enable microphone"}</Button><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleVideo()}>{media.videoEnabled ? "Turn camera off" : "Enable camera"}</Button><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleScreen()}>{media.screenEnabled ? "Stop sharing" : "Share screen"}</Button></>}</div>
+        <div className="guest-self-controls"><Button variant={media.state === "connected" ? "quiet" : "secondary"} disabled={["provisioning", "connecting"].includes(media.state)} onClick={() => void (media.state === "connected" ? media.leave() : media.openPreflight())}>{media.state === "connected" ? "Disconnect media" : "Connect media"}</Button>{media.audioBlocked && <Button onClick={() => void media.enableAudio()}>Enable audio</Button>}{selfOnStage && <><Button className="icon-control" variant="secondary" disabled={Boolean(busy)} onClick={() => void move("backstage")}><StudioIcon regular={moveDownIcon} filled={moveDownFilledIcon} /> Move backstage</Button><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleAudio()}>{media.audioEnabled ? "Mute microphone" : "Enable microphone"}</Button><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleVideo()}>{media.videoEnabled ? "Turn camera off" : "Enable camera"}</Button><Button variant="quiet" disabled={media.state !== "connected" || Boolean(media.pending)} onClick={() => void media.toggleScreen()}>{media.screenEnabled ? "Stop sharing" : "Share screen"}</Button></>}</div>
         {message && <p role="status">{message}</p>}
         <p className="fine-print">RealtimeKit transports private room media. Runtime/Auth remains authoritative and the room remains OFF AIR.</p>
       </section>

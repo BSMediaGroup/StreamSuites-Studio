@@ -11,6 +11,7 @@ import { ViewOptionsMenu } from "../ViewOptionsMenu";
 import { usePresentationPreferences } from "../../presentation/presentationContext";
 import { StudioFooter } from "../StudioFooter";
 import { StudioIcon } from "../ui/StudioIcon";
+import { TooltipPortal } from "../ui/TooltipPortal";
 import studioIcon from "../../../assets/icons/ui/tvlive.svg";
 import brandIcon from "../../../assets/icons/ui/starform.svg";
 import mediaIcon from "../../../assets/icons/ui/media.svg";
@@ -103,12 +104,12 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
         <div className="studio-sidebar__header"><span>Studio workspace</span></div>
         <div className="studio-sidebar__scroll">
           <nav>
-            <Link className="studio-nav-link studio-nav-link--active icon-control" to="/studio" title="Studio" aria-label="Studio">
+            <Link className="studio-nav-link studio-nav-link--active icon-control studio-tooltip" to="/studio" data-tooltip="Studio" aria-label="Studio">
               <StudioIcon regular={studioIcon} active />
               <span className="studio-nav-link__label">Studio</span>
             </Link>
             {futureNavigation.map(({ label, icon }) => (
-              <button key={label} className="studio-nav-link icon-control" type="button" disabled title={`${label} (Later)`} aria-label={`${label}, unavailable, later`}>
+              <button key={label} className="studio-nav-link icon-control studio-tooltip" type="button" disabled data-tooltip={`${label} (Later)`} aria-label={`${label}, unavailable, later`}>
                 <StudioIcon regular={icon} />
                 <span className="studio-nav-link__label">{label}</span>
                 <span className="studio-nav-link__future">Later</span>
@@ -121,17 +122,18 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
             <strong>Closed ALPHA · OFF AIR</strong>
             <p>Runtime/Auth owns room authority; RealtimeKit carries private room media only.</p>
           </div>
-          <button className="sidebar-mode-cycle icon-control" type="button" onClick={cycleSidebar} aria-label={`Sidebar is ${preferences.sidebar}. Change sidebar mode.`} title={`Sidebar: ${preferences.sidebar}. Change mode.`}><StudioIcon regular={sidebarCloseIcon} filled={sidebarOpenIcon} active={preferences.sidebar !== "expanded"} /> <span>Change sidebar</span></button>
+          <button className="sidebar-mode-cycle icon-control studio-tooltip" data-tooltip={`Sidebar: ${preferences.sidebar}. Change mode.`} type="button" onClick={cycleSidebar} aria-label={`Sidebar is ${preferences.sidebar}. Change sidebar mode.`}><StudioIcon regular={sidebarCloseIcon} filled={sidebarOpenIcon} active={preferences.sidebar !== "expanded"} /> <span>Change sidebar</span></button>
         </div>
       </aside>
 
-      {effectiveSidebar === "hidden" && !cinematic && <button className="sidebar-restore icon-control" type="button" onClick={() => setSidebar("expanded")} aria-label="Restore Studio sidebar" title="Restore sidebar"><StudioIcon regular={sidebarOpenIcon} filled={sidebarOpenIcon} /></button>}
+      {effectiveSidebar === "hidden" && !cinematic && <button className="sidebar-restore icon-control studio-tooltip" data-tooltip="Restore sidebar" type="button" onClick={() => setSidebar("expanded")} aria-label="Restore Studio sidebar"><StudioIcon regular={sidebarOpenIcon} filled={sidebarOpenIcon} /></button>}
       {cinematic && <button className="cinematic-exit" type="button" onClick={toggleCinematic}>Exit cinematic <kbd>F</kbd></button>}
 
       <main id="main-content" className="studio-main">
         {children}
       </main>
       <StudioFooter />
+      <TooltipPortal />
     </div>
   );
 }

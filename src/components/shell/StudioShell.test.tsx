@@ -19,7 +19,7 @@ it("changes and persists all desktop sidebar and header modes from the accessibl
   fireEvent.click(screen.getByRole("button", { name: "View options" }));
   fireEvent.click(screen.getByLabelText("Icons only"));
   expect(shell).toHaveClass("studio-shell--sidebar-compact");
-  expect(screen.getByRole("link", { name: "Studio" })).toHaveAttribute("title", "Studio");
+  expect(screen.getByRole("link", { name: "Studio" })).toHaveAttribute("data-tooltip", "Studio");
 
   fireEvent.click(screen.getByLabelText("Hidden"));
   expect(shell).toHaveClass("studio-shell--sidebar-hidden");

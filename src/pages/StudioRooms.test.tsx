@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 import { StudioAuthProvider } from "../auth/StudioAuthProvider";
@@ -121,6 +121,12 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   expect(screen.getByText("OFF AIR")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Microphone. Media status unavailable" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Connect media. Media status unavailable" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Backstage. 1 waiting, 1 on stage" }).querySelector(".studio-icon")?.getAttribute("style")).toContain("backstage.svg");
+  expect(screen.getByRole("button", { name: "Backstage. 1 waiting, 1 on stage" }).querySelector(".studio-icon")?.getAttribute("style")).toContain("backstage-filled.svg");
+  expect(screen.getByRole("button", { name: "Previous production controls" }).querySelector(".studio-icon")?.getAttribute("style")).toContain("previous.svg");
+  expect(screen.getByRole("button", { name: "Next production controls" }).querySelector(".studio-icon")?.getAttribute("style")).toContain("next.svg");
+  expect(screen.getAllByRole("button", { name: "Move to Stage" })[0].querySelector(".studio-icon")?.getAttribute("style")).toContain("moveselectionup.svg");
+  expect(screen.getByRole("link", { name: "Rooms" }).querySelector(".studio-icon")?.getAttribute("style")).toContain("exitroom.svg");
   expect(rendered.container.querySelector(".production-rail")).not.toBeInTheDocument();
   expect(rendered.container.querySelector(".room-lifecycle-bar")).not.toBeInTheDocument();
   expect(screen.getByTitle("Room ID").parentElement).toHaveTextContent("ROOM DETAILS");
@@ -215,6 +221,8 @@ it("enforces nine total Stage slots across layouts and recovers after a capacity
   expect(rendered.container.querySelectorAll("[data-testid='program-canvas'] .participant-tile")).toHaveLength(9);
   fireEvent.click(screen.getByLabelText("Actions for Stage 0"));
   const stageZeroMenu = screen.getByRole("menu", { name: "Actions for Stage 0" });
+  expect(within(stageZeroMenu).getByRole("menuitem", { name: "Move Backstage" }).querySelector(".studio-icon")?.getAttribute("style")).toContain("moveselectiondown.svg");
+  expect(within(stageZeroMenu).getByRole("menuitem", { name: "Move Backstage" }).querySelector(".studio-icon")?.getAttribute("style")).toContain("moveselectiondown-filled.svg");
   fireEvent.click(stageZeroMenu.querySelector<HTMLButtonElement>('button[role="menuitem"]') as HTMLButtonElement);
   await waitFor(() => screen.getAllByRole("button", { name: "Move to Stage" }).forEach((button) => expect(button).toBeEnabled()));
   expect(lobby.filter((guest) => guest.state === "on_stage")).toHaveLength(7);
@@ -252,4 +260,67 @@ it("validates an invite, joins the lobby, and displays admission-neutral waiting
   await waitFor(() => expect(screen.getByRole("heading", { name: "Guest room workspace" })).toBeInTheDocument());
   expect(window.localStorage.length).toBe(0);
   expect(window.sessionStorage.length).toBe(0);
+});
+
+it("hydrates the same invite form after password login and joins as a server-linked account", async () => {
+  class EventSourceStub { onerror: (() => void) | null = null; addEventListener() {} close() {} }
+  vi.stubGlobal("EventSource", EventSourceStub);
+  let authenticated = false;
+  let submitted: Record<string, unknown> | null = null;
+  const accountSession = { authenticated: true, user: { internal_id: "account-1", user_code: "DAN1234", display_name: "Daniel Account", avatar_url: "https://cdn.streamsuites.app/avatars/account-1.webp", role: "public", tier: "CORE" } };
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/auth/access-state")) return response({ mode: "normal", login_allowed: true });
+    if (url.includes("/auth/turnstile/config")) return response({ enabled: false, runtime_enabled: true, configured: false, sitekey: "" });
+    if (url.includes("/auth/login/password")) { authenticated = true; return response({ success: true }); }
+    if (url.includes("/auth/session")) return authenticated ? response(accountSession) : response({ authenticated: false }, 401);
+    if (url.includes("/api/studio/access")) return response({ authenticated: true, access_allowed: true, reason_code: "alpha_grant_active", stage: "ALPHA", active_tester_limit: 25 });
+    if (url.includes("/api/studio/invites/validate")) return response({ success: true, room: { id: "room-1", title: "Guest room", description: "Panel", lifecycle_state: "open", director: { id: "creator-1", display_name: "Creator", avatar_url: null } }, invite: { id: "invite-1", room_id: "room-1", label: null, active: true, invite_code: "safe-invite-code", policy_type: "open", max_uses: null, successful_use_count: 0, permanent: true, exhausted: false, expires_at: null, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", revoked_at: null }, expires_at: null });
+    if (url.includes("/api/studio/invites/join")) {
+      submitted = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return response({ success: true, guest: { id: "guest-1", room_id: "room-1", display_name: "Daniel Account", account_id: "account-1", account_user_code: "DAN1234", linked_account: { user_code: "DAN1234", display_name: "Daniel Account", avatar_url: "https://cdn.streamsuites.app/avatars/account-1.webp" }, avatar_url: "https://cdn.streamsuites.app/avatars/account-1.webp", avatar_source: "linked_account", state: "backstage", created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", expires_at: "2026-07-11T12:00:00Z", admitted_at: null, denied_at: null, removed_at: null, left_at: null } }, 201);
+    }
+    return response({}, 404);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<ThemeProvider><StudioAuthProvider><MemoryRouter initialEntries={["/join/safe-invite-code"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/join/:inviteCode" element={<JoinPage />} /><Route path="/studio/rooms/:roomId" element={<h1>Linked guest workspace</h1>} /></Routes></MemoryRouter></StudioAuthProvider></ThemeProvider>);
+  expect(await screen.findByText("Valid room invite")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Sign in with StreamSuites" }));
+  const loginDialog = await screen.findByRole("dialog", { name: "Sign in with StreamSuites" });
+  fireEvent.change(within(loginDialog).getByLabelText("Email"), { target: { value: "daniel@example.com" } });
+  fireEvent.change(within(loginDialog).getByLabelText("Password"), { target: { value: "correct horse" } });
+  const signIn = within(loginDialog).getByRole("button", { name: "Sign in with StreamSuites" });
+  await waitFor(() => expect(signIn).toBeEnabled());
+  fireEvent.click(signIn);
+  expect(await screen.findByRole("status", { name: "Linked StreamSuites account" })).toHaveTextContent("Daniel Account · DAN1234");
+  expect(screen.getByLabelText(/Display name/)).toHaveValue("Daniel Account");
+  expect(screen.getByAltText("Fallback avatar preview")).toHaveAttribute("src", "https://cdn.streamsuites.app/avatars/account-1.webp");
+  fireEvent.click(screen.getByRole("button", { name: "Join as linked participant" }));
+  await screen.findByRole("heading", { name: "Linked guest workspace" });
+  expect(submitted).toMatchObject({ display_name: "Daniel Account" });
+  expect(submitted).not.toHaveProperty("account_id");
+  expect(JSON.stringify(window.sessionStorage)).not.toContain("correct horse");
+});
+
+it("merges an OAuth invite draft without overwriting explicit edits or persisting avatar bytes", async () => {
+  window.sessionStorage.setItem("streamsuites.studio.invite-draft.v1", JSON.stringify({ savedAt: Date.now(), displayName: "Room Name", subtitle: "Panel subtitle", avatarColor: "violet", avatarSelected: true, dirtyFields: { displayName: true, subtitle: true, avatarColor: true, avatar: true } }));
+  const payload = authPayload("public");
+  const oauthUser = payload.session.user as Omit<typeof payload.session.user, "display_name" | "avatar_url"> & { display_name: string; avatar_url: string | null };
+  oauthUser.display_name = "Canonical Name";
+  oauthUser.avatar_url = "https://cdn.streamsuites.app/avatars/public-1.webp";
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/auth/session")) return response(payload.session);
+    if (url.includes("/api/studio/access")) return response(payload.access);
+    if (url.includes("/auth/access-state")) return response({ mode: "normal", login_allowed: true });
+    if (url.includes("/api/studio/invites/validate")) return response({ success: true, room: { id: "room-1", title: "OAuth room", lifecycle_state: "open" }, invite: { id: "invite-1", room_id: "room-1", active: true, invite_code: "safe-invite-code", policy_type: "open", permanent: true, exhausted: false, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z" }, expires_at: null });
+    return response({}, 404);
+  }));
+  render(<ThemeProvider><StudioAuthProvider><MemoryRouter initialEntries={["/join/safe-invite-code"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/join/:inviteCode" element={<JoinPage />} /></Routes></MemoryRouter></StudioAuthProvider></ThemeProvider>);
+  expect(await screen.findByLabelText(/Display name/)).toHaveValue("Room Name");
+  expect(screen.getByLabelText(/Subtitle/)).toHaveValue("Panel subtitle");
+  expect(screen.getByRole("status", { name: "Linked StreamSuites account" })).toHaveTextContent("Canonical Name");
+  expect(screen.getByText(/avatar file was not stored/i)).toBeInTheDocument();
+  expect(window.sessionStorage.getItem("streamsuites.studio.invite-draft.v1")).toBeNull();
+  expect(document.body.innerHTML).not.toContain("data:image/");
 });

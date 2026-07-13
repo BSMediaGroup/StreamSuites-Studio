@@ -15,6 +15,8 @@ import { LoginPage } from "./LoginPage";
 
 const INVITE_DRAFT_KEY = "streamsuites.studio.invite-draft.v1";
 const INVITE_DRAFT_MAX_AGE_MS = 15 * 60 * 1000;
+type InviteDirtyFields = { displayName: boolean; subtitle: boolean; avatarColor: boolean; avatar: boolean };
+const cleanInviteFields = (): InviteDirtyFields => ({ displayName: false, subtitle: false, avatarColor: false, avatar: false });
 
 type PageState = "validating" | "valid" | "invalid" | "revoked" | "expired" | "exhausted" | "closed" | "ended" | "session_expired" | "unavailable" | "joining" | "guest";
 
@@ -81,7 +83,7 @@ export function JoinPage() {
   const { inviteCode } = useParams<{ inviteCode: string }>();
   const checked = checkInviteCode(inviteCode);
   const navigate = useNavigate();
-  const { refresh } = useStudioAuth();
+  const { access } = useStudioAuth();
   const [state, setState] = useState<PageState>(checked.isSafeFormat ? "validating" : "invalid");
   const [validation, setValidation] = useState<InviteValidation | null>(null);
   const [guest, setGuest] = useState<StudioGuest | null>(null);
@@ -90,6 +92,7 @@ export function JoinPage() {
   const [avatarColor, setAvatarColor] = useState("blue");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState("");
+  const [avatarNeedsReselect, setAvatarNeedsReselect] = useState(false);
   const [connection, setConnection] = useState<RoomConnectionState>("unavailable");
   const [cohostInvitations, setCohostInvitations] = useState<CohostRelationship[]>([]);
   const [message, setMessage] = useState("");
@@ -99,6 +102,7 @@ export function JoinPage() {
   const profileHeadingRef = useRef<HTMLHeadingElement>(null);
   const loginTriggerRef = useRef<HTMLButtonElement>(null);
   const loginDialogRef = useRef<HTMLDivElement>(null);
+  const dirtyFieldsRef = useRef<InviteDirtyFields>(cleanInviteFields());
 
   useEffect(() => {
     try {
@@ -107,13 +111,29 @@ export function JoinPage() {
       if (!raw) return;
       const draft = JSON.parse(raw) as Record<string, unknown>;
       if (typeof draft.savedAt !== "number" || Date.now() - draft.savedAt > INVITE_DRAFT_MAX_AGE_MS) return;
+      const restoredDirty = cleanInviteFields();
+      if (draft.dirtyFields && typeof draft.dirtyFields === "object") {
+        const dirty = draft.dirtyFields as Record<string, unknown>;
+        restoredDirty.displayName = dirty.displayName === true;
+        restoredDirty.subtitle = dirty.subtitle === true;
+        restoredDirty.avatarColor = dirty.avatarColor === true;
+        restoredDirty.avatar = dirty.avatar === true;
+      }
+      dirtyFieldsRef.current = restoredDirty;
       if (typeof draft.displayName === "string") setDisplayName(draft.displayName.slice(0, 60));
       if (typeof draft.subtitle === "string") setSubtitle(draft.subtitle.slice(0, 100));
       if (typeof draft.avatarColor === "string" && ["blue", "violet", "teal", "amber", "rose", "slate"].includes(draft.avatarColor)) setAvatarColor(draft.avatarColor);
+      setAvatarNeedsReselect(restoredDirty.avatar && draft.avatarSelected === true);
     } catch {
       sessionStorage.removeItem(INVITE_DRAFT_KEY);
     }
   }, []);
+
+  useEffect(() => {
+    const account = access.account;
+    if (!account) return;
+    if (!dirtyFieldsRef.current.displayName) setDisplayName(account.displayName || account.userCode || "");
+  }, [access.account]);
 
   useEffect(() => {
     if (!loginOpen) return;
@@ -134,8 +154,31 @@ export function JoinPage() {
   }, [loginOpen]);
 
   function persistOAuthDraft() {
-    sessionStorage.setItem(INVITE_DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), displayName: displayName.slice(0, 60), subtitle: subtitle.slice(0, 100), avatarColor }));
+    sessionStorage.setItem(INVITE_DRAFT_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      displayName: displayName.slice(0, 60),
+      subtitle: subtitle.slice(0, 100),
+      avatarColor,
+      dirtyFields: dirtyFieldsRef.current,
+      avatarSelected: Boolean(avatarFile) || avatarNeedsReselect,
+    }));
   }
+
+  const markDirty = (field: keyof InviteDirtyFields) => { dirtyFieldsRef.current[field] = true; };
+
+  const useAccountDetails = useCallback(() => {
+    const account = access.account;
+    if (!account) return;
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    dirtyFieldsRef.current.displayName = false;
+    dirtyFieldsRef.current.avatar = false;
+    setDisplayName(account.displayName || account.userCode || "");
+    setAvatarFile(null);
+    setAvatarPreview("");
+    setAvatarNeedsReselect(false);
+  }, [access.account, avatarPreview]);
+
+  const closeAuthenticatedLogin = useCallback(() => setLoginOpen(false), []);
 
   const validate = useCallback(async () => {
     if (!checked.isSafeFormat) {
@@ -203,6 +246,8 @@ export function JoinPage() {
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     setAvatarFile(file);
     setAvatarPreview(file ? URL.createObjectURL(file) : "");
+    dirtyFieldsRef.current.avatar = Boolean(file);
+    setAvatarNeedsReselect(false);
   }
 
   async function saveProfile(event: FormEvent) {
@@ -290,7 +335,7 @@ export function JoinPage() {
           <div><p className="eyebrow">Invitation stays open</p><h2 id="invite-login-title">Sign in with StreamSuites</h2></div>
           <Button variant="quiet" aria-label="Close sign in" onClick={() => setLoginOpen(false)}>×</Button>
         </div>
-        <LoginPage embedded returnTo={`/join/${checked.normalized}`} onOAuthStart={persistOAuthDraft} onAuthenticated={() => { void refresh(); setLoginOpen(false); }} />
+        <LoginPage embedded returnTo={`/join/${checked.normalized}`} onOAuthStart={persistOAuthDraft} onAuthenticated={closeAuthenticatedLogin} />
       </div>
     </div>
   ) : null;
@@ -441,25 +486,31 @@ export function JoinPage() {
             <span>{validation?.invite.permanent ? "No expiry" : `Expires ${validation?.expiresAt ? new Date(validation.expiresAt).toLocaleString() : "after 24 hours"}`}</span>
           </div>
           <p>Join fully as a guest, or sign in first and return to this same invite. Signing in alone does not consume an entrant use.</p>
+          {access.account && (
+            <div className="linked-account-state" role="status" aria-label="Linked StreamSuites account">
+              {access.account.avatarUrl ? <img src={access.account.avatarUrl} alt="" /> : <span aria-hidden="true">{(access.account.displayName || access.account.userCode || "S").charAt(0).toUpperCase()}</span>}
+              <div><strong>Linked StreamSuites account</strong><small>{access.account.displayName || "StreamSuites account"}{access.account.userCode ? ` · ${access.account.userCode}` : ""}</small></div>
+              <Button type="button" variant="quiet" onClick={useAccountDetails}>Use account details</Button>
+            </div>
+          )}
           <form className="stack-form" onSubmit={join}>
-            <FormField label="Display name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} minLength={1} maxLength={60} autoComplete="name" disabled={state === "joining"} hint="Runtime/Auth normalizes this room-scoped name. Joining does not admit you." />
-            <FormField label="Subtitle (optional)" value={subtitle} onChange={(event) => setSubtitle(event.target.value)} maxLength={100} disabled={state === "joining"} />
-            <InitialsColorPicker value={avatarColor} onChange={setAvatarColor} disabled={state === "joining"} />
+            <FormField label="Display name" value={displayName} onChange={(event) => { markDirty("displayName"); setDisplayName(event.target.value); }} minLength={1} maxLength={60} autoComplete="name" disabled={state === "joining"} hint="Runtime/Auth normalizes this room-scoped name. Joining does not admit you." />
+            <FormField label="Subtitle (optional)" value={subtitle} onChange={(event) => { markDirty("subtitle"); setSubtitle(event.target.value); }} maxLength={100} disabled={state === "joining"} />
+            <InitialsColorPicker value={avatarColor} onChange={(value) => { markDirty("avatarColor"); setAvatarColor(value); }} disabled={state === "joining"} />
             <label className="field">
               <span className="field__label">Fallback avatar (optional)</span>
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={chooseAvatar} disabled={state === "joining"} />
             </label>
-            {avatarPreview && (
+            {(avatarPreview || (!dirtyFieldsRef.current.avatar && access.account?.avatarUrl)) && (
               <div className="guest-avatar-preview">
-                <img src={avatarPreview} alt="Fallback avatar preview" />
+                <img src={avatarPreview || access.account?.avatarUrl || ""} alt="Fallback avatar preview" />
               </div>
             )}
+            {avatarNeedsReselect && <p className="fine-print" role="status">For privacy, the pre-login avatar file was not stored. Select it again to use that room-scoped override.</p>}
             <Button type="submit" disabled={!displayName.trim() || state === "joining"}>
-              {state === "joining" ? "Joining lobby…" : "Join as guest"}
+              {state === "joining" ? "Joining lobby…" : access.account ? "Join as linked participant" : "Join as guest"}
             </Button>
-            <button ref={loginTriggerRef} type="button" className="button button--secondary" onClick={() => setLoginOpen(true)}>
-              Sign in with StreamSuites
-            </button>
+            {!access.account && <button ref={loginTriggerRef} type="button" className="button button--secondary" onClick={() => setLoginOpen(true)}>Sign in with StreamSuites</button>}
           </form>
           <p className="fine-print">An account is optional. Guest authority uses a separate secure HttpOnly cookie; the invite code, credential, avatar binary, and cohost authority are never persisted in browser storage.</p>
         </Card>

@@ -1,19 +1,20 @@
 import { StrictMode } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DevicePreflightDialog, LocalMediaVideo, RemoteMediaVideo, ScreenShareVideo } from "./StudioMediaElements";
+import { DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, RemoteMediaVideo, ScreenShareVideo } from "./StudioMediaElements";
 import { useStudioMedia } from "./useStudioMedia";
 import * as api from "../api/studioAuth";
 
 const initMock = vi.fn();
 let sdkMeeting: ReturnType<typeof createMeeting>;
+let meetingQueue: ReturnType<typeof createMeeting>[] = [];
 
 vi.mock("@cloudflare/realtimekit-react", async () => {
   const React = await import("react");
   return {
     useRealtimeKitClient: () => {
       const [client, setClient] = React.useState<ReturnType<typeof createMeeting> | undefined>();
-      return [client, async (options: unknown) => { initMock(options); setClient(sdkMeeting); return sdkMeeting; }];
+      return [client, async (options: unknown) => { initMock(options); const next = meetingQueue.shift() ?? sdkMeeting; setClient(next); return next; }];
     },
   };
 });
@@ -63,20 +64,21 @@ function createMeeting() {
     registerVideoElement: vi.fn(), deregisterVideoElement: vi.fn(),
   });
   const participants = Object.assign(new Events(), { joined });
-  return {
+  const meeting = {
     self, participants, meta: new Events(), stage: Object.assign(new Events(), { status: "OFF_STAGE", join: vi.fn().mockResolvedValue(undefined), leave: vi.fn().mockResolvedValue(undefined), grantAccess: vi.fn().mockResolvedValue(undefined), kick: vi.fn().mockResolvedValue(undefined) }),
     audio: { addParticipantTrack: vi.fn(), removeParticipantTrack: vi.fn(), play: vi.fn().mockResolvedValue(undefined), setSpeakerDevice: vi.fn() },
-    join: vi.fn().mockResolvedValue(undefined), leave: vi.fn().mockResolvedValue(undefined),
+    join: vi.fn(async () => { self.roomJoined = true; }), leave: vi.fn(async () => { self.roomJoined = false; }),
   };
+  return meeting;
 }
 
 function Harness({ location = "on_stage" as const }) {
   const media = useStudioMedia("room_123", { location, canScreenShare: true });
-  return <><span data-testid="state">{media.state}</span><span data-testid="active">{media.activeRuntimeParticipantId ?? "none"}</span><span data-testid="audio-blocked">{String(media.audioBlocked)}</span><button onClick={() => void media.openPreflight()}>Connect</button><button onClick={() => void media.toggleAudio()}>Toggle audio</button><button onClick={() => void media.toggleScreen()}>Toggle screen</button><button onClick={() => void media.enableAudio()}>Enable audio</button>{media.meeting && <LocalMediaVideo media={media} />}<DevicePreflightDialog media={media} /></>;
+  return <><span data-testid="state">{media.state}</span><span data-testid="reason">{media.reason}</span><span data-testid="active">{media.activeRuntimeParticipantId ?? "none"}</span><span data-testid="audio-blocked">{String(media.audioBlocked)}</span><button onClick={() => void media.openPreflight()}>Connect</button><button onClick={() => void media.toggleAudio()}>Toggle audio</button><button onClick={() => void media.toggleScreen()}>Toggle screen</button><button onClick={() => void media.enableAudio()}>Enable audio</button>{media.meeting && <LocalMediaVideo media={media} />}<DevicePreflightDialog media={media} /></>;
 }
 
 beforeEach(() => {
-  sdkMeeting = createMeeting(); initMock.mockReset();
+  sdkMeeting = createMeeting(); meetingQueue = []; initMock.mockReset();
   Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
   Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn() } });
   Object.defineProperty(globalThis, "MediaStream", { configurable: true, value: class { constructor(readonly tracks: MediaStreamTrack[]) {} } });
@@ -97,6 +99,7 @@ describe("RealtimeKit Studio media lifecycle", () => {
     await screen.findByRole("dialog", { name: "Device preflight" });
     await waitFor(() => expect(sdkMeeting.self.getAllDevices).toHaveBeenCalledTimes(1));
     expect(api.createStudioMediaSession).toHaveBeenCalledTimes(1); expect(initMock).toHaveBeenCalledTimes(1);
+    expect(initMock).toHaveBeenCalledWith(expect.objectContaining({ modules: { experimentalAudioPlayback: true } }));
   });
 
   it("joins once, commits actual device state after SDK success, and remains OFF AIR UI-neutral", async () => {
@@ -130,6 +133,26 @@ describe("RealtimeKit Studio media lifecycle", () => {
     expect(screen.getByLabelText("Shared screen")).toHaveClass("presentation-video"); unmount();
   });
 
+  it("localizes a rejected screen-share play instead of throwing through the route", async () => {
+    vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValueOnce(new DOMException("blocked", "NotAllowedError"));
+    render(<ScreenShareVideo track={{ id: "screen-track" } as MediaStreamTrack} />);
+    expect(await screen.findByRole("status")).toHaveTextContent("Shared screen playback was blocked");
+  });
+
+  it("shows camera video without the central fallback while preserving the label overlay", () => {
+    const remote = participant();
+    sdkMeeting.participants.joined.set(remote.id, remote);
+    const media = { remoteParticipants: new Map([["guest:guest-1", remote]]), activeRuntimeParticipantId: null, state: "connected" } as unknown as ReturnType<typeof useStudioMedia>;
+    const guest = { id: "guest-1", displayName: "Daniel", subtitle: "Guest", avatarUrl: null, avatarColor: "blue" } as never;
+    const view = render(<MediaParticipantTile guest={guest} media={media} />);
+    expect(screen.getByLabelText("Daniel camera")).toBeInTheDocument();
+    expect(screen.queryByTestId("participant-fallback")).not.toBeInTheDocument();
+    expect(view.container.querySelector(".participant-label-overlay")).toHaveTextContent("DanielGuest");
+    remote.videoEnabled = false;
+    view.rerender(<MediaParticipantTile guest={guest} media={media} />);
+    expect(screen.getByTestId("participant-fallback")).toBeInTheDocument();
+  });
+
   it("plays mapped remote audio, exposes autoplay recovery, active speaker, and reconnect state", async () => {
     vi.mocked(api.createStudioMediaSession).mockResolvedValue({ provider: "cloudflare_realtimekit", authToken: "memory-only", runtimeParticipantId: "guest:self", participantBindings: [{ runtimeParticipantId: "guest:remote", customParticipantId: "binding_remote" }], runtime: {} });
     render(<Harness />); fireEvent.click(screen.getByText("Connect")); fireEvent.click(await screen.findByText("Join room"));
@@ -143,6 +166,41 @@ describe("RealtimeKit Studio media lifecycle", () => {
     await waitFor(() => expect(screen.getByTestId("audio-blocked")).toHaveTextContent("false"));
     act(() => sdkMeeting.meta.emit("socketConnectionUpdate", { state: "reconnecting", reconnected: false, reconnectionAttempt: 1 }));
     expect(screen.getByTestId("state")).toHaveTextContent("reconnecting");
+  });
+
+  it("does not call play when the SDK audio subsystem is undefined", async () => {
+    delete (sdkMeeting as { audio?: unknown }).audio;
+    render(<Harness />); fireEvent.click(screen.getByText("Connect")); fireEvent.click(await screen.findByText("Join room"));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("connected"));
+    act(() => sdkMeeting.self.emit("autoplayError", new Error("blocked")));
+    fireEvent.click(screen.getByText("Enable audio"));
+    expect(screen.getByTestId("audio-blocked")).toHaveTextContent("true");
+    expect(screen.getByTestId("reason")).toHaveTextContent("Remote audio playback is not ready");
+  });
+
+  it("keeps autoplay rejection in the Enable audio recovery state", async () => {
+    sdkMeeting.audio.play.mockRejectedValue(new DOMException("blocked", "NotAllowedError"));
+    render(<Harness />); fireEvent.click(screen.getByText("Connect")); fireEvent.click(await screen.findByText("Join room"));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("connected"));
+    act(() => sdkMeeting.self.emit("autoplayError", new Error("blocked")));
+    fireEvent.click(screen.getByText("Enable audio"));
+    await waitFor(() => expect(screen.getByTestId("reason")).toHaveTextContent("Browser autoplay is blocked"));
+    expect(screen.getByTestId("audio-blocked")).toHaveTextContent("true");
+  });
+
+  it("never calls play on a meeting replaced during token refresh", async () => {
+    const first = sdkMeeting;
+    const second = createMeeting();
+    meetingQueue = [first, second];
+    vi.mocked(api.refreshStudioMediaSession).mockResolvedValue("refreshed-memory-only");
+    render(<Harness />); fireEvent.click(screen.getByText("Connect")); fireEvent.click(await screen.findByText("Join room"));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("connected"));
+    const firstOptions = initMock.mock.calls[0][0] as { onError: (error: { code: string }) => void };
+    act(() => firstOptions.onError({ code: "0004" }));
+    await waitFor(() => expect(initMock).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByText("Enable audio"));
+    await waitFor(() => expect(second.audio.play).toHaveBeenCalledTimes(1));
+    expect(first.audio.play).not.toHaveBeenCalled();
   });
 
   it("refreshes an expired token sequentially and cleans up the active meeting once", async () => {

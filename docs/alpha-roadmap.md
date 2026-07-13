@@ -68,8 +68,11 @@ No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime
 - apply Runtime-first Stage/Backstage, guest/cohost preset, host force-disable, provider removal, and reconciliation-required flows while preserving nine total Stage slots
 - render participant-initiated RealtimeKit screen sharing in manual Presentation layout while retaining camera tiles
 - keep audio and video outside Python and keep Studio OFF AIR
+- harden the installed 2.0.0 playback lifecycle against missing/replaced audio managers, keep autoplay failure recoverable, separate live camera surfaces from fallback identity, retain a 16:9 Stage with full-height two-person columns, and preserve the privacy boundary by exposing no director-visible Backstage preview until a scoped transport is designed
 
 Mocked SDK lifecycle, registration, intent-order, screen-share, Runtime provider transport, refresh, preset, cleanup, and capacity behavior is covered locally. Live configured Cloudflare/browser proof remains a deployment validation step.
+
+The next separate milestone may add Branding/Media foundations, custom layout tooling, participant-label visibility settings, and a provider-verified scoped Backstage preview architecture. None of those are part of this repair milestone.
 
 ## 6. OBS-capturable program output — planned
 

@@ -26,6 +26,17 @@ function stringOrNull(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function safeCdnAvatarUrl(value: unknown): string | null {
+  const candidate = stringOrNull(value);
+  if (!candidate) return null;
+  try {
+    const parsed = new URL(candidate, `${publicStudioConfig.runtimeApiBaseUrl}/`);
+    return parsed.protocol === "https:" && parsed.hostname === "cdn.streamsuites.app" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function accountType(value: unknown): StreamSuitesAccountType | null {
   const normalized = stringOrNull(value)?.toLowerCase() as StreamSuitesAccountType | undefined;
   return normalized && ACCOUNT_TYPES.has(normalized) ? normalized : null;
@@ -267,15 +278,24 @@ function normalizeGuest(value: unknown): StudioGuest {
         },
       }
     : undefined;
-  const rawAvatarUrl = stringOrNull(value.avatar_url);
+  const rawAvatarUrl = safeCdnAvatarUrl(value.avatar_url);
+  const linkedAccount = isRecord(value.linked_account) ? value.linked_account : null;
+  const avatarSource = value.avatar_source === "room_override" || value.avatar_source === "linked_account" ? value.avatar_source : "initials";
   return {
     id,
     roomId,
     displayName,
     subtitle: stringOrNull(value.subtitle),
-    avatarUrl: rawAvatarUrl ? apiUrl(rawAvatarUrl) : null,
+    avatarUrl: rawAvatarUrl,
     avatarColor: stringOrNull(value.avatar_color) ?? "blue",
     signedIn: value.signed_in === true,
+    accountUserCode: stringOrNull(value.account_user_code),
+    linkedAccount: linkedAccount ? {
+      userCode: stringOrNull(linkedAccount.user_code),
+      displayName: stringOrNull(linkedAccount.display_name),
+      avatarUrl: safeCdnAvatarUrl(linkedAccount.avatar_url),
+    } : null,
+    avatarSource,
     sessionCohost: value.session_cohost === true,
     pendingPermanentCohost: value.pending_permanent_cohost === true,
     accountId: stringOrNull(value.account_id),
@@ -300,8 +320,9 @@ function normalizeAccount(value: unknown) {
   if (!id) return null;
   return {
     id,
+    userCode: stringOrNull(value.user_code),
     displayName: stringOrNull(value.display_name) ?? "StreamSuites account",
-    avatarUrl: stringOrNull(value.avatar_url),
+    avatarUrl: safeCdnAvatarUrl(value.avatar_url),
   };
 }
 
@@ -871,7 +892,7 @@ function parseSessionAccount(payload: unknown): StudioSessionAccount | null {
     id,
     userCode: stringOrNull(user.user_code),
     displayName: stringOrNull(user.display_name),
-    avatarUrl: stringOrNull(user.avatar_url ?? user.profile_image_url),
+    avatarUrl: safeCdnAvatarUrl(user.avatar_url ?? user.profile_image_url),
     accountType: type,
     tier: stringOrNull(user.tier ?? user.effective_tier),
   };

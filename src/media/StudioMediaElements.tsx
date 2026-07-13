@@ -8,37 +8,67 @@ type StudioMedia = ReturnType<typeof useStudioMedia>;
 
 export function LocalMediaVideo({ media, preview = false, className = "participant-video" }: { media: StudioMedia; preview?: boolean; className?: string }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState("");
   useEffect(() => {
     const element = ref.current, self = media.meeting?.self;
     if (!element || !self) return;
-    self.registerVideoElement(element, preview);
-    return () => self.deregisterVideoElement(element, preview);
+    let registered = false;
+    try { self.registerVideoElement(element, preview); registered = true; setError(""); }
+    catch { setError("Local camera could not be attached"); }
+    return () => { if (registered) { try { self.deregisterVideoElement(element, preview); } catch { /* The provider already released this element. */ } } };
   }, [media.meeting, preview]);
-  return <video ref={ref} className={className} autoPlay muted playsInline aria-label={preview ? "Local camera preview" : "Local camera"} />;
+  return <>{error && <span className="media-element-error" role="status">{error}</span>}<video ref={ref} className={className} autoPlay muted playsInline aria-label={preview ? "Local camera preview" : "Local camera"} /></>;
 }
 
 export function RemoteMediaVideo({ participant, label }: { participant: RTKParticipant; label: string }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState("");
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    participant.registerVideoElement(element);
-    return () => participant.deregisterVideoElement(element);
-  }, [participant]);
-  return <video ref={ref} className="participant-video" autoPlay playsInline aria-label={`${label} camera`} />;
+    let registered = false;
+    try { participant.registerVideoElement(element); registered = true; setError(""); }
+    catch { setError(`${label} camera could not be attached`); }
+    return () => { if (registered) { try { participant.deregisterVideoElement(element); } catch { /* The provider already released this element. */ } } };
+  }, [label, participant]);
+  return <>{error && <span className="media-element-error" role="status">{error}</span>}<video ref={ref} className="participant-video" autoPlay playsInline aria-label={`${label} camera`} /></>;
 }
 
 export function ScreenShareVideo({ track, label = "Shared screen" }: { track: MediaStreamTrack; label?: string }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState("");
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
     const stream = new MediaStream([track]);
     element.srcObject = stream;
-    void element.play().catch(() => undefined);
+    if (typeof element.play !== "function") setError("Shared screen playback is unavailable");
+    else void element.play().then(() => setError("")).catch(() => setError("Shared screen playback was blocked"));
     return () => { element.pause(); element.srcObject = null; };
-  }, [track]);
-  return <video ref={ref} className="presentation-video" autoPlay muted playsInline aria-label={label} />;
+  }, [label, track]);
+  return <>{error && <span className="media-element-error" role="status">{error}</span>}<video ref={ref} className="presentation-video" autoPlay muted playsInline aria-label={label} /></>;
+}
+
+export function ParticipantLabelOverlay({ name, subtitle }: { name: string; subtitle?: string | null }) {
+  return <span className="participant-label-overlay"><strong>{name}</strong>{subtitle && <small>{subtitle}</small>}</span>;
+}
+
+export function ParticipantFallback({ guest, status }: { guest: Pick<StudioGuest, "displayName" | "avatarUrl" | "avatarColor">; status: string }) {
+  return <span className="participant-fallback" data-testid="participant-fallback">
+    {guest.avatarUrl ? <img className="participant-avatar" src={guest.avatarUrl} alt="" crossOrigin="use-credentials" /> : <span className={`participant-avatar guest-avatar--${guest.avatarColor}`} aria-hidden="true">{guest.displayName.trim().charAt(0).toUpperCase() || "?"}</span>}
+    <span className="participant-fallback__identity"><strong>{guest.displayName}</strong><small>{status}</small></span>
+  </span>;
+}
+
+export function BackstageMediaPreview({ guest, media, local = false }: { guest: StudioGuest; media: StudioMedia; local?: boolean }) {
+  const providerParticipant = media.remoteParticipants.get(`guest:${guest.id}`) ?? media.remoteParticipants.get(guest.id);
+  const cameraReady = local ? media.videoEnabled : Boolean(providerParticipant?.videoEnabled && providerParticipant.videoTrack?.readyState === "live");
+  const status = local
+    ? cameraReady ? "Private local preview" : "Local camera preview is off"
+    : cameraReady ? "Provider camera ready · Director preview transport not connected" : "No director-visible preview transport";
+  return <div className="backstage-media-preview" data-preview-scope={local ? "private-local" : "identity-only"}>
+    {local && cameraReady ? <LocalMediaVideo media={media} preview /> : <ParticipantFallback guest={guest} status={status} />}
+  </div>;
 }
 
 function MicrophoneMeter({ media }: { media: StudioMedia }) {
@@ -93,8 +123,8 @@ export function MediaParticipantTile({ guest, media, className = "participant-ti
   const providerMissing = media.state === "connected" && !participant;
   return (
     <article {...articleProps} className={`${className}${media.activeRuntimeParticipantId === `guest:${guest.id}` || media.activeRuntimeParticipantId === guest.id ? " is-active-speaker" : ""}`} data-participant-id={guest.id}>
-      {usableVideo && participant ? <RemoteMediaVideo participant={participant} label={guest.displayName} /> : guest.avatarUrl ? <img className="participant-avatar" src={guest.avatarUrl} alt="" crossOrigin="use-credentials" /> : <span className={`participant-avatar guest-avatar--${guest.avatarColor}`} aria-hidden="true">{guest.displayName.trim().charAt(0).toUpperCase() || "?"}</span>}
-      <span className="participant-identity"><strong>{guest.displayName}</strong>{guest.subtitle && <small>{guest.subtitle}</small>}<small>{reconnecting ? "Media reconnecting" : providerMissing ? "Provider participant not connected" : `${participant?.audioEnabled ? "Microphone on" : "Microphone muted"} · ${usableVideo ? "Camera on" : "Camera off"}`}</small></span>
+      {usableVideo && participant ? <RemoteMediaVideo participant={participant} label={guest.displayName} /> : <ParticipantFallback guest={guest} status={reconnecting ? "Media reconnecting" : providerMissing ? "Provider participant not connected" : `${participant?.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off`} />}
+      <ParticipantLabelOverlay name={guest.displayName} subtitle={guest.subtitle} />
       {children}
     </article>
   );

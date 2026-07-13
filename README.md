@@ -35,12 +35,13 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - truthful `OFF AIR` orientation with an inactive `00:00:00` timer and disabled output integration; media connection does not imply broadcast
 - credentialed room and guest SSE with live/reconnecting/fallback-polling/unavailable status, burst-coalesced authoritative refetch, bounded polling only while disconnected, and manual refresh as secondary recovery
 - real `/join/:inviteCode` validation with an in-page reusable login sheet, bounded safe OAuth draft restoration, account-optional joining, visual keyboard-accessible initials colors, validated CDN-backed fallback avatar, and canonical Backstage/On Stage states
+- authenticated invite hydration that merges Runtime account display/CDN-avatar details into untouched fields, preserves explicit room edits across password/OAuth, visibly identifies the linked public account, and sends no client-claimed account ID
 - guest room workspace using the same media lifecycle: Backstage receives Stage audio/video plus private preview without self-admission; on-stage guests publish permitted local choices, may self-Backstage, and cohosts retain only Runtime-granted authority
 - single-use, capped, and open invite controls with 24-hour default expiry or no-expiry, use/status summaries, and securely regenerable canonical copy links; no invite code, guest credential, avatar binary, or cohost authority is stored in browser storage
 - dedicated cohost management for the director, session cohosts, pending/accepted/declined/revoked permanent relationships, authenticated acceptance/decline, revoke actions, and all-current/future versus selected-room scope changes
 - a compact room header with Room ID beside `ROOM DETAILS`, one confirmed Room Actions menu, far-right non-wrapping OFF AIR controls, an icon-over-label Rooms exit, and no duplicate lifecycle row or green-dot Live label
 - one theme-aware CSS-mask/currentColor icon renderer with regular/filled state switching; a Public-shell-parity account chip with the same single allowed role-or-tier badge suppression; and fixed/scrollable/bottom-pinned global sidebar regions
-- one collapsible right room panel whose collapsed state replaces the former duplicate left rail, a never-wrapping horizontally scrollable production dock with edge navigation, centered 1–9 Stage arrangements, a document-level participant-menu portal, destructive revoke/remove treatment, and visible themed narrow scrollbars
+- one collapsible right room panel stretched to the complete Stage/status/Backstage workspace, a never-wrapping horizontally scrollable production dock with exact previous/next assets, an always-16:9 Stage with equal full-height columns for two participants, and document-level participant-menu and tooltip portals
 - confirmed typed boundaries for Runtime/Auth sessions, Studio access, rooms, invites, lobby entries, guest self-state, media direction, and runtime-version view models
 - focused tests for auth/access normalization, safe return paths, no authorized-shell flash, theme and presentation preference validation/persistence, shell modes, auto-hide behavior, cinematic/SSE continuity, fullscreen state/rejection, invite-code safety, and runtime-version parsing
 - architecture and phased ALPHA roadmap documentation
@@ -153,7 +154,7 @@ StreamSuites-Studio/
 │   ├── fonts/
 │   ├── games/
 │   ├── icons/                      # Public-parity badges plus Studio SVG families
-│   │   └── ui/                     # exitroom, waiting, invite, roomprefs and layout regular/filled pairs
+│   │   └── ui/                     # exitroom, backstage, Stage move, dock navigation, roomprefs and layout icon pairs
 │   ├── illustrations/
 │   ├── js/
 │   ├── logos/
@@ -205,6 +206,7 @@ StreamSuites-Studio/
 │   │   │   ├── ParticipantMenuPortal.tsx
 │   │   │   ├── StudioIcon.test.tsx
 │   │   │   ├── StudioIcon.tsx
+│   │   │   ├── TooltipPortal.tsx
 │   │   │   └── StatusChip.tsx
 │   │   ├── BrandMark.tsx
 │   │   └── ThemeToggle.tsx

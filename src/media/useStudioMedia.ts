@@ -49,6 +49,15 @@ function bindingsMap(bindings: readonly StudioMediaParticipantBinding[]) {
   return new Map(bindings.map((binding) => [binding.customParticipantId, binding.runtimeParticipantId]));
 }
 
+type StudioMeeting = ReturnType<typeof useRealtimeKitClient>[0];
+type ReadyStudioMeeting = Exclude<StudioMeeting, undefined>;
+type AudioPlayback = ReadyStudioMeeting["audio"];
+
+function audioPlayback(meeting: ReadyStudioMeeting | undefined): AudioPlayback | null {
+  const candidate = (meeting as (ReadyStudioMeeting & { audio?: AudioPlayback }) | undefined)?.audio;
+  return candidate && typeof candidate.play === "function" ? candidate : null;
+}
+
 export function useStudioMedia(roomId: string, options: StudioMediaOptions = {}) {
   const [meeting, initMeeting] = useRealtimeKitClient({ resetOnLeave: true });
   const [state, setState] = useState<StudioMediaConnection>("idle");
@@ -66,16 +75,32 @@ export function useStudioMedia(roomId: string, options: StudioMediaOptions = {})
   const [mediaRevision, setRevision] = useState(0);
   const [bindings, setBindings] = useState<StudioMediaParticipantBinding[]>([]);
   const initialized = useRef(false);
-  const meetingRef = useRef(meeting);
+  const meetingRef = useRef<ReadyStudioMeeting | undefined>(meeting);
   const joined = useRef(false);
   const cleaned = useRef(false);
   const refreshRunning = useRef(false);
+  const mounted = useRef(true);
+  const lifecycleGeneration = useRef(0);
   const locationRef = useRef(options.location ?? "backstage");
   const syncedLocationRef = useRef<"on_stage" | "backstage" | null>(null);
   const intentRef = useRef({ microphoneMuted: true, cameraHidden: true, screenSharing: false });
   const speakerSupported = typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
   locationRef.current = options.location ?? "backstage";
-  meetingRef.current = meeting;
+
+  const isCurrentLifecycle = useCallback((generation: number, client?: ReadyStudioMeeting) => (
+    mounted.current && lifecycleGeneration.current === generation && (!client || meetingRef.current === client)
+  ), []);
+
+  const initializeMeeting = useCallback(async (authToken: string, onError: (error: ClientError) => void) => initMeeting({
+    authToken,
+    defaults: { audio: false, video: false },
+    modules: { experimentalAudioPlayback: true },
+    onError,
+  }), [initMeeting]);
+
+  useEffect(() => {
+    if (meeting && (!meetingRef.current || meetingRef.current === meeting)) meetingRef.current = meeting;
+  }, [meeting]);
 
   const refreshMappings = useCallback(async () => {
     try {
@@ -114,44 +139,58 @@ export function useStudioMedia(roomId: string, options: StudioMediaOptions = {})
     void reportStudioMediaFailure(roomId, code).catch(() => undefined);
   }, [roomId]);
 
-  const refreshExpiredConnection = useCallback(async () => {
-    const currentMeeting = meetingRef.current;
-    if (refreshRunning.current || !currentMeeting) return;
+  const refreshExpiredConnection = useCallback(async (sourceMeeting?: ReadyStudioMeeting) => {
+    const currentMeeting = sourceMeeting ?? meetingRef.current;
+    if (refreshRunning.current || !currentMeeting || currentMeeting !== meetingRef.current) return;
+    const generation = lifecycleGeneration.current + 1;
+    lifecycleGeneration.current = generation;
     refreshRunning.current = true;
+    joined.current = false;
     setState("reconnecting"); setReason("Refreshing media access");
     try {
       const token = await refreshStudioMediaSession(roomId);
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       await currentMeeting.leave("disconnected");
-      const next = await initMeeting({ authToken: token, defaults: { audio: false, video: false }, onError: () => undefined });
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
+      const next = await initializeMeeting(token, (error) => {
+        const activeClient = meetingRef.current;
+        if (error.code === "0004" && activeClient && activeClient !== currentMeeting && isCurrentLifecycle(generation, activeClient)) void refreshExpiredConnection(activeClient);
+      });
       if (!next) throw new Error("Media client did not reinitialize");
       meetingRef.current = next;
       await next.join();
+      if (!isCurrentLifecycle(generation, next)) { await next.leave().catch(() => undefined); return; }
       if (locationRef.current === "on_stage" && next.stage.status !== "ON_STAGE") await next.stage.join();
+      if (!isCurrentLifecycle(generation, next)) return;
       syncedLocationRef.current = locationRef.current;
       joined.current = true; cleaned.current = false;
       setState("connected"); setReason("Connected");
     } catch (error) {
       const safe = normalizedError(error); setState(safe.state); setReason(safe.reason); reportFailure(safe.code);
     } finally { refreshRunning.current = false; }
-  }, [initMeeting, reportFailure, roomId]);
+  }, [initializeMeeting, isCurrentLifecycle, reportFailure, roomId]);
 
   const openPreflight = useCallback(async () => {
     setPreflightOpen(true);
     if (!window.isSecureContext) { setState("unavailable"); setReason("Camera and microphone require a secure browser context"); return; }
     if (!navigator.mediaDevices?.getUserMedia) { setState("unavailable"); setReason("This browser does not support camera and microphone capture"); return; }
-    if (initialized.current || meeting) { setState("preflight"); return; }
+    if (initialized.current || meetingRef.current) { setState("preflight"); return; }
+    const generation = lifecycleGeneration.current + 1;
+    lifecycleGeneration.current = generation;
     initialized.current = true; cleaned.current = false; setState("provisioning"); setReason("Provisioning secure participant access");
     try {
       const session = await createStudioMediaSession(roomId);
+      if (!isCurrentLifecycle(generation)) return;
       setBindings(session.participantBindings);
-      const client = await initMeeting({
-        authToken: session.authToken,
-        defaults: { audio: false, video: false },
-        onError: (error: ClientError) => { if (error.code === "0004") void refreshExpiredConnection(); },
+      const client = await initializeMeeting(session.authToken, (error: ClientError) => {
+        const activeClient = meetingRef.current;
+        if (error.code === "0004" && activeClient && isCurrentLifecycle(generation, activeClient)) void refreshExpiredConnection(activeClient);
       });
       if (!client) throw new Error("Media client did not initialize");
+      if (!isCurrentLifecycle(generation)) { await client.leave().catch(() => undefined); return; }
       meetingRef.current = client;
       const found = await client.self.getAllDevices();
+      if (!isCurrentLifecycle(generation, client)) return;
       const cameras = found.filter((device) => device.kind === "videoinput");
       const microphones = found.filter((device) => device.kind === "audioinput");
       const speakers = speakerSupported ? found.filter((device) => device.kind === "audiooutput") : [];
@@ -166,214 +205,280 @@ export function useStudioMedia(roomId: string, options: StudioMediaOptions = {})
       initialized.current = false;
       const safe = normalizedError(error); setState(safe.state); setReason(safe.reason);
     }
-  }, [initMeeting, meeting, refreshExpiredConnection, roomId, speakerSupported]);
+  }, [initializeMeeting, isCurrentLifecycle, refreshExpiredConnection, roomId, speakerSupported]);
 
   const selectDevice = useCallback(async (kind: "camera" | "microphone" | "speaker", deviceId: string) => {
-    if (!meeting) return;
+    const currentMeeting = meetingRef.current;
+    if (!currentMeeting) return;
     const source = kind === "camera" ? devices.cameras : kind === "microphone" ? devices.microphones : devices.speakers;
     const device = source.find((item) => item.deviceId === deviceId);
     if (!device) return;
     setPending(`device-${kind}`);
     try {
-      await meeting.self.setDevice(device);
+      await currentMeeting.self.setDevice(device);
       if (kind === "camera") setSelectedCameraId(deviceId);
       else if (kind === "microphone") setSelectedMicrophoneId(deviceId);
-      else { setSelectedSpeakerId(deviceId); meeting.audio.setSpeakerDevice(deviceId); }
+      else {
+        const playback = audioPlayback(currentMeeting);
+        if (!playback) { setAudioBlocked(true); setReason("Remote audio output is not ready"); return; }
+        setSelectedSpeakerId(deviceId); playback.setSpeakerDevice(deviceId);
+      }
     } catch (error) { const safe = normalizedError(error); setReason(safe.reason); }
     finally { setPending(""); }
-  }, [devices, meeting]);
+  }, [devices]);
 
   const setPreflightChoice = useCallback(async (kind: "camera" | "microphone", enabled: boolean) => {
-    if (!meeting || pending) return;
+    const currentMeeting = meetingRef.current;
+    if (!currentMeeting || pending) return;
     setPending(kind);
     try {
-      if (kind === "camera") { enabled ? await meeting.self.enableVideo() : await meeting.self.disableVideo(); setCameraChoice(enabled); }
-      else { enabled ? await meeting.self.enableAudio() : await meeting.self.disableAudio(); setMicrophoneChoice(enabled); }
+      if (kind === "camera") { enabled ? await currentMeeting.self.enableVideo() : await currentMeeting.self.disableVideo(); setCameraChoice(enabled); }
+      else { enabled ? await currentMeeting.self.enableAudio() : await currentMeeting.self.disableAudio(); setMicrophoneChoice(enabled); }
     } catch (error) { const safe = normalizedError(error); setState(safe.state); setReason(safe.reason); }
     finally { setPending(""); }
-  }, [meeting, pending]);
+  }, [pending]);
 
   const joinPreflight = useCallback(async (withoutDevices = false) => {
-    if (!meeting || joined.current || pending) return;
+    const currentMeeting = meetingRef.current;
+    const generation = lifecycleGeneration.current;
+    if (!currentMeeting || joined.current || pending || !isCurrentLifecycle(generation, currentMeeting)) return;
     setPending("join"); setState("connecting"); setReason("Joining RealtimeKit meeting");
     try {
-      if (withoutDevices || !cameraChoice) await meeting.self.disableVideo();
-      if (withoutDevices || !microphoneChoice) await meeting.self.disableAudio();
-      await meeting.join();
-      if (locationRef.current === "on_stage" && meeting.stage.status !== "ON_STAGE") await meeting.stage.join();
-      if (locationRef.current === "backstage" && meeting.stage.status === "ON_STAGE") await meeting.stage.leave();
+      if (withoutDevices || !cameraChoice) await currentMeeting.self.disableVideo();
+      if (withoutDevices || !microphoneChoice) await currentMeeting.self.disableAudio();
+      await currentMeeting.join();
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
+      if (locationRef.current === "on_stage" && currentMeeting.stage.status !== "ON_STAGE") await currentMeeting.stage.join();
+      if (locationRef.current === "backstage" && currentMeeting.stage.status === "ON_STAGE") await currentMeeting.stage.leave();
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       syncedLocationRef.current = locationRef.current;
       joined.current = true;
-      const intent = { microphoneMuted: !meeting.self.audioEnabled, cameraHidden: !meeting.self.videoEnabled, screenSharing: false };
+      const intent = { microphoneMuted: !currentMeeting.self.audioEnabled, cameraHidden: !currentMeeting.self.videoEnabled, screenSharing: false };
       await updateOwnStudioMediaIntent(roomId, intent);
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       intentRef.current = intent;
       setPreflightOpen(false); setState("connected");
-      setReason(withoutDevices || (!meeting.self.audioEnabled && !meeting.self.videoEnabled) ? "Connected with devices off" : "Connected");
+      setReason(withoutDevices || (!currentMeeting.self.audioEnabled && !currentMeeting.self.videoEnabled) ? "Connected with devices off" : "Connected");
     } catch (error) {
       const safe = normalizedError(error); setState(safe.state); setReason(safe.reason); reportFailure(safe.code);
     } finally { setPending(""); }
-  }, [cameraChoice, meeting, microphoneChoice, pending, reportFailure, roomId]);
+  }, [cameraChoice, isCurrentLifecycle, microphoneChoice, pending, reportFailure, roomId]);
 
   const closePreflight = useCallback(async () => {
     setPreflightOpen(false);
-    if (!meeting || joined.current) return;
+    const currentMeeting = meetingRef.current;
+    if (!currentMeeting || joined.current) return;
+    lifecycleGeneration.current += 1;
     cleaned.current = true;
-    try { await meeting.self.disableAudio(); await meeting.self.disableVideo(); await meeting.leave(); }
+    try { await currentMeeting.self.disableAudio(); await currentMeeting.self.disableVideo(); await currentMeeting.leave(); }
     catch { /* The unjoined preview is still discarded below. */ }
-    initialized.current = false; setState("idle"); setReason("Ready for device preflight");
+    if (meetingRef.current === currentMeeting) meetingRef.current = undefined;
+    initialized.current = false; joined.current = false; syncedLocationRef.current = null;
+    setState("idle"); setReason("Ready for device preflight");
     void leaveStudioMediaSession(roomId).catch(() => undefined);
-  }, [meeting, roomId]);
+  }, [roomId]);
 
   const leave = useCallback(async () => {
     if (cleaned.current) return;
     cleaned.current = true;
-    try { if (meeting) await meeting.leave(); }
+    lifecycleGeneration.current += 1;
+    const currentMeeting = meetingRef.current;
+    meetingRef.current = undefined;
+    try { if (currentMeeting) await currentMeeting.leave(); }
     finally {
       initialized.current = false; joined.current = false; setPreflightOpen(false); setState("disconnected"); setReason("Media disconnected");
       syncedLocationRef.current = null;
       void leaveStudioMediaSession(roomId).catch(() => undefined);
     }
-  }, [meeting, roomId]);
-
-  useEffect(() => () => {
-    if (!cleaned.current && meeting) { cleaned.current = true; void meeting.leave(); void leaveStudioMediaSession(roomId).catch(() => undefined); }
-  }, [meeting, roomId]);
+  }, [roomId]);
 
   useEffect(() => {
-    if (!meeting) return;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      lifecycleGeneration.current += 1;
+      if (cleaned.current) return;
+      cleaned.current = true;
+      const currentMeeting = meetingRef.current;
+      meetingRef.current = undefined;
+      if (currentMeeting) void currentMeeting.leave().catch(() => undefined);
+      void leaveStudioMediaSession(roomId).catch(() => undefined);
+    };
+  }, [roomId]);
+
+  useEffect(() => {
+    const currentMeeting = meetingRef.current ?? meeting;
+    if (!currentMeeting) return;
+    const generation = lifecycleGeneration.current;
     const update = () => setRevision((value) => value + 1);
     const socket = (status: SocketConnectionState) => {
-      if (!joined.current) return;
+      if (!joined.current || !isCurrentLifecycle(generation, currentMeeting)) return;
       if (status.state === "reconnecting" || status.state === "disconnected") { setState("reconnecting"); setReason("Media reconnecting"); }
       else if (status.state === "connected") { setState("connected"); setReason("Connected"); }
       else if (status.state === "failed") { setState("provider_error"); setReason("Media connection failed"); reportFailure("provider_reconnect_failed"); }
     };
     const active = ({ peerId, volume }: { peerId: string; volume: number }) => {
       if (volume <= 0) return;
-      const participant = meeting.participants.joined.get(peerId);
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
+      const participant = currentMeeting.participants.joined.get(peerId);
       const runtimeId = participant?.customParticipantId ? bindingsMap(bindings).get(participant.customParticipantId) : undefined;
-      setActiveRuntimeParticipantId(runtimeId ?? (peerId === meeting.self.id ? "self" : null));
+      setActiveRuntimeParticipantId(runtimeId ?? (peerId === currentMeeting.self.id ? "self" : null));
     };
     const autoplay = () => setAudioBlocked(true);
-    meeting.self.on("videoUpdate", update); meeting.self.on("audioUpdate", update); meeting.self.on("screenShareUpdate", update);
-    meeting.self.on("autoplayError", autoplay); meeting.meta.on("socketConnectionUpdate", socket);
-    meeting.participants.joined.on("participantJoined", update); meeting.participants.joined.on("participantLeft", update);
-    meeting.participants.joined.on("videoUpdate", update); meeting.participants.joined.on("audioUpdate", update); meeting.participants.joined.on("screenShareUpdate", update);
-    meeting.participants.on("activeSpeaker", active);
+    currentMeeting.self.on("videoUpdate", update); currentMeeting.self.on("audioUpdate", update); currentMeeting.self.on("screenShareUpdate", update);
+    currentMeeting.self.on("autoplayError", autoplay); currentMeeting.meta.on("socketConnectionUpdate", socket);
+    currentMeeting.participants.joined.on("participantJoined", update); currentMeeting.participants.joined.on("participantLeft", update);
+    currentMeeting.participants.joined.on("videoUpdate", update); currentMeeting.participants.joined.on("audioUpdate", update); currentMeeting.participants.joined.on("screenShareUpdate", update);
+    currentMeeting.participants.on("activeSpeaker", active);
     return () => {
-      meeting.self.removeListener("videoUpdate", update); meeting.self.removeListener("audioUpdate", update); meeting.self.removeListener("screenShareUpdate", update);
-      meeting.self.removeListener("autoplayError", autoplay); meeting.meta.removeListener("socketConnectionUpdate", socket);
-      meeting.participants.joined.removeListener("participantJoined", update); meeting.participants.joined.removeListener("participantLeft", update);
-      meeting.participants.joined.removeListener("videoUpdate", update); meeting.participants.joined.removeListener("audioUpdate", update); meeting.participants.joined.removeListener("screenShareUpdate", update);
-      meeting.participants.removeListener("activeSpeaker", active);
+      currentMeeting.self.removeListener("videoUpdate", update); currentMeeting.self.removeListener("audioUpdate", update); currentMeeting.self.removeListener("screenShareUpdate", update);
+      currentMeeting.self.removeListener("autoplayError", autoplay); currentMeeting.meta.removeListener("socketConnectionUpdate", socket);
+      currentMeeting.participants.joined.removeListener("participantJoined", update); currentMeeting.participants.joined.removeListener("participantLeft", update);
+      currentMeeting.participants.joined.removeListener("videoUpdate", update); currentMeeting.participants.joined.removeListener("audioUpdate", update); currentMeeting.participants.joined.removeListener("screenShareUpdate", update);
+      currentMeeting.participants.removeListener("activeSpeaker", active);
     };
-  }, [bindings, meeting, reportFailure]);
+  }, [bindings, isCurrentLifecycle, meeting, reportFailure, state]);
 
   useEffect(() => {
     void mediaRevision;
-    if (!meeting || !joined.current) return;
+    const currentMeeting = meetingRef.current ?? meeting;
+    const generation = lifecycleGeneration.current;
+    if (!currentMeeting || !joined.current || !currentMeeting.self.roomJoined || !isCurrentLifecycle(generation, currentMeeting)) return;
+    const playback = audioPlayback(currentMeeting);
     const current = new Set<string>();
-    meeting.participants.joined.forEach((participant) => {
+    currentMeeting.participants.joined.forEach((participant) => {
       if (participant.audioEnabled && participant.audioTrack) {
-        current.add(participant.id); meeting.audio.addParticipantTrack(participant.id, participant.audioTrack);
+        current.add(participant.id);
+        playback?.addParticipantTrack(participant.id, participant.audioTrack);
       }
     });
-    void meeting.audio.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
-    return () => current.forEach((id) => meeting.audio.removeParticipantTrack(id));
-  }, [meeting, mediaRevision]);
+    if (current.size && !playback) {
+      setAudioBlocked(true);
+      setReason("Remote audio playback is not ready");
+      return;
+    }
+    if (current.size && playback) {
+      void playback.play().then(() => {
+        if (isCurrentLifecycle(generation, currentMeeting)) setAudioBlocked(false);
+      }).catch(() => {
+        if (isCurrentLifecycle(generation, currentMeeting)) setAudioBlocked(true);
+      });
+    }
+    return () => current.forEach((id) => playback?.removeParticipantTrack(id));
+  }, [isCurrentLifecycle, meeting, mediaRevision, state]);
 
   const commitToggle = useCallback(async (kind: "audio" | "video") => {
-    if (!meeting || pending || state !== "connected") return;
+    const currentMeeting = meetingRef.current;
+    const generation = lifecycleGeneration.current;
+    if (!currentMeeting || pending || state !== "connected" || !joined.current || !isCurrentLifecycle(generation, currentMeeting)) return;
     setPending(kind);
-    const wasEnabled = kind === "audio" ? meeting.self.audioEnabled : meeting.self.videoEnabled;
+    const wasEnabled = kind === "audio" ? currentMeeting.self.audioEnabled : currentMeeting.self.videoEnabled;
     try {
-      if (kind === "audio") wasEnabled ? await meeting.self.disableAudio() : await meeting.self.enableAudio();
-      else wasEnabled ? await meeting.self.disableVideo() : await meeting.self.enableVideo();
+      if (kind === "audio") wasEnabled ? await currentMeeting.self.disableAudio() : await currentMeeting.self.enableAudio();
+      else wasEnabled ? await currentMeeting.self.disableVideo() : await currentMeeting.self.enableVideo();
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       const intent = kind === "audio" ? { microphoneMuted: wasEnabled } : { cameraHidden: wasEnabled };
       await updateOwnStudioMediaIntent(roomId, intent);
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       intentRef.current = { ...intentRef.current, ...intent };
       setRevision((value) => value + 1);
     } catch (error) {
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       try {
-        if (kind === "audio") wasEnabled ? await meeting.self.enableAudio() : await meeting.self.disableAudio();
-        else wasEnabled ? await meeting.self.enableVideo() : await meeting.self.disableVideo();
+        if (kind === "audio") wasEnabled ? await currentMeeting.self.enableAudio() : await currentMeeting.self.disableAudio();
+        else wasEnabled ? await currentMeeting.self.enableVideo() : await currentMeeting.self.disableVideo();
       } catch { reportFailure("media_intent_rollback_failed"); }
       const safe = normalizedError(error); setReason(safe.reason);
     } finally { setPending(""); }
-  }, [meeting, pending, reportFailure, roomId, state]);
+  }, [isCurrentLifecycle, pending, reportFailure, roomId, state]);
 
   const runtimeByCustomId = useMemo(() => bindingsMap(bindings), [bindings]);
+  const activeMeeting = meetingRef.current;
   const remoteParticipants = useMemo(() => {
     void mediaRevision;
     const mapped = new Map<string, RTKParticipant>();
-    meeting?.participants.joined.forEach((participant) => {
+    activeMeeting?.participants.joined.forEach((participant) => {
       const runtimeId = participant.customParticipantId ? runtimeByCustomId.get(participant.customParticipantId) : undefined;
       if (runtimeId) mapped.set(runtimeId, participant);
     });
     return mapped;
-  }, [mediaRevision, meeting, runtimeByCustomId]);
+  }, [activeMeeting, mediaRevision, runtimeByCustomId]);
 
   const activeShares = useMemo(() => {
     void mediaRevision;
     const shares: Array<{ runtimeParticipantId: string; track: MediaStreamTrack; local: boolean }> = [];
-    if (meeting?.self.screenShareEnabled && meeting.self.screenShareTracks.video) shares.push({ runtimeParticipantId: "self", track: meeting.self.screenShareTracks.video, local: true });
+    if (activeMeeting?.self.screenShareEnabled && activeMeeting.self.screenShareTracks.video) shares.push({ runtimeParticipantId: "self", track: activeMeeting.self.screenShareTracks.video, local: true });
     remoteParticipants.forEach((participant, runtimeParticipantId) => {
       if (participant.screenShareEnabled && participant.screenShareTracks.video) shares.push({ runtimeParticipantId, track: participant.screenShareTracks.video, local: false });
     });
     return shares;
-  }, [mediaRevision, meeting, remoteParticipants]);
+  }, [activeMeeting, mediaRevision, remoteParticipants]);
 
   const toggleScreen = useCallback(async () => {
-    if (!meeting || pending || state !== "connected" || !options.canScreenShare) return;
-    if (!meeting.self.screenShareEnabled && activeShares.some((share) => !share.local)) { setReason("Another participant is already sharing a screen"); return; }
-    const wasEnabled = meeting.self.screenShareEnabled; setPending("screen");
+    const currentMeeting = meetingRef.current;
+    const generation = lifecycleGeneration.current;
+    if (!currentMeeting || pending || state !== "connected" || !options.canScreenShare || !joined.current || !isCurrentLifecycle(generation, currentMeeting)) return;
+    if (!currentMeeting.self.screenShareEnabled && activeShares.some((share) => !share.local)) { setReason("Another participant is already sharing a screen"); return; }
+    const wasEnabled = currentMeeting.self.screenShareEnabled; setPending("screen");
     try {
-      wasEnabled ? await meeting.self.disableScreenShare() : await meeting.self.enableScreenShare();
+      wasEnabled ? await currentMeeting.self.disableScreenShare() : await currentMeeting.self.enableScreenShare();
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       await updateOwnStudioMediaIntent(roomId, { screenSharing: !wasEnabled });
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       intentRef.current.screenSharing = !wasEnabled; setRevision((value) => value + 1);
     } catch (error) {
-      if (!wasEnabled && meeting.self.screenShareEnabled) await meeting.self.disableScreenShare().catch(() => undefined);
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
+      if (!wasEnabled && currentMeeting.self.screenShareEnabled) await currentMeeting.self.disableScreenShare().catch(() => undefined);
       const safe = normalizedError(error); setReason(safe.reason); reportFailure(safe.code);
     } finally { setPending(""); }
-  }, [activeShares, meeting, options.canScreenShare, pending, reportFailure, roomId, state]);
+  }, [activeShares, isCurrentLifecycle, options.canScreenShare, pending, reportFailure, roomId, state]);
 
   useEffect(() => {
-    if (!meeting) return;
+    const currentMeeting = meetingRef.current ?? meeting;
+    if (!currentMeeting) return;
+    const generation = lifecycleGeneration.current;
     const ended = ({ screenShareEnabled }: { screenShareEnabled: boolean }) => {
+      if (!isCurrentLifecycle(generation, currentMeeting)) return;
       if (!screenShareEnabled && intentRef.current.screenSharing) {
         intentRef.current.screenSharing = false;
         void updateOwnStudioMediaIntent(roomId, { screenSharing: false }).catch(() => reportFailure("screen_share_intent_failed"));
       }
     };
-    meeting.self.on("screenShareUpdate", ended);
-    return () => { meeting.self.removeListener("screenShareUpdate", ended); };
-  }, [meeting, reportFailure, roomId]);
+    currentMeeting.self.on("screenShareUpdate", ended);
+    return () => { currentMeeting.self.removeListener("screenShareUpdate", ended); };
+  }, [isCurrentLifecycle, meeting, reportFailure, roomId]);
 
   const syncSelfLocation = useCallback(async (location: "on_stage" | "backstage") => {
-    if (!meeting || state !== "connected") return true;
+    const currentMeeting = meetingRef.current;
+    const generation = lifecycleGeneration.current;
+    if (!currentMeeting || state !== "connected" || !isCurrentLifecycle(generation, currentMeeting)) return true;
     if (syncedLocationRef.current === location) return true;
     try {
-      if (location === "on_stage" && meeting.stage.status !== "ON_STAGE") await meeting.stage.join();
-      if (location === "backstage" && meeting.stage.status === "ON_STAGE") await meeting.stage.leave();
+      if (location === "on_stage" && currentMeeting.stage.status !== "ON_STAGE") await currentMeeting.stage.join();
+      if (location === "backstage" && currentMeeting.stage.status === "ON_STAGE") await currentMeeting.stage.leave();
+      if (!isCurrentLifecycle(generation, currentMeeting)) return true;
       locationRef.current = location; syncedLocationRef.current = location; return true;
     } catch { setState("reconciliation_required"); setReason("Stage state requires reconciliation"); reportFailure("provider_stage_sync_failed"); return false; }
-  }, [meeting, reportFailure, state]);
+  }, [isCurrentLifecycle, reportFailure, state]);
 
   const syncParticipantLocation = useCallback(async (runtimeParticipantId: string, location: "on_stage" | "backstage") => {
-    if (!meeting || state !== "connected") return true;
+    const currentMeeting = meetingRef.current;
+    const generation = lifecycleGeneration.current;
+    if (!currentMeeting || state !== "connected" || !isCurrentLifecycle(generation, currentMeeting)) return true;
     let participant = remoteParticipants.get(`guest:${runtimeParticipantId}`) ?? remoteParticipants.get(runtimeParticipantId);
     if (!participant) {
       const nextBindings = await refreshMappings();
       const wanted = nextBindings.find((binding) => binding.runtimeParticipantId === `guest:${runtimeParticipantId}` || binding.runtimeParticipantId === runtimeParticipantId);
-      participant = wanted ? Array.from(meeting.participants.joined.values()).find((item) => item.customParticipantId === wanted.customParticipantId) : undefined;
+      participant = wanted ? Array.from(currentMeeting.participants.joined.values()).find((item) => item.customParticipantId === wanted.customParticipantId) : undefined;
       if (!participant) return true;
     }
     try {
-      if (location === "on_stage") await meeting.stage.grantAccess([participant.userId]);
-      else await meeting.stage.kick([participant.userId]);
+      if (location === "on_stage") await currentMeeting.stage.grantAccess([participant.userId]);
+      else await currentMeeting.stage.kick([participant.userId]);
+      if (!isCurrentLifecycle(generation, currentMeeting)) return true;
       return true;
     } catch { setState("reconciliation_required"); setReason("Stage state requires reconciliation"); reportFailure("provider_stage_sync_failed"); return false; }
-  }, [meeting, refreshMappings, remoteParticipants, reportFailure, state]);
+  }, [isCurrentLifecycle, refreshMappings, remoteParticipants, reportFailure, state]);
 
   useEffect(() => {
     if (state === "connected") void syncSelfLocation(locationRef.current);
@@ -387,18 +492,37 @@ export function useStudioMedia(roomId: string, options: StudioMediaOptions = {})
   }, [remoteParticipants, reportFailure]);
 
   const enableAudio = useCallback(async () => {
-    if (!meeting) return;
-    try { await meeting.audio.play(); setAudioBlocked(false); }
-    catch { setAudioBlocked(true); }
-  }, [meeting]);
+    const currentMeeting = meetingRef.current;
+    const generation = lifecycleGeneration.current;
+    if (!currentMeeting || !joined.current || !currentMeeting.self.roomJoined || !isCurrentLifecycle(generation, currentMeeting)) {
+      setAudioBlocked(true);
+      setReason("Join the media session before enabling audio");
+      return;
+    }
+    const playback = audioPlayback(currentMeeting);
+    if (!playback) {
+      setAudioBlocked(true);
+      setReason("Remote audio playback is not ready");
+      return;
+    }
+    try {
+      await playback.play();
+      if (isCurrentLifecycle(generation, currentMeeting)) setAudioBlocked(false);
+    } catch {
+      if (isCurrentLifecycle(generation, currentMeeting)) {
+        setAudioBlocked(true);
+        setReason("Browser autoplay is blocked; select Enable audio to retry");
+      }
+    }
+  }, [isCurrentLifecycle]);
 
   return {
-    meeting, state, reason, pending, preflightOpen, devices, speakerSupported, selectedCameraId, selectedMicrophoneId, selectedSpeakerId,
+    meeting: activeMeeting, state, reason, pending, preflightOpen, devices, speakerSupported, selectedCameraId, selectedMicrophoneId, selectedSpeakerId,
     cameraChoice, microphoneChoice, audioBlocked, remoteParticipants, activeRuntimeParticipantId, activeShares,
     openPreflight, closePreflight, joinPreflight, selectDevice, setPreflightChoice, leave, refreshMappings, refreshExpiredConnection,
     toggleAudio: () => commitToggle("audio"), toggleVideo: () => commitToggle("video"), toggleScreen, enableAudio,
     syncSelfLocation, syncParticipantLocation, forceDisableParticipant,
-    audioEnabled: meeting?.self.audioEnabled === true, videoEnabled: meeting?.self.videoEnabled === true,
-    screenEnabled: meeting?.self.screenShareEnabled === true,
+    audioEnabled: activeMeeting?.self.audioEnabled === true, videoEnabled: activeMeeting?.self.videoEnabled === true,
+    screenEnabled: activeMeeting?.self.screenShareEnabled === true,
   };
 }

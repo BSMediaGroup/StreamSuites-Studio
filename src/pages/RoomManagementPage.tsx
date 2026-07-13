@@ -17,8 +17,8 @@ import { usePresentationPreferences } from "../presentation/presentationContext"
 import { GuestRoomWorkspace } from "./GuestRoomWorkspace";
 import exitIcon from "../../assets/icons/ui/exitroom.svg";
 import exitFilledIcon from "../../assets/icons/ui/exitroom-filled.svg";
-import waitingIcon from "../../assets/icons/ui/waiting.svg";
-import waitingFilledIcon from "../../assets/icons/ui/waiting-filled.svg";
+import backstageIcon from "../../assets/icons/ui/backstage.svg";
+import backstageFilledIcon from "../../assets/icons/ui/backstage-filled.svg";
 import inviteIcon from "../../assets/icons/ui/invite.svg";
 import inviteFilledIcon from "../../assets/icons/ui/invite-filled.svg";
 import roomPrefsIcon from "../../assets/icons/ui/roomprefs.svg";
@@ -46,8 +46,14 @@ import goLiveIcon from "../../assets/icons/ui/cast.svg";
 import optionsIcon from "../../assets/icons/ui/options.svg";
 import arrowIcon from "../../assets/icons/ui/mobilearrow.svg";
 import refreshIcon from "../../assets/icons/ui/refresh.svg";
+import moveUpIcon from "../../assets/icons/ui/moveselectionup.svg";
+import moveUpFilledIcon from "../../assets/icons/ui/moveselectionup-filled.svg";
+import moveDownIcon from "../../assets/icons/ui/moveselectiondown.svg";
+import moveDownFilledIcon from "../../assets/icons/ui/moveselectiondown-filled.svg";
+import previousIcon from "../../assets/icons/ui/previous.svg";
+import nextIcon from "../../assets/icons/ui/next.svg";
 import { useStudioMedia } from "../media/useStudioMedia";
-import { DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, ScreenShareVideo } from "../media/StudioMediaElements";
+import { BackstageMediaPreview, DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, ParticipantFallback, ParticipantLabelOverlay, ScreenShareVideo } from "../media/StudioMediaElements";
 import { resolveEffectiveStageLayout } from "../layout/stageLayout";
 
 type WorkspacePanel = "backstage" | "invites" | "room";
@@ -68,7 +74,7 @@ const layoutIcons: Record<StageLayout, readonly [string, string]> = {
 };
 
 const panelIcons: Record<WorkspacePanel, readonly [string, string]> = {
-  backstage: [waitingIcon, waitingFilledIcon],
+  backstage: [backstageIcon, backstageFilledIcon],
   invites: [inviteIcon, inviteFilledIcon],
   room: [roomPrefsIcon, roomPrefsFilledIcon],
 };
@@ -650,7 +656,7 @@ function HostRoomManagementPage() {
         ? participantId === spotlightPrimaryId ? " is-primary" : " is-filmstrip"
         : " is-filmstrip";
   const participantMenuItems = (guest: StudioGuest): ParticipantMenuItem[] => [
-    { label: "Move Backstage", onSelect: () => void moveParticipant(guest, "backstage") },
+    { label: "Move Backstage", icon: moveDownIcon, filledIcon: moveDownFilledIcon, onSelect: () => void moveParticipant(guest, "backstage") },
     { label: guest.microphoneMuted ? "Unmute intent" : "Mute intent", onSelect: () => void mediaIntent(guest, "microphone") },
     { label: guest.cameraHidden ? "Show camera intent" : "Hide camera intent", onSelect: () => void mediaIntent(guest, "camera") },
     { label: "Move earlier", disabled: admitted[0]?.id === guest.id, onSelect: () => void moveStageOrder(guest.id, -1) },
@@ -737,11 +743,8 @@ function HostRoomManagementPage() {
               </div>
               <div className="program-stage-grid">
                 <button type="button" className={`participant-tile participant-tile--host${selectedParticipant === "host" ? " is-selected" : ""}${stageTileClass("host")}`} onClick={() => selectStageParticipant("host")} aria-pressed={selectedParticipant === "host"} data-participant-id="host">
-                  {media.videoEnabled && media.meeting ? <LocalMediaVideo media={media} /> : <span className="participant-avatar">{initial(hostName)}</span>}
-                  <span className="participant-identity">
-                    <strong>{hostName}</strong>
-                    <small>Host / Director · {media.state === "connected" ? `${media.audioEnabled ? "Microphone on" : "Microphone muted"} · ${media.videoEnabled ? "Camera on" : "Camera off"}` : media.reason}</small>
-                  </span>
+                  {media.videoEnabled && media.meeting?.self.videoTrack?.readyState === "live" ? <LocalMediaVideo media={media} /> : <ParticipantFallback guest={{ displayName: hostName, avatarColor: "green", avatarUrl: access.account?.avatarUrl ?? null }} status={media.state === "connected" ? `${media.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off` : media.reason} />}
+                  <ParticipantLabelOverlay name={hostName} subtitle="Host / Director" />
                 </button>
                 {admitted.map((guest) => (
                   <MediaParticipantTile className={`participant-tile${selectedParticipant === guest.id ? " is-selected" : ""}${stageTileClass(guest.id)}`} guest={guest} media={media} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => selectStageParticipant(guest.id)}>
@@ -758,10 +761,10 @@ function HostRoomManagementPage() {
             <section className="backstage-tray" aria-labelledby="backstage-tray-heading">
               <div className="backstage-tray__heading"><h2 id="backstage-tray-heading">Backstage</h2><StatusChip tone={waiting.length ? "pending" : "neutral"}>{waiting.length}</StatusChip></div>
               {waiting.length ? <div className="backstage-tray__scroll">{waiting.map((guest) => <article className="backstage-tile" key={guest.id}>
-                <GuestAvatar guest={guest} />
+                <BackstageMediaPreview guest={guest} media={media} />
                 <div><strong>{guest.displayName}</strong><small>{guest.subtitle || (guest.sessionCohost ? "Session cohost" : "Waiting Backstage")}</small></div>
                 <div className="participant-actions">
-                  <Button disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}>Move to Stage</Button>
+                  <Button className="icon-control" disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}><StudioIcon regular={moveUpIcon} filled={moveUpFilledIcon} /> Move to Stage</Button>
                   <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "microphone")}>{guest.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button>
                   <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "camera")}>{guest.cameraHidden ? "Show camera" : "Hide camera"}</Button>
                 </div>
@@ -821,8 +824,8 @@ function HostRoomManagementPage() {
                             {guest.sessionCohost && <StatusChip tone="alpha">Session cohost</StatusChip>}
                           </div>
                           <div className="guest-card__actions">
-                            <Button disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}>
-                              {guestBusy === guest.id ? "Working…" : "Move to Stage"}
+                            <Button className="icon-control" disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}>
+                              <StudioIcon regular={moveUpIcon} filled={moveUpFilledIcon} /> {guestBusy === guest.id ? "Working…" : "Move to Stage"}
                             </Button>
                             <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void guestAction(guest, "deny")}>
                               Deny
@@ -875,8 +878,8 @@ function HostRoomManagementPage() {
                             {guest.sessionCohost && <StatusChip tone="alpha">Session cohost</StatusChip>}
                           </div>
                           <div className="guest-card__actions">
-                            <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void moveParticipant(guest, "backstage")}>
-                              <StudioIcon regular={waitingIcon} filled={waitingFilledIcon} /> {guestBusy === guest.id ? "Moving…" : "Move Backstage"}
+                            <Button className="icon-control" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void moveParticipant(guest, "backstage")}>
+                              <StudioIcon regular={moveDownIcon} filled={moveDownFilledIcon} /> {guestBusy === guest.id ? "Moving…" : "Move Backstage"}
                             </Button>
                             <Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => { if (window.confirm(`Remove ${guest.displayName} from the room?`)) void guestAction(guest, "remove"); }}><StudioIcon regular={removePersonIcon} /> Remove from room</Button>
                             {permissions?.endRoom && (
@@ -1029,7 +1032,7 @@ function HostRoomManagementPage() {
         </div>
 
         <div className="control-dock" aria-label="Production control dock">
-          <button className="control-dock__nav control-dock__nav--previous icon-control" type="button" aria-label="Previous production controls" onClick={() => scrollDock(-1)}><StudioIcon regular={arrowIcon} /></button>
+          <button className="control-dock__nav control-dock__nav--previous icon-control studio-tooltip" data-tooltip="Previous controls" type="button" aria-label="Previous production controls" onClick={() => scrollDock(-1)}><StudioIcon regular={previousIcon} /></button>
           <div ref={dockScrollRef} className="control-dock__scroll" role="group" aria-label="Scrollable production controls" tabIndex={0} onWheel={(event) => { if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) event.currentTarget.scrollLeft += event.deltaY; }}>
             <ControlButton icon={microphoneIcon} filledIcon={microphoneFilledIcon} label="Microphone" helper={media.state === "connected" ? (media.audioEnabled ? "Mute microphone" : "Enable microphone") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.audioEnabled} onClick={() => void media.toggleAudio()} />
             <ControlButton icon={cameraIcon} filledIcon={cameraFilledIcon} label="Camera" helper={media.state === "connected" ? (media.videoEnabled ? "Turn camera off" : "Enable camera") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.videoEnabled} onClick={() => void media.toggleVideo()} />
@@ -1037,12 +1040,12 @@ function HostRoomManagementPage() {
             <ControlButton icon={mediaIcon} filledIcon={mediaFilledIcon} label={media.state === "connected" ? "Disconnect media" : "Connect media"} helper={media.reason} disabled={["provisioning", "connecting"].includes(media.state)} active={media.state === "connected"} onClick={() => void (media.state === "connected" ? media.leave() : media.openPreflight())} />
             {media.audioBlocked && <ControlButton icon={microphoneIcon} filledIcon={microphoneFilledIcon} label="Enable audio" helper="Browser blocked remote audio playback" onClick={() => void media.enableAudio()} />}
             <ControlButton icon={layoutIcons[layout][0]} filledIcon={layoutIcons[layout][1]} label="Layout" helper={`${layoutLabels[layout]} preview`} active onClick={() => { layoutRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); layoutRef.current?.querySelector<HTMLButtonElement>("button")?.focus(); }} />
-            <ControlButton buttonRef={panelTriggerRef} icon={waitingIcon} filledIcon={waitingFilledIcon} label="Backstage" helper={`${waiting.length} waiting, ${admitted.length} on stage`} active={panel === "backstage" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("backstage")} />
+            <ControlButton buttonRef={panelTriggerRef} icon={backstageIcon} filledIcon={backstageFilledIcon} label="Backstage" helper={`${waiting.length} waiting, ${admitted.length} on stage`} active={panel === "backstage" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("backstage")} />
             <ControlButton icon={inviteIcon} filledIcon={inviteFilledIcon} label="Invite" helper="Open secure invites" active={panel === "invites" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("invites")} />
             <ControlButton icon={roomPrefsIcon} filledIcon={roomPrefsFilledIcon} label="Settings" helper="Open room settings" active={panel === "room" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("room")} />
             <ControlButton icon={goLiveIcon} label="Go live" helper="Output integration not connected" disabled onClick={openGoLiveInfo} />
           </div>
-          <button className="control-dock__nav control-dock__nav--next icon-control" type="button" aria-label="Next production controls" onClick={() => scrollDock(1)}><StudioIcon regular={arrowIcon} /></button>
+          <button className="control-dock__nav control-dock__nav--next icon-control studio-tooltip" data-tooltip="Next controls" type="button" aria-label="Next production controls" onClick={() => scrollDock(1)}><StudioIcon regular={nextIcon} /></button>
         </div>
       </section>
       <DevicePreflightDialog media={media} />

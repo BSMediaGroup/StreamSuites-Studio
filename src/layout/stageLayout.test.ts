@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveEffectiveStageLayout } from "./stageLayout";
+import studioStyles from "../styles/index.css?raw";
 
 describe("resolveEffectiveStageLayout", () => {
   it.each([
@@ -29,5 +30,21 @@ describe("resolveEffectiveStageLayout", () => {
     for (const requested of ["grid", "interview", "spotlight", "presentation"] as const) {
       expect(resolveEffectiveStageLayout({ requested, activeScreenShare: true, explicitSpotlight: true, participantCount: 9 })).toBe(requested);
     }
+  });
+});
+
+describe("Stage workspace CSS contract", () => {
+  it("keeps the Stage 16:9 and gives two participants equal full-height columns", () => {
+    expect(studioStyles).toMatch(/\.program-canvas,[\s\S]*aspect-ratio:\s*16\s*\/\s*9/);
+    expect(studioStyles).toContain('.program-canvas[data-participant-count="2"] .program-stage-grid');
+    expect(studioStyles).toMatch(/data-participant-count="2"[\s\S]*grid-template-columns:\s*repeat\(2/);
+    expect(studioStyles).toMatch(/data-participant-count="2"[\s\S]*height:\s*100%/);
+  });
+
+  it("pins sidebar chrome, stretches the room panel, portals tooltips, and doubles only exit", () => {
+    expect(studioStyles).toMatch(/\.studio-shell\s*\{[^}]*height:\s*100dvh/);
+    expect(studioStyles).toMatch(/\.workspace-side-panel\s*\{[^}]*height:\s*100%[^}]*max-height:\s*none/);
+    expect(studioStyles).toMatch(/\.studio-tooltip-portal\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*1000/);
+    expect(studioStyles).toMatch(/\.room-exit-button\s*>\s*\.studio-icon\s*\{[^}]*width:\s*3\.4rem[^}]*height:\s*3\.4rem/);
   });
 });

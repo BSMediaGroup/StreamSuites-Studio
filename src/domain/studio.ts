@@ -129,6 +129,13 @@ export interface StudioGuest {
   readonly avatarUrl: string | null;
   readonly avatarColor: string;
   readonly signedIn: boolean;
+  readonly accountUserCode: string | null;
+  readonly linkedAccount: {
+    readonly userCode: string | null;
+    readonly displayName: string | null;
+    readonly avatarUrl: string | null;
+  } | null;
+  readonly avatarSource: "room_override" | "linked_account" | "initials";
   readonly sessionCohost: boolean;
   readonly pendingPermanentCohost: boolean;
   readonly accountId: string | null;
@@ -164,6 +171,7 @@ export type CohostRelationshipStatus = "pending" | "accepted" | "declined" | "re
 
 export interface SafeAccountSummary {
   readonly id: string;
+  readonly userCode?: string | null;
   readonly displayName: string;
   readonly avatarUrl: string | null;
 }

@@ -6,6 +6,7 @@ import { BrandMark } from "../BrandMark";
 import { ThemeToggle } from "../ThemeToggle";
 import { StatusChip } from "../ui/StatusChip";
 import { StudioFooter } from "../StudioFooter";
+import { TooltipPortal } from "../ui/TooltipPortal";
 
 interface SiteShellProps {
   readonly children: ReactNode;
@@ -31,6 +32,7 @@ export function SiteShell({ children }: SiteShellProps) {
       <AuthAccessBanner />
       <main id="main-content">{children}</main>
       <StudioFooter />
+      <TooltipPortal />
     </div>
   );
 }

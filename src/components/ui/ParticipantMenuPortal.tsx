@@ -119,7 +119,7 @@ export function ParticipantMenuPortal({ participantName, items }: ParticipantMen
           {items.map((item) => (
             <button
               key={item.label}
-              className={`${item.destructive ? "is-destructive " : ""}${item.separatorBefore ? "has-separator" : ""}`.trim()}
+              className={`${item.icon ? "icon-control " : ""}${item.destructive ? "is-destructive " : ""}${item.separatorBefore ? "has-separator" : ""}`.trim()}
               role="menuitem"
               type="button"
               disabled={item.disabled}
