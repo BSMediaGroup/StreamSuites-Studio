@@ -111,7 +111,7 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
     return response({}, 404);
   });
   vi.stubGlobal("fetch", fetchMock);
-  render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter initialEntries={["/studio/rooms/room-1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/studio/rooms/:roomId" element={<RoomManagementPage />} /></Routes></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
+  const rendered = render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter initialEntries={["/studio/rooms/room-1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/studio/rooms/:roomId" element={<RoomManagementPage />} /></Routes></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
 
   expect(await screen.findByRole("heading", { name: "Production room" })).toBeInTheDocument();
   expect(screen.getByText("STAGE OUTPUT")).toBeInTheDocument();
@@ -121,6 +121,13 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   expect(screen.getByText("OFF AIR")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Microphone. Media status unavailable" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Connect media. Media status unavailable" })).toBeEnabled();
+  expect(rendered.container.querySelector(".production-rail")).not.toBeInTheDocument();
+  expect(rendered.container.querySelector(".room-lifecycle-bar")).not.toBeInTheDocument();
+  expect(screen.getByTitle("Room ID").parentElement).toHaveTextContent("ROOM DETAILS");
+  fireEvent.click(screen.getByRole("button", { name: "Collapse room control panel" }));
+  expect(screen.getByRole("button", { name: "Open backstage panel, 1" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Open backstage panel, 1" }));
+  expect(screen.getByRole("button", { name: "Collapse room control panel" })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "View options" }));
   fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Enter cinematic/i }));
@@ -144,8 +151,12 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   expect(screen.getByText("Production room").closest(".studio-shell")).not.toHaveClass("studio-shell--cinematic");
   expect(eventSourceCount).toBe(1);
 
-  fireEvent.click(screen.getByRole("button", { name: "Interview" }));
+  fireEvent.click(screen.getByRole("button", { name: "Interview layout" }));
   expect(screen.getByTestId("program-canvas")).toHaveAttribute("data-layout", "interview");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Auto layout" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Auto layout" }));
+  await waitFor(() => expect(screen.getByTestId("program-canvas")).toHaveAttribute("data-layout", "auto"));
+  expect(screen.getByTestId("program-canvas")).toHaveAttribute("data-effective-layout", "interview");
 
   fireEvent.click(screen.getAllByRole("button", { name: "Move to Stage" })[0]);
   await waitFor(() => expect(screen.getByText(/moved onto Stage/)).toBeInTheDocument());
@@ -157,14 +168,8 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   expect(await screen.findByRole("button", { name: "Copy link" })).toBeInTheDocument();
   expect(window.localStorage.getItem("Abc234Xyz")).toBeNull();
 
-  const goLiveTrigger = screen.getByRole("button", { name: "Go live" });
-  goLiveTrigger.focus();
-  fireEvent.click(goLiveTrigger);
-  expect(screen.getByRole("dialog", { name: "Live output is not connected yet." })).toBeInTheDocument();
-  await waitFor(() => expect(screen.getByRole("button", { name: "Got it" })).toHaveFocus());
-  fireEvent.keyDown(document, { key: "Escape" });
-  expect(screen.queryByRole("dialog", { name: "Live output is not connected yet." })).not.toBeInTheDocument();
-  await waitFor(() => expect(goLiveTrigger).toHaveFocus());
+  expect(screen.getByRole("button", { name: "Go live" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Go live. Output integration not connected" })).toBeDisabled();
 });
 
 it("enforces nine total Stage slots across layouts and recovers after a capacity rejection", async () => {
@@ -199,8 +204,8 @@ it("enforces nine total Stage slots across layouts and recovers after a capacity
   expect(rendered.container.querySelectorAll("[data-testid='program-canvas'] .participant-tile")).toHaveLength(9);
   expect(screen.getByText("8 / 8 additional · 9 total")).toBeInTheDocument();
   screen.getAllByRole("button", { name: "Move to Stage" }).forEach((button) => expect(button).toBeDisabled());
-  for (const mode of ["Interview", "Spotlight", "Presentation"] as const) {
-    fireEvent.click(screen.getByRole("button", { name: mode }));
+  for (const mode of ["Interview", "Spotlight", "Presentation", "Auto"] as const) {
+    fireEvent.click(screen.getByRole("button", { name: `${mode} layout` }));
     await waitFor(() => expect(screen.getByTestId("program-canvas")).toHaveAttribute("data-layout", mode.toLowerCase()));
     expect(rendered.container.querySelectorAll("[data-testid='program-canvas'] .participant-tile").length).toBeLessThanOrEqual(9);
   }
@@ -208,9 +213,9 @@ it("enforces nine total Stage slots across layouts and recovers after a capacity
   fireEvent.click(screen.getByRole("button", { name: "View options" }));
   fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Enter cinematic/i }));
   expect(rendered.container.querySelectorAll("[data-testid='program-canvas'] .participant-tile")).toHaveLength(9);
-  const stageZeroActions = screen.getByLabelText("Actions for Stage 0").parentElement;
   fireEvent.click(screen.getByLabelText("Actions for Stage 0"));
-  fireEvent.click(stageZeroActions?.querySelector<HTMLButtonElement>('button[role="menuitem"]') as HTMLButtonElement);
+  const stageZeroMenu = screen.getByRole("menu", { name: "Actions for Stage 0" });
+  fireEvent.click(stageZeroMenu.querySelector<HTMLButtonElement>('button[role="menuitem"]') as HTMLButtonElement);
   await waitFor(() => screen.getAllByRole("button", { name: "Move to Stage" }).forEach((button) => expect(button).toBeEnabled()));
   expect(lobby.filter((guest) => guest.state === "on_stage")).toHaveLength(7);
   const waitingTile = screen.getAllByText("Waiting")[0].closest(".backstage-tile");

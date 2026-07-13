@@ -10,6 +10,7 @@ import type { GuestRoomView, StudioGuest } from "../domain/studio";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioMedia } from "../media/useStudioMedia";
 import { DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, RemoteMediaVideo, ScreenShareVideo } from "../media/StudioMediaElements";
+import { resolveEffectiveStageLayout } from "../layout/stageLayout";
 
 function initial(value: string) { return value.trim().charAt(0).toUpperCase() || "?"; }
 
@@ -76,6 +77,10 @@ export function GuestRoomWorkspace() {
   const selfOnStage = view.self.state === "on_stage";
   const presentationShare = media.activeShares.find((share) => share.runtimeParticipantId === `guest:${view.room.presentation.presentationGuestId}` || share.runtimeParticipantId === view.room.presentation.presentationGuestId) ?? media.activeShares[0];
   const directorParticipant = Array.from(media.remoteParticipants.entries()).find(([runtimeId]) => runtimeId.startsWith("account:"))?.[1];
+  const requestedLayout = view.room.presentation.layoutMode;
+  const guestStageCount = 1 + view.stage.length;
+  const explicitSpotlight = Boolean(view.room.presentation.spotlightGuestId && view.stage.some((participant) => participant.id === view.room.presentation.spotlightGuestId));
+  const effectiveLayout = resolveEffectiveStageLayout({ requested: requestedLayout, activeScreenShare: Boolean(presentationShare), explicitSpotlight, participantCount: guestStageCount });
   return (
     <SiteShell>
       <section className="guest-room page-width">
@@ -87,8 +92,8 @@ export function GuestRoomWorkspace() {
           <p className="eyebrow">STAGE OUTPUT</p>
           <h2 id="guest-stage-title" className="sr-only">Stage output</h2>
           <p>{media.state === "connected" ? "Media connected" : media.reason} · OFF AIR</p>
-          {view.room.presentation.layoutMode === "presentation" && (presentationShare ? <div className="presentation-source"><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
-          <div className={`program-canvas program-canvas--${view.room.presentation.layoutMode}`}>
+          {effectiveLayout === "presentation" && (presentationShare ? <div className="presentation-source"><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
+          <div className={`program-canvas program-canvas--${effectiveLayout}`} data-layout={requestedLayout} data-effective-layout={effectiveLayout} data-participant-count={guestStageCount}>
             <article className="stage-participant" data-stage-slot="director">{directorParticipant?.videoEnabled ? <RemoteMediaVideo participant={directorParticipant} label="Director" /> : <span className="participant-avatar">D</span>}<div><strong>Director</strong><small>{directorParticipant ? `${directorParticipant.audioEnabled ? "Microphone on" : "Microphone muted"} · ${directorParticipant.videoEnabled ? "Camera on" : "Camera off"}` : "Reserved Stage slot"}</small></div></article>
             {view.stage.length ? view.stage.slice(0, view.room.maxAdditionalStageParticipants).map((participant) => (
               participant.id === view.self.id ? <article className={`stage-participant${media.activeRuntimeParticipantId === "self" ? " is-active-speaker" : ""}`} key={participant.id}>{media.videoEnabled ? <LocalMediaVideo media={media} /> : <Avatar guest={participant} />}<div><strong>{participant.displayName}</strong>{participant.subtitle && <small>{participant.subtitle}</small>}<small>{media.audioEnabled ? "Microphone on" : "Microphone muted"} · {media.videoEnabled ? "Camera on" : "Camera off"}</small></div></article> :

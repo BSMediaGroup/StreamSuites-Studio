@@ -47,6 +47,13 @@
   --canvas-bg: #07090d;
   --preview-canvas-bg: #090c11;
   --grid-line: rgba(255, 255, 255, 0.02);
+  --icon: #aeb6c2;
+  --icon-hover: #f2f4f7;
+  --icon-active: #a7e249;
+  --icon-disabled: #5f6875;
+  --scroll-track: #0b0e13;
+  --scroll-thumb: #4b5563;
+  --scroll-thumb-hover: #778190;
   --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.38);
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -87,5 +94,12 @@
   --canvas-bg: #dde3e8;
   --preview-canvas-bg: #e8edf1;
   --grid-line: rgba(20, 31, 43, 0.055);
+  --icon: #495665;
+  --icon-hover: #18212b;
+  --icon-active: #45750f;
+  --icon-disabled: #9aa3ad;
+  --scroll-track: #e6eaee;
+  --scroll-thumb: #aab2bc;
+  --scroll-thumb-hover: #737f8c;
   --shadow-lg: 0 24px 60px rgba(35, 45, 55, 0.16);
 }

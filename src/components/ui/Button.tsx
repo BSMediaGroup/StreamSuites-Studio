@@ -11,6 +11,7 @@ interface ButtonLinkProps {
   readonly children: ReactNode;
   readonly to: string;
   readonly variant?: ButtonVariant;
+  readonly className?: string;
 }
 
 export function Button({
@@ -28,9 +29,9 @@ export function Button({
   );
 }
 
-export function ButtonLink({ children, to, variant = "primary" }: ButtonLinkProps) {
+export function ButtonLink({ children, to, variant = "primary", className = "" }: ButtonLinkProps) {
   return (
-    <Link className={`button button--${variant}`} to={to}>
+    <Link className={`button button--${variant} ${className}`.trim()} to={to}>
       {children}
     </Link>
   );

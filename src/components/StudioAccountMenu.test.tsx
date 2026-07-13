@@ -5,7 +5,7 @@ import { StudioAccountMenu } from "./StudioAccountMenu";
 
 afterEach(cleanup);
 
-function value(avatarUrl: string | null): StudioAuthContextValue {
+function value(avatarUrl: string | null, accountType: "admin" | "creator" | "developer" | "public" = "creator", tier = "CORE"): StudioAuthContextValue {
   return {
     access: {
       status: "allowed",
@@ -18,8 +18,8 @@ function value(avatarUrl: string | null): StudioAuthContextValue {
         userCode: "ABC1234",
         displayName: "Alpha Tester",
         avatarUrl,
-        accountType: "creator",
-        tier: "CORE",
+        accountType,
+        tier,
       },
     },
     authGate: {
@@ -44,11 +44,18 @@ describe("StudioAccountMenu", () => {
     render(<StudioAuthContext.Provider value={value("https://example.test/avatar.png")}><StudioAccountMenu /></StudioAuthContext.Provider>);
     fireEvent.click(screen.getByRole("button", { name: /Alpha Tester/ }));
     expect(document.querySelector(".studio-account-avatar img")).toHaveAttribute("src", "https://example.test/avatar.png");
-    expect(screen.getByText("Account type: creator")).toBeVisible();
-    expect(screen.getByText("Tier: CORE")).toBeVisible();
-    expect(screen.getByAltText("creator account")).toBeVisible();
-    expect(screen.getByAltText("CORE tier")).toBeVisible();
+    expect(screen.getAllByText("creator").length).toBeGreaterThan(0);
+    expect(screen.getByText("CORE")).toBeVisible();
+    expect(screen.getByAltText("Core tier")).toBeVisible();
+    expect(document.querySelectorAll(".account-badge-icon")).toHaveLength(1);
     expect(screen.getByRole("menuitem", { name: "Logout" })).toBeEnabled();
+  });
+
+  it("uses Public-shell badge suppression so admin is not duplicated by tier", () => {
+    render(<StudioAuthContext.Provider value={value(null, "admin", "CORE")}><StudioAccountMenu /></StudioAuthContext.Provider>);
+    expect(screen.getByAltText("Administrator")).toBeVisible();
+    expect(screen.queryByAltText("Core tier")).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".account-badge-icon")).toHaveLength(1);
   });
 
   it("uses an initial fallback and restores trigger focus on Escape", async () => {

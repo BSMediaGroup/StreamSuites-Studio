@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { usePresentationPreferences } from "../presentation/presentationContext";
 import type { HeaderMode, SidebarMode } from "../presentation/presentationPreferences";
+import { StudioIcon } from "./ui/StudioIcon";
+import viewIcon from "../../assets/icons/ui/visible.svg";
+import viewFilledIcon from "../../assets/icons/ui/visiblefilled.svg";
 
 interface ViewOptionsMenuProps {
   readonly roomWorkspace?: boolean;
@@ -37,7 +40,7 @@ export function ViewOptionsMenu({ roomWorkspace = false, fullscreenSupported = f
   return (
     <div className="view-options" ref={rootRef}>
       <button ref={triggerRef} type="button" className="view-options__trigger" aria-label="View options" aria-haspopup="menu" aria-expanded={open} aria-controls="view-options-menu" onClick={() => setOpen((value) => !value)}>
-        <span aria-hidden="true">▣</span><span className="view-options__label">View</span>
+        <StudioIcon regular={viewIcon} filled={viewFilledIcon} active={open} /><span className="view-options__label">View</span>
       </button>
       {open && <div id="view-options-menu" className="view-options__menu" role="menu" aria-label="Studio display options">
         <fieldset><legend>Sidebar</legend>{sidebarOptions.map(([value, label]) => <label key={value}><input type="radio" name="sidebar-mode" checked={preferences.sidebar === value} onChange={() => setSidebar(value)} /> <span>{label}</span></label>)}</fieldset>

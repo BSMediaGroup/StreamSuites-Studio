@@ -176,7 +176,7 @@ function roomLifecycle(value: unknown): RoomLifecycle {
 }
 
 function stageLayout(value: unknown): StageLayout {
-  return value === "interview" || value === "spotlight" || value === "presentation" ? value : "grid";
+  return value === "auto" || value === "interview" || value === "spotlight" || value === "presentation" ? value : "grid";
 }
 
 function normalizeRoom(value: unknown): RoomSummary {

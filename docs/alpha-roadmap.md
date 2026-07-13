@@ -49,12 +49,13 @@ No camera, microphone, screen sharing, media track, broadcast output, or recordi
 - show a horizontal Backstage tray below Stage plus distinct right-side management, with Runtime-backed Stage/Backstage moves, deny/kick distinction, intended mic/camera controls, capacity conflicts, and pending states
 - integrate policy-controlled reusable invite links, revocation/exhaustion, confirmed room/presentation settings, scoped cohost controls, and lifecycle controls into the room workspace
 - surface live connection state, immediate Backstage arrivals/profile/status updates, accessible announcements, waiting/on-stage/cohost sections, and account-optional guest identity editing
-- synchronize Grid, Interview, Spotlight, and Presentation layouts plus drag/keyboard Stage order without claiming screen sharing or broadcast output
+- synchronize requested Auto, Grid, Interview, Spotlight, and Presentation layouts plus drag/keyboard Stage order; derive Auto locally from real screen share, explicit spotlight, or the current 1–9 count without claiming broadcast output
 - orient future production work with a control dock, truthful `OFF AIR` state, inactive timer, unavailable media controls, and explanatory Go live dialog
 - validate keyboard-accessible controls, mobile stacking, light/dark themes, and reduced-motion behavior while keeping local interaction state separate from authoritative Runtime/Auth room state
 - ship expanded/compact/hidden desktop navigation plus standard/slim/auto-hide headers through one validated presentation-only preference provider, while preserving the mobile drawer
 - provide a room-scoped cinematic Stage mode, waiting-count-aware Backstage drawer using the existing authoritative state/actions, compact truthful production dock, `F` shortcut, focus/Escape recovery, and optional `fullscreenchange`-confirmed browser fullscreen
 - preserve invite drafts through the embedded Auth sheet/OAuth return, route joined guests into the canonical room workspace, provide permission-aware participant menus and dedicated cohost scope/revoke management, and align Room ID/account badge/sidebar/footer shell details with established surfaces
+- compact the completed media workspace without replacing its lifecycle: header Room Actions replaces the duplicate action row, the right panel's collapsed rail replaces the duplicate left rail, the dock remains one horizontally navigable row, occupied Stage tiles use centered 1–9 arrangements, participant menus portal above clipping containers, and themed icons/scrollbars preserve dark/light/mobile/cinematic parity
 
 No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime connection, recording, or broadcast output was delivered by this phase; private-room media was completed separately in phase 5.
 

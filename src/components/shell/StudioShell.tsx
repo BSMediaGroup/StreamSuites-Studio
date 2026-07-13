@@ -10,11 +10,15 @@ import { StatusChip } from "../ui/StatusChip";
 import { ViewOptionsMenu } from "../ViewOptionsMenu";
 import { usePresentationPreferences } from "../../presentation/presentationContext";
 import { StudioFooter } from "../StudioFooter";
+import { StudioIcon } from "../ui/StudioIcon";
 import studioIcon from "../../../assets/icons/ui/tvlive.svg";
 import brandIcon from "../../../assets/icons/ui/starform.svg";
 import mediaIcon from "../../../assets/icons/ui/media.svg";
 import destinationsIcon from "../../../assets/icons/ui/sharelinks.svg";
 import settingsIcon from "../../../assets/icons/ui/settingsquare.svg";
+import sidebarIcon from "../../../assets/icons/ui/sidebar.svg";
+import sidebarCloseIcon from "../../../assets/icons/ui/sidebarclose.svg";
+import sidebarOpenIcon from "../../../assets/icons/ui/sidebaropen.svg";
 
 const futureNavigation = [
   { label: "Brand", icon: brandIcon },
@@ -68,7 +72,7 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
   }, [menuOpen]);
 
   const effectiveSidebar = cinematic ? "hidden" : preferences.sidebar;
-  const shellClass = `studio-shell studio-shell--sidebar-${effectiveSidebar} studio-shell--header-${cinematic ? "cinematic" : preferences.header}${autoHide && !headerRevealed ? " studio-shell--header-hidden" : ""}${cinematic ? " studio-shell--cinematic" : ""}${menuOpen ? " studio-shell--menu-open" : ""}`;
+  const shellClass = `studio-shell studio-shell--sidebar-${effectiveSidebar} studio-shell--header-${cinematic ? "cinematic" : preferences.header}${roomWorkspace ? " studio-shell--room-workspace" : ""}${autoHide && !headerRevealed ? " studio-shell--header-hidden" : ""}${cinematic ? " studio-shell--cinematic" : ""}${menuOpen ? " studio-shell--menu-open" : ""}`;
 
   return (
     <div className={shellClass}>
@@ -82,7 +86,7 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
           aria-label="Toggle Studio navigation"
           onClick={() => setMenuOpen((open) => !open)}
         >
-          <span aria-hidden="true">☰</span>
+          <StudioIcon regular={sidebarIcon} />
         </Button>
         <BrandMark />
         <div className="studio-topbar__status">
@@ -96,27 +100,32 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
       <AuthAccessBanner />
 
       <aside id="studio-sidebar" className="studio-sidebar" aria-label="Studio workspace">
-        <nav>
-          <Link className="studio-nav-link studio-nav-link--active" to="/studio" title="Studio" aria-label="Studio">
-            <img src={studioIcon} alt="" aria-hidden="true" />
-            <span className="studio-nav-link__label">Studio</span>
-          </Link>
-          {futureNavigation.map(({ label, icon }) => (
-            <button key={label} className="studio-nav-link" type="button" disabled title={`${label} (Later)`} aria-label={`${label}, unavailable, later`}>
-              <img src={icon} alt="" aria-hidden="true" />
-              <span className="studio-nav-link__label">{label}</span>
-              <span className="studio-nav-link__future">Later</span>
-            </button>
-          ))}
-        </nav>
-        <div className="studio-sidebar__note">
-          <strong>Closed ALPHA</strong>
-          <p>Rooms, invitations, and lobby authority are Runtime/Auth-owned. Media is not implemented.</p>
+        <div className="studio-sidebar__header"><span>Studio workspace</span></div>
+        <div className="studio-sidebar__scroll">
+          <nav>
+            <Link className="studio-nav-link studio-nav-link--active icon-control" to="/studio" title="Studio" aria-label="Studio">
+              <StudioIcon regular={studioIcon} active />
+              <span className="studio-nav-link__label">Studio</span>
+            </Link>
+            {futureNavigation.map(({ label, icon }) => (
+              <button key={label} className="studio-nav-link icon-control" type="button" disabled title={`${label} (Later)`} aria-label={`${label}, unavailable, later`}>
+                <StudioIcon regular={icon} />
+                <span className="studio-nav-link__label">{label}</span>
+                <span className="studio-nav-link__future">Later</span>
+              </button>
+            ))}
+          </nav>
         </div>
-        <button className="sidebar-mode-cycle" type="button" onClick={cycleSidebar} aria-label={`Sidebar is ${preferences.sidebar}. Change sidebar mode.`} title={`Sidebar: ${preferences.sidebar}. Change mode.`}>⇤ <span>Change sidebar</span></button>
+        <div className="studio-sidebar__bottom">
+          <div className="studio-sidebar__note">
+            <strong>Closed ALPHA · OFF AIR</strong>
+            <p>Runtime/Auth owns room authority; RealtimeKit carries private room media only.</p>
+          </div>
+          <button className="sidebar-mode-cycle icon-control" type="button" onClick={cycleSidebar} aria-label={`Sidebar is ${preferences.sidebar}. Change sidebar mode.`} title={`Sidebar: ${preferences.sidebar}. Change mode.`}><StudioIcon regular={sidebarCloseIcon} filled={sidebarOpenIcon} active={preferences.sidebar !== "expanded"} /> <span>Change sidebar</span></button>
+        </div>
       </aside>
 
-      {effectiveSidebar === "hidden" && !cinematic && <button className="sidebar-restore" type="button" onClick={() => setSidebar("expanded")} aria-label="Restore Studio sidebar" title="Restore sidebar">☰</button>}
+      {effectiveSidebar === "hidden" && !cinematic && <button className="sidebar-restore icon-control" type="button" onClick={() => setSidebar("expanded")} aria-label="Restore Studio sidebar" title="Restore sidebar"><StudioIcon regular={sidebarOpenIcon} filled={sidebarOpenIcon} /></button>}
       {cinematic && <button className="cinematic-exit" type="button" onClick={toggleCinematic}>Exit cinematic <kbd>F</kbd></button>}
 
       <main id="main-content" className="studio-main">

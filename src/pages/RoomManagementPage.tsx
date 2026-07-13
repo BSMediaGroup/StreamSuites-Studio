@@ -10,20 +10,67 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
+import { ParticipantMenuPortal, type ParticipantMenuItem } from "../components/ui/ParticipantMenuPortal";
+import { StudioIcon } from "../components/ui/StudioIcon";
 import type { InvitePolicy, RoomCohosts, RoomConnectionState, RoomInvite, RoomPermissions, RoomSummary, StageLayout, StudioGuest } from "../domain/studio";
 import { usePresentationPreferences } from "../presentation/presentationContext";
 import { GuestRoomWorkspace } from "./GuestRoomWorkspace";
-import exitIcon from "../../assets/icons/ui/backspace.svg";
+import exitIcon from "../../assets/icons/ui/exitroom.svg";
+import exitFilledIcon from "../../assets/icons/ui/exitroom-filled.svg";
+import waitingIcon from "../../assets/icons/ui/waiting.svg";
+import waitingFilledIcon from "../../assets/icons/ui/waiting-filled.svg";
+import inviteIcon from "../../assets/icons/ui/invite.svg";
+import inviteFilledIcon from "../../assets/icons/ui/invite-filled.svg";
+import roomPrefsIcon from "../../assets/icons/ui/roomprefs.svg";
+import roomPrefsFilledIcon from "../../assets/icons/ui/roomprefs-filled.svg";
+import gridIcon from "../../assets/icons/ui/layout4x.svg";
+import gridFilledIcon from "../../assets/icons/ui/layout4x-filled.svg";
+import interviewIcon from "../../assets/icons/ui/layout2x.svg";
+import interviewFilledIcon from "../../assets/icons/ui/layout2x-filled.svg";
+import spotlightIcon from "../../assets/icons/ui/layout1x.svg";
+import spotlightFilledIcon from "../../assets/icons/ui/layout1x-filled.svg";
+import presentationIcon from "../../assets/icons/ui/layoutpresent.svg";
+import presentationFilledIcon from "../../assets/icons/ui/layoutpresent-filled.svg";
+import autoIcon from "../../assets/icons/ui/layoutauto.svg";
+import autoFilledIcon from "../../assets/icons/ui/layoutauto-filled.svg";
 import removePersonIcon from "../../assets/icons/ui/personremove.svg";
+import revokeIcon from "../../assets/icons/ui/removemod.svg";
+import microphoneIcon from "../../assets/icons/ui/mic.svg";
+import microphoneFilledIcon from "../../assets/icons/ui/mic-filled.svg";
+import cameraIcon from "../../assets/icons/ui/videocamera.svg";
+import cameraFilledIcon from "../../assets/icons/ui/videocamera-filled.svg";
+import shareIcon from "../../assets/icons/ui/sharebox.svg";
+import mediaIcon from "../../assets/icons/ui/media.svg";
+import mediaFilledIcon from "../../assets/icons/ui/mediafill.svg";
+import goLiveIcon from "../../assets/icons/ui/cast.svg";
+import optionsIcon from "../../assets/icons/ui/options.svg";
+import arrowIcon from "../../assets/icons/ui/mobilearrow.svg";
+import refreshIcon from "../../assets/icons/ui/refresh.svg";
 import { useStudioMedia } from "../media/useStudioMedia";
 import { DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, ScreenShareVideo } from "../media/StudioMediaElements";
+import { resolveEffectiveStageLayout } from "../layout/stageLayout";
 
 type WorkspacePanel = "backstage" | "invites" | "room";
 const layoutLabels: Record<StageLayout, string> = {
+  auto: "Auto",
   grid: "Grid",
   interview: "Interview",
   spotlight: "Spotlight",
   presentation: "Presentation",
+};
+
+const layoutIcons: Record<StageLayout, readonly [string, string]> = {
+  grid: [gridIcon, gridFilledIcon],
+  interview: [interviewIcon, interviewFilledIcon],
+  spotlight: [spotlightIcon, spotlightFilledIcon],
+  presentation: [presentationIcon, presentationFilledIcon],
+  auto: [autoIcon, autoFilledIcon],
+};
+
+const panelIcons: Record<WorkspacePanel, readonly [string, string]> = {
+  backstage: [waitingIcon, waitingFilledIcon],
+  invites: [inviteIcon, inviteFilledIcon],
+  room: [roomPrefsIcon, roomPrefsFilledIcon],
 };
 
 function date(value: string | null) {
@@ -49,13 +96,12 @@ function GuestAvatar({ guest }: { readonly guest: StudioGuest }) {
   );
 }
 
-function ControlButton({ label, helper, disabled = false, active = false, onClick, buttonRef }: { readonly label: string; readonly helper: string; readonly disabled?: boolean; readonly active?: boolean; readonly onClick?: () => void; readonly buttonRef?: React.Ref<HTMLButtonElement> }) {
+function ControlButton({ label, helper, icon, filledIcon, disabled = false, active = false, onClick, buttonRef }: { readonly label: string; readonly helper: string; readonly icon: string; readonly filledIcon?: string; readonly disabled?: boolean; readonly active?: boolean; readonly onClick?: () => void; readonly buttonRef?: React.Ref<HTMLButtonElement> }) {
   return (
-    <span className="control-dock__item" title={helper}>
-      <button ref={buttonRef} type="button" className={active ? "is-active" : ""} aria-label={`${label}. ${helper}`} aria-pressed={active || undefined} disabled={disabled} onClick={onClick}>
-        <span className="control-dock__indicator" aria-hidden="true" />
+    <span className="control-dock__item studio-tooltip" data-tooltip={helper}>
+      <button ref={buttonRef} type="button" className={`icon-control${active ? " is-active" : ""}`} aria-label={`${label}. ${helper}`} aria-pressed={active || undefined} disabled={disabled} onClick={onClick}>
+        <StudioIcon regular={icon} filled={filledIcon} active={active} />
         <strong>{label}</strong>
-        <small>{disabled ? "Unavailable" : helper}</small>
       </button>
     </span>
   );
@@ -90,8 +136,11 @@ function HostRoomManagementPage() {
   const [invitePermanent, setInvitePermanent] = useState(false);
   const [inviteExpiry, setInviteExpiry] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 16));
   const [panel, setPanel] = useState<WorkspacePanel>("backstage");
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [layout, setLayout] = useState<StageLayout>("grid");
   const [selectedParticipant, setSelectedParticipant] = useState("host");
+  const [spotlightSelectionExplicit, setSpotlightSelectionExplicit] = useState(false);
+  const [roomActionsOpen, setRoomActionsOpen] = useState(false);
   const [showGoLiveInfo, setShowGoLiveInfo] = useState(false);
   const [cinematicPanelOpen, setCinematicPanelOpen] = useState(false);
   const [fullscreenActive, setFullscreenActive] = useState(false);
@@ -101,6 +150,9 @@ function HostRoomManagementPage() {
   const sidePanelRef = useRef<HTMLElement>(null);
   const panelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const goLiveTriggerRef = useRef<HTMLElement | null>(null);
+  const roomActionsRef = useRef<HTMLDivElement>(null);
+  const roomActionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const dockScrollRef = useRef<HTMLDivElement>(null);
   const { preferences, setCinematic, toggleCinematic } = usePresentationPreferences();
   const media = useStudioMedia(roomId, { location: "on_stage", canScreenShare: true });
   const cinematic = preferences.cinematic === "on";
@@ -122,6 +174,10 @@ function HostRoomManagementPage() {
         setTitle(nextRoom.title);
         setDescription(nextRoom.description ?? "");
         setLayout(nextRoom.presentation.layoutMode);
+        if (nextRoom.presentation.spotlightGuestId) {
+          setSelectedParticipant(nextRoom.presentation.spotlightGuestId);
+          setSpotlightSelectionExplicit(true);
+        }
         if (roomId !== nextRoom.id) window.history.replaceState(null, "", `/studio/rooms/${encodeURIComponent(nextRoom.id)}`);
         setStatus("ready");
       } catch (error) {
@@ -231,6 +287,23 @@ function HostRoomManagementPage() {
     return () => document.removeEventListener("keydown", key, true);
   }, [showGoLiveInfo]);
 
+  useEffect(() => {
+    if (!roomActionsOpen) return;
+    const pointer = (event: PointerEvent) => { if (!roomActionsRef.current?.contains(event.target as Node)) setRoomActionsOpen(false); };
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setRoomActionsOpen(false);
+      window.setTimeout(() => roomActionsTriggerRef.current?.focus(), 0);
+    };
+    document.addEventListener("pointerdown", pointer);
+    document.addEventListener("keydown", key, true);
+    return () => {
+      document.removeEventListener("pointerdown", pointer);
+      document.removeEventListener("keydown", key, true);
+    };
+  }, [roomActionsOpen]);
+
   const toggleFullscreen = useCallback(async () => {
     if (!fullscreenSupported) return;
     try {
@@ -247,6 +320,7 @@ function HostRoomManagementPage() {
 
   function openWorkspacePanel(next: WorkspacePanel, trigger?: HTMLButtonElement | null) {
     setPanel(next);
+    setPanelCollapsed(false);
     if (trigger) panelTriggerRef.current = trigger;
     if (cinematic) setCinematicPanelOpen(true);
   }
@@ -442,6 +516,20 @@ function HostRoomManagementPage() {
     finally { setBusy(""); }
   }
 
+  function selectStageParticipant(participantId: string) {
+    setSelectedParticipant(participantId);
+    if (layout !== "auto" && layout !== "spotlight") return;
+    setSpotlightSelectionExplicit(true);
+    if (!room || !permissions?.updatePresentation) return;
+    void updateStudioPresentation(room.id, { spotlightGuestId: participantId === "host" ? null : participantId })
+      .then(setRoom)
+      .catch((error) => setMessage(error instanceof Error ? error.message : "Spotlight selection could not be synchronized."));
+  }
+
+  function scrollDock(direction: -1 | 1) {
+    dockScrollRef.current?.scrollBy({ left: direction * Math.max(260, dockScrollRef.current.clientWidth * 0.7), behavior: "smooth" });
+  }
+
   async function moveStageOrder(guestId: string, direction: -1 | 1) {
     if (!room || guestBusy) return;
     const ids = admitted.map((guest) => guest.id);
@@ -548,9 +636,29 @@ function HostRoomManagementPage() {
   }
 
   const hostName = access.account?.displayName || "Host / Director";
-  const visibleAdmitted = layout === "spotlight" ? admitted.filter((guest) => guest.id === selectedParticipant).slice(0, 1) : layout === "interview" ? admitted.slice(0, 1) : admitted.slice(0, room.maxAdditionalStageParticipants);
-  const emptySlots = layout === "grid" ? Math.max(0, room.totalStageCapacity - (room.reservedDirectorStageSlots + visibleAdmitted.length)) : layout === "interview" && visibleAdmitted.length === 0 ? 1 : 0;
   const presentationShare = media.activeShares.find((share) => share.runtimeParticipantId === `guest:${room.presentation.presentationGuestId}` || share.runtimeParticipantId === room.presentation.presentationGuestId) ?? media.activeShares[0];
+  const stageParticipantCount = room.reservedDirectorStageSlots + admitted.length;
+  const selectedParticipantOnStage = selectedParticipant === "host" || admitted.some((guest) => guest.id === selectedParticipant);
+  const effectiveLayout = resolveEffectiveStageLayout({ requested: layout, activeScreenShare: Boolean(presentationShare), explicitSpotlight: spotlightSelectionExplicit && selectedParticipantOnStage, participantCount: stageParticipantCount });
+  const interviewPrimaryIds = new Set(["host", admitted[0]?.id].filter(Boolean));
+  const spotlightPrimaryId = selectedParticipantOnStage ? selectedParticipant : "host";
+  const stageTileClass = (participantId: string) => effectiveLayout === "grid"
+    ? ""
+    : effectiveLayout === "interview"
+      ? interviewPrimaryIds.has(participantId) ? " is-primary" : " is-filmstrip"
+      : effectiveLayout === "spotlight"
+        ? participantId === spotlightPrimaryId ? " is-primary" : " is-filmstrip"
+        : " is-filmstrip";
+  const participantMenuItems = (guest: StudioGuest): ParticipantMenuItem[] => [
+    { label: "Move Backstage", onSelect: () => void moveParticipant(guest, "backstage") },
+    { label: guest.microphoneMuted ? "Unmute intent" : "Mute intent", onSelect: () => void mediaIntent(guest, "microphone") },
+    { label: guest.cameraHidden ? "Show camera intent" : "Hide camera intent", onSelect: () => void mediaIntent(guest, "camera") },
+    { label: "Move earlier", disabled: admitted[0]?.id === guest.id, onSelect: () => void moveStageOrder(guest.id, -1) },
+    { label: "Move later", disabled: admitted.at(-1)?.id === guest.id, onSelect: () => void moveStageOrder(guest.id, 1) },
+    { label: guest.sessionCohost ? "Revoke session cohost" : "Session / this room only", destructive: guest.sessionCohost, separatorBefore: true, icon: guest.sessionCohost ? revokeIcon : undefined, onSelect: () => void sessionCohost(guest, !guest.sessionCohost) },
+    ...(permissions?.managePermanentCohosts ? [{ label: "Invite permanent cohost", disabled: guest.pendingPermanentCohost, onSelect: () => void permanentCohost(guest) }] : []),
+    { label: "Remove from room", destructive: true, separatorBefore: true, icon: removePersonIcon, onSelect: () => { if (window.confirm(`Remove ${guest.displayName} from the room?`)) void guestAction(guest, "remove"); } },
+  ];
 
   return (
     <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()}>
@@ -561,62 +669,41 @@ function HostRoomManagementPage() {
         </div>}
         <header className="room-status-strip">
           <div className="room-status-strip__identity">
-            <ButtonLink to="/studio" variant="quiet">
-              <img className="button-prefix-icon" src={exitIcon} alt="" /> Rooms
+            <ButtonLink to="/studio" variant="quiet" className="room-exit-button icon-control">
+              <StudioIcon regular={exitIcon} filled={exitFilledIcon} />
+              <span>Rooms</span>
             </ButtonLink>
-            <div>
-              <p className="eyebrow">ROOM DETAILS</p>
+            <div className="room-status-strip__copy">
+              <div className="room-details-heading">
+                <p className="eyebrow">ROOM DETAILS</p>
+                <code className="room-id-chip" title="Room ID">{room.id}</code>
+              </div>
               <h1>{room.title}</h1>
-              <code className="room-id-chip" title="Room ID">{room.id}</code>
               <p>{room.description || "No room description."}</p>
             </div>
           </div>
           <div className="room-status-strip__facts">
             <StatusChip tone={room.lifecycleState === "open" ? "alpha" : room.lifecycleState === "ended" ? "blocked" : "neutral"}>{room.lifecycleState}</StatusChip>
-            <span>
-              <strong>
-                {room.admittedGuestCount} / {room.maxGuestStageOccupants}
-              </strong>{" "}
-              on stage
-            </span>
-            <span>
-              <strong>{room.waitingGuestCount}</strong> waiting
-            </span>
-            <span className={`connection-state connection-state--${connection.replace(" ", "-")}`}>
-              <i aria-hidden="true" /> {connection}
-            </span>
+            <span><strong>{stageParticipantCount} / {room.totalStageCapacity}</strong> on Stage</span>
+            <span><strong>{room.waitingGuestCount}</strong> waiting</span>
+            <span>Authority: {connection}</span>
+          </div>
+          <div className="room-actions" ref={roomActionsRef}>
+            <button ref={roomActionsTriggerRef} className="room-actions__trigger icon-control" type="button" aria-label="Room actions" aria-haspopup="menu" aria-expanded={roomActionsOpen} aria-controls="room-actions-menu" onClick={() => setRoomActionsOpen((open) => !open)}>
+              <StudioIcon regular={optionsIcon} /><span>Room Actions</span>
+            </button>
+            {roomActionsOpen && <div id="room-actions-menu" className="room-actions__menu" role="menu">
+              {["draft", "closed"].includes(room.lifecycleState) && <button role="menuitem" type="button" disabled={Boolean(busy)} onClick={() => { setRoomActionsOpen(false); void lifecycle("open"); }}>{busy === "lifecycle-open" ? "Opening…" : "Open room entry"}</button>}
+              {room.lifecycleState === "open" && <button role="menuitem" type="button" disabled={Boolean(busy)} onClick={() => { setRoomActionsOpen(false); void lifecycle("close"); }}>{busy === "lifecycle-close" ? "Closing…" : "Close room entry"}</button>}
+              <button role="menuitem" type="button" disabled={Boolean(busy) || Boolean(guestBusy)} onClick={() => { setRoomActionsOpen(false); void refreshAuthority(false); }}><StudioIcon regular={refreshIcon} /> Refresh authority</button>
+              {room.lifecycleState !== "ended" && permissions?.endRoom && <button className="is-destructive" role="menuitem" type="button" disabled={Boolean(busy)} onClick={() => { setRoomActionsOpen(false); void lifecycle("end"); }}>End room</button>}
+            </div>}
           </div>
           <div className="broadcast-state" aria-label="Broadcast state">
-            <div>
-              <span className="off-air-dot" aria-hidden="true" />
-              <strong>OFF AIR</strong>
-              <time>00:00:00</time>
-            </div>
-            <Button onClick={openGoLiveInfo}>Go live</Button>
+            <div><strong>OFF AIR</strong><time>00:00:00</time></div>
+            <Button disabled title="Output integration not connected" onClick={openGoLiveInfo}>Go live</Button>
           </div>
         </header>
-
-        <div className="room-lifecycle-bar" aria-label="Room lifecycle controls">
-          {["draft", "closed"].includes(room.lifecycleState) && (
-            <Button disabled={Boolean(busy)} onClick={() => void lifecycle("open")}>
-              {busy === "lifecycle-open" ? "Opening…" : "Open room"}
-            </Button>
-          )}
-          {room.lifecycleState === "open" && (
-            <Button variant="secondary" disabled={Boolean(busy)} onClick={() => void lifecycle("close")}>
-              {busy === "lifecycle-close" ? "Closing…" : "Close entry"}
-            </Button>
-          )}
-          {room.lifecycleState !== "ended" && permissions?.endRoom && (
-            <Button variant="quiet" disabled={Boolean(busy)} onClick={() => void lifecycle("end")}>
-              {busy === "lifecycle-end" ? "Ending…" : "End room"}
-            </Button>
-          )}
-          <Button variant="secondary" disabled={Boolean(busy) || Boolean(guestBusy)} onClick={() => void refreshAuthority(false)}>
-            Refresh authority
-          </Button>
-          <span>Room entry is {room.lifecycleState === "open" ? "open to valid invites" : "not accepting invite entry"}.</span>
-        </div>
 
         {message && (
           <p className="status-banner" role="status" aria-live="polite">
@@ -627,86 +714,42 @@ function HostRoomManagementPage() {
           {announcement}
         </p>
 
-        <div className="production-workspace">
-          <aside className="production-rail" aria-label="Production tools">
-            <button type="button" className={panel === "backstage" ? "is-active" : ""} onClick={(event) => openWorkspacePanel("backstage", event.currentTarget)} aria-pressed={panel === "backstage"}>
-              Backstage <span>{waiting.length}</span>
-            </button>
-            <button type="button" className={panel === "invites" ? "is-active" : ""} onClick={(event) => openWorkspacePanel("invites", event.currentTarget)} aria-pressed={panel === "invites"}>
-              Invites <span>{invites.filter((invite) => invite.active).length}</span>
-            </button>
-            <button type="button" className={panel === "room" ? "is-active" : ""} onClick={(event) => openWorkspacePanel("room", event.currentTarget)} aria-pressed={panel === "room"}>
-              Room
-            </button>
-          </aside>
-
+        <div className={`production-workspace${panelCollapsed ? " is-panel-collapsed" : ""}`}>
           <main className="program-panel">
             <div className="program-panel__toolbar">
               <div>
                 <p className="eyebrow">STAGE OUTPUT</p>
                 <strong className="sr-only">Stage output</strong>
-                <span>Preview only · {media.state === "connected" ? "Media connected" : media.reason}</span>
+                <span>Preview only · {layout === "auto" ? `Auto → ${layoutLabels[effectiveLayout]}` : layoutLabels[effectiveLayout]} · {media.state === "connected" ? "Media connected" : media.reason}</span>
               </div>
               <div className="layout-picker" ref={layoutRef} role="group" aria-label="Stage layout">
-                {(Object.keys(layoutLabels) as StageLayout[]).map((option) => (
-                  <button key={option} type="button" disabled={busy === "layout" || !permissions?.updatePresentation} className={layout === option ? "is-selected" : ""} aria-pressed={layout === option} onClick={() => void changeLayout(option)}>
-                    {layoutLabels[option]}
+                {(["grid", "interview", "spotlight", "presentation", "auto"] as StageLayout[]).map((option) => (
+                  <button key={option} type="button" disabled={busy === "layout" || !permissions?.updatePresentation} className={`icon-control studio-tooltip${layout === option ? " is-selected" : ""}`} data-tooltip={layoutLabels[option]} aria-label={`${layoutLabels[option]} layout`} aria-pressed={layout === option} onClick={() => void changeLayout(option)}>
+                    <StudioIcon regular={layoutIcons[option][0]} filled={layoutIcons[option][1]} active={layout === option} />
                   </button>
                 ))}
               </div>
             </div>
-            <div className={`program-canvas program-canvas--${layout}`} data-testid="program-canvas" data-layout={layout}>
-              {layout === "presentation" && (presentationShare ? <div className="presentation-source"><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
+            <div className={`program-canvas program-canvas--${effectiveLayout}`} data-testid="program-canvas" data-layout={layout} data-effective-layout={effectiveLayout} data-participant-count={stageParticipantCount}>
+              {effectiveLayout === "presentation" && (presentationShare ? <div className="presentation-source"><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
               <div className="program-safe-area" aria-hidden="true">
                 <span>Safe area</span>
               </div>
-              <button type="button" className={`participant-tile participant-tile--host ${selectedParticipant === "host" ? "is-selected" : ""}`} onClick={() => setSelectedParticipant("host")} aria-pressed={selectedParticipant === "host"}>
-                {media.videoEnabled && media.meeting ? <LocalMediaVideo media={media} /> : <span className="participant-avatar">{initial(hostName)}</span>}
-                <span className="participant-identity">
-                  <strong>{hostName}</strong>
-                  <small>Host / Director · {media.state === "connected" ? `${media.audioEnabled ? "Microphone on" : "Microphone muted"} · ${media.videoEnabled ? "Camera on" : "Camera off"}` : media.reason}</small>
-                </span>
-              </button>
-              {visibleAdmitted.map((guest) => (
-                <MediaParticipantTile className={`participant-tile ${selectedParticipant === guest.id ? "is-selected" : ""}`} guest={guest} media={media} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => setSelectedParticipant(guest.id)}>
-                  {/* Stable guest keys preserve registered media elements while Stage order changes. */}
-                  {permissions?.manageParticipants && <details className="participant-menu" onClick={(event) => event.stopPropagation()}>
-                    <summary aria-label={`Actions for ${guest.displayName}`}>…</summary>
-                    <div role="menu">
-                      <button role="menuitem" type="button" onClick={() => void moveParticipant(guest, "backstage")}>Move backstage</button>
-                      <button role="menuitem" type="button" onClick={() => void mediaIntent(guest, "microphone")}>{guest.microphoneMuted ? "Unmute intent" : "Mute intent"}</button>
-                      <button role="menuitem" type="button" onClick={() => void mediaIntent(guest, "camera")}>{guest.cameraHidden ? "Show camera intent" : "Hide camera intent"}</button>
-                      <button role="menuitem" type="button" disabled={admitted[0]?.id === guest.id} onClick={() => void moveStageOrder(guest.id, -1)}>Move earlier</button>
-                      <button role="menuitem" type="button" disabled={admitted.at(-1)?.id === guest.id} onClick={() => void moveStageOrder(guest.id, 1)}>Move later</button>
-                      <button role="menuitem" type="button" onClick={() => void sessionCohost(guest, !guest.sessionCohost)}>{guest.sessionCohost ? "Revoke session cohost" : "Session / this room only"}</button>
-                      {permissions.managePermanentCohosts && <button role="menuitem" type="button" disabled={guest.pendingPermanentCohost} onClick={() => void permanentCohost(guest)}>Invite permanent cohost</button>}
-                      <button className="is-destructive" role="menuitem" type="button" onClick={() => { if (window.confirm(`Remove ${guest.displayName} from the room?`)) void guestAction(guest, "remove"); }}>Remove from room</button>
-                    </div>
-                  </details>}
-                </MediaParticipantTile>
-              ))}
-              {Array.from({ length: emptySlots }, (_, index) => (
-                <div className="participant-tile participant-tile--empty" key={`empty-${index}`}>
-                  <span className="empty-slot-mark" aria-hidden="true">
-                    +
-                  </span>
+              <div className="program-stage-grid">
+                <button type="button" className={`participant-tile participant-tile--host${selectedParticipant === "host" ? " is-selected" : ""}${stageTileClass("host")}`} onClick={() => selectStageParticipant("host")} aria-pressed={selectedParticipant === "host"} data-participant-id="host">
+                  {media.videoEnabled && media.meeting ? <LocalMediaVideo media={media} /> : <span className="participant-avatar">{initial(hostName)}</span>}
                   <span className="participant-identity">
-                    <strong>Open stage position</strong>
-                    <small>Admit a backstage guest</small>
+                    <strong>{hostName}</strong>
+                    <small>Host / Director · {media.state === "connected" ? `${media.audioEnabled ? "Microphone on" : "Microphone muted"} · ${media.videoEnabled ? "Camera on" : "Camera off"}` : media.reason}</small>
                   </span>
-                </div>
-              ))}
-              {layout === "spotlight" && selectedParticipant !== "host" && visibleAdmitted.length === 0 && (
-                <div className="participant-tile participant-tile--empty">
-                  <span className="empty-slot-mark" aria-hidden="true">
-                    +
-                  </span>
-                  <span className="participant-identity">
-                    <strong>Select an on-stage guest</strong>
-                    <small>Spotlight changes preview layout only</small>
-                  </span>
-                </div>
-              )}
+                </button>
+                {admitted.map((guest) => (
+                  <MediaParticipantTile className={`participant-tile${selectedParticipant === guest.id ? " is-selected" : ""}${stageTileClass(guest.id)}`} guest={guest} media={media} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => selectStageParticipant(guest.id)}>
+                    {/* Stable guest keys preserve registered media elements while Stage order and CSS layout change. */}
+                    {permissions?.manageParticipants && <ParticipantMenuPortal participantName={guest.displayName} items={participantMenuItems(guest)} />}
+                  </MediaParticipantTile>
+                ))}
+              </div>
               <div className="program-canvas__notice">
                 <strong>{media.state === "connected" ? "Media connected · OFF AIR" : "Media not connected"}</strong>
                 <span>{media.state === "connected" ? "RealtimeKit transports room media only; no broadcast output is active." : "No camera, microphone, screen share, track, or broadcast output is active."}</span>
@@ -727,14 +770,27 @@ function HostRoomManagementPage() {
           </main>
 
           {cinematic && cinematicPanelOpen && <button className="cinematic-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
-          <aside ref={sidePanelRef} className={`workspace-side-panel${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Room tools" {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
+          {!cinematic && !panelCollapsed && <button className="workspace-panel-scrim" type="button" aria-label="Collapse room tools" onClick={() => setPanelCollapsed(true)} />}
+          <aside ref={sidePanelRef} className={`workspace-side-panel${panelCollapsed ? " is-collapsed" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Room tools" {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
             {cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
+            {panelCollapsed ? <nav className="workspace-panel-rail" aria-label="Collapsed room tools">
+              <button className="workspace-panel-expand icon-control studio-tooltip" type="button" aria-label="Expand room control panel" data-tooltip="Expand panel" onClick={() => setPanelCollapsed(false)}><StudioIcon regular={arrowIcon} /></button>
+              {(["backstage", "invites", "room"] as WorkspacePanel[]).map((item) => {
+                const count = item === "backstage" ? waiting.length : item === "invites" ? invites.filter((invite) => invite.active).length : null;
+                return <button type="button" key={item} className={`workspace-panel-shortcut icon-control studio-tooltip${panel === item ? " is-active" : ""}`} data-tooltip={item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : "Room"} aria-label={`Open ${item} panel${count === null ? "" : `, ${count}`}`} onClick={(event) => openWorkspacePanel(item, event.currentTarget)}>
+                  <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
+                  {count !== null && <span className="workspace-panel-count">{count}</span>}
+                </button>;
+              })}
+            </nav> : <>
             <nav className="workspace-tabs" aria-label="Workspace panels">
               {(["backstage", "invites", "room"] as WorkspacePanel[]).map((item) => (
-                <button type="button" key={item} className={panel === item ? "is-active" : ""} onClick={() => setPanel(item)} aria-pressed={panel === item}>
-                  {item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : "Room"}
+                <button type="button" key={item} className={`icon-control${panel === item ? " is-active" : ""}`} onClick={() => setPanel(item)} aria-pressed={panel === item}>
+                  <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
+                  <span>{item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : "Room"}</span>
                 </button>
               ))}
+              {!cinematic && <button className="workspace-panel-collapse icon-control studio-tooltip" type="button" aria-label="Collapse room control panel" data-tooltip="Collapse panel" onClick={() => setPanelCollapsed(true)}><StudioIcon regular={arrowIcon} filled={arrowIcon} /></button>}
             </nav>
 
             {panel === "backstage" && (
@@ -772,8 +828,8 @@ function HostRoomManagementPage() {
                               Deny
                             </Button>
                             {permissions?.endRoom && (
-                              <Button variant="secondary" disabled={Boolean(guestBusy)} onClick={() => void sessionCohost(guest, !guest.sessionCohost)}>
-                                {guest.sessionCohost ? "Revoke cohost" : "Session cohost"}
+                              <Button className={guest.sessionCohost ? "button--destructive" : ""} variant="secondary" disabled={Boolean(guestBusy)} onClick={() => void sessionCohost(guest, !guest.sessionCohost)}>
+                                {guest.sessionCohost && <StudioIcon regular={revokeIcon} />} {guest.sessionCohost ? "Revoke cohost" : "Session cohost"}
                               </Button>
                             )}
                             {permissions?.managePermanentCohosts && !guest.pendingPermanentCohost && (
@@ -819,13 +875,13 @@ function HostRoomManagementPage() {
                             {guest.sessionCohost && <StatusChip tone="alpha">Session cohost</StatusChip>}
                           </div>
                           <div className="guest-card__actions">
-                            <Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void moveParticipant(guest, "backstage")}>
-                              <img className="button-prefix-icon" src={removePersonIcon} alt="" /> {guestBusy === guest.id ? "Moving…" : "Remove from stage"}
+                            <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void moveParticipant(guest, "backstage")}>
+                              <StudioIcon regular={waitingIcon} filled={waitingFilledIcon} /> {guestBusy === guest.id ? "Moving…" : "Move Backstage"}
                             </Button>
-                            <Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => { if (window.confirm(`Remove ${guest.displayName} from the room?`)) void guestAction(guest, "remove"); }}>Remove from room</Button>
+                            <Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => { if (window.confirm(`Remove ${guest.displayName} from the room?`)) void guestAction(guest, "remove"); }}><StudioIcon regular={removePersonIcon} /> Remove from room</Button>
                             {permissions?.endRoom && (
-                              <Button variant="secondary" disabled={Boolean(guestBusy)} onClick={() => void sessionCohost(guest, !guest.sessionCohost)}>
-                                {guest.sessionCohost ? "Revoke cohost" : "Session cohost"}
+                              <Button className={guest.sessionCohost ? "button--destructive" : ""} variant="secondary" disabled={Boolean(guestBusy)} onClick={() => void sessionCohost(guest, !guest.sessionCohost)}>
+                                {guest.sessionCohost && <StudioIcon regular={revokeIcon} />} {guest.sessionCohost ? "Revoke cohost" : "Session cohost"}
                               </Button>
                             )}
                           </div>
@@ -850,7 +906,7 @@ function HostRoomManagementPage() {
                       <article key={guest.id}>
                         <strong>{guest.displayName}</strong>
                         <span>Session cohost · this room</span>
-                        {permissions?.endRoom && <Button variant="quiet" onClick={() => void sessionCohost(guest, false)}>Revoke session access</Button>}
+                        {permissions?.endRoom && <Button className="button--destructive" variant="quiet" onClick={() => void sessionCohost(guest, false)}><StudioIcon regular={revokeIcon} /> Revoke session access</Button>}
                       </article>
                     ))}
                     {cohosts?.permanent.map((relationship) => (
@@ -859,7 +915,7 @@ function HostRoomManagementPage() {
                         <span>
                           {relationship.status} · {relationship.scopeType === "all_rooms" ? "All rooms" : `${relationship.roomIds.length} selected room${relationship.roomIds.length === 1 ? "" : "s"}`}
                         </span>
-                        {permissions?.managePermanentCohosts && relationship.status === "accepted" && <div className="cohost-scope-actions"><Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void changeCohostScope(relationship.id, relationship.scopeType === "all_rooms" ? "selected_rooms" : "all_rooms")}>{relationship.scopeType === "all_rooms" ? "Limit to this room" : "All current/future rooms"}</Button><Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void revokePermanentCohost(relationship.id)}>Revoke permanent relationship</Button></div>}
+                        {permissions?.managePermanentCohosts && relationship.status === "accepted" && <div className="cohost-scope-actions"><Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void changeCohostScope(relationship.id, relationship.scopeType === "all_rooms" ? "selected_rooms" : "all_rooms")}>{relationship.scopeType === "all_rooms" ? "Limit to this room" : "All current/future rooms"}</Button><Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void revokePermanentCohost(relationship.id)}><StudioIcon regular={revokeIcon} /> Revoke permanent relationship</Button></div>}
                       </article>
                     ))}
                   </div>
@@ -920,8 +976,8 @@ function HostRoomManagementPage() {
                             </Button>
                           )}
                           {invite.active && room.lifecycleState !== "ended" && (
-                            <Button variant="quiet" disabled={Boolean(busy)} onClick={() => void revoke(invite)}>
-                              {busy === `invite-${invite.id}` ? "Revoking…" : "Revoke"}
+                            <Button className="button--destructive" variant="quiet" disabled={Boolean(busy)} onClick={() => void revoke(invite)}>
+                              <StudioIcon regular={revokeIcon} /> {busy === `invite-${invite.id}` ? "Revoking…" : "Revoke"}
                             </Button>
                           )}
                         </div>
@@ -968,31 +1024,25 @@ function HostRoomManagementPage() {
                 <p className="fine-print">Updated {date(room.updatedAt)}. Room, lifecycle, invite, cohost, and lobby truth remains in Runtime/Auth.</p>
               </div>
             )}
+            </>}
           </aside>
         </div>
 
         <div className="control-dock" aria-label="Production control dock">
-          <ControlButton label="Microphone" helper={media.state === "connected" ? (media.audioEnabled ? "Mute microphone" : "Enable microphone") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.audioEnabled} onClick={() => void media.toggleAudio()} />
-          <ControlButton label="Camera" helper={media.state === "connected" ? (media.videoEnabled ? "Turn camera off" : "Enable camera") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.videoEnabled} onClick={() => void media.toggleVideo()} />
-          <ControlButton label="Screen share" helper={media.state === "connected" ? (media.screenEnabled ? "Stop sharing" : "Share a screen") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.screenEnabled} onClick={() => void media.toggleScreen()} />
-          <ControlButton label={media.state === "connected" ? "Disconnect media" : "Connect media"} helper={media.reason} disabled={["provisioning", "connecting"].includes(media.state)} active={media.state === "connected"} onClick={() => void (media.state === "connected" ? media.leave() : media.openPreflight())} />
-          {media.audioBlocked && <ControlButton label="Enable audio" helper="Browser blocked remote audio playback" onClick={() => void media.enableAudio()} />}
-          <ControlButton
-            label="Layout"
-            helper={`${layoutLabels[layout]} preview`}
-            active
-            onClick={() => {
-              layoutRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-              layoutRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-            }}
-          />
-          <ControlButton buttonRef={panelTriggerRef} label="Backstage" helper={`${waiting.length} waiting, ${admitted.length} on stage`} active={panel === "backstage" && (!cinematic || cinematicPanelOpen)} onClick={() => openWorkspacePanel("backstage")} />
-          <ControlButton label="Invite" helper="Open secure invites" active={panel === "invites" && (!cinematic || cinematicPanelOpen)} onClick={() => openWorkspacePanel("invites")} />
-          <ControlButton label="Settings" helper="Open room settings" active={panel === "room" && (!cinematic || cinematicPanelOpen)} onClick={() => openWorkspacePanel("room")} />
-          <ControlButton label="Go live" helper="Output integration not connected" onClick={openGoLiveInfo} />
+          <button className="control-dock__nav control-dock__nav--previous icon-control" type="button" aria-label="Previous production controls" onClick={() => scrollDock(-1)}><StudioIcon regular={arrowIcon} /></button>
+          <div ref={dockScrollRef} className="control-dock__scroll" role="group" aria-label="Scrollable production controls" tabIndex={0} onWheel={(event) => { if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) event.currentTarget.scrollLeft += event.deltaY; }}>
+            <ControlButton icon={microphoneIcon} filledIcon={microphoneFilledIcon} label="Microphone" helper={media.state === "connected" ? (media.audioEnabled ? "Mute microphone" : "Enable microphone") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.audioEnabled} onClick={() => void media.toggleAudio()} />
+            <ControlButton icon={cameraIcon} filledIcon={cameraFilledIcon} label="Camera" helper={media.state === "connected" ? (media.videoEnabled ? "Turn camera off" : "Enable camera") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.videoEnabled} onClick={() => void media.toggleVideo()} />
+            <ControlButton icon={shareIcon} label="Screen share" helper={media.state === "connected" ? (media.screenEnabled ? "Stop sharing" : "Share a screen") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.screenEnabled} onClick={() => void media.toggleScreen()} />
+            <ControlButton icon={mediaIcon} filledIcon={mediaFilledIcon} label={media.state === "connected" ? "Disconnect media" : "Connect media"} helper={media.reason} disabled={["provisioning", "connecting"].includes(media.state)} active={media.state === "connected"} onClick={() => void (media.state === "connected" ? media.leave() : media.openPreflight())} />
+            {media.audioBlocked && <ControlButton icon={microphoneIcon} filledIcon={microphoneFilledIcon} label="Enable audio" helper="Browser blocked remote audio playback" onClick={() => void media.enableAudio()} />}
+            <ControlButton icon={layoutIcons[layout][0]} filledIcon={layoutIcons[layout][1]} label="Layout" helper={`${layoutLabels[layout]} preview`} active onClick={() => { layoutRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); layoutRef.current?.querySelector<HTMLButtonElement>("button")?.focus(); }} />
+            <ControlButton buttonRef={panelTriggerRef} icon={waitingIcon} filledIcon={waitingFilledIcon} label="Backstage" helper={`${waiting.length} waiting, ${admitted.length} on stage`} active={panel === "backstage" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("backstage")} />
+            <ControlButton icon={inviteIcon} filledIcon={inviteFilledIcon} label="Invite" helper="Open secure invites" active={panel === "invites" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("invites")} />
+            <ControlButton icon={roomPrefsIcon} filledIcon={roomPrefsFilledIcon} label="Settings" helper="Open room settings" active={panel === "room" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("room")} />
+            <ControlButton icon={goLiveIcon} label="Go live" helper="Output integration not connected" disabled onClick={openGoLiveInfo} />
+          </div>
+          <button className="control-dock__nav control-dock__nav--next icon-control" type="button" aria-label="Next production controls" onClick={() => scrollDock(1)}><StudioIcon regular={arrowIcon} /></button>
         </div>
       </section>
       <DevicePreflightDialog media={media} />

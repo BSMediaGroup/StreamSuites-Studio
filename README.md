@@ -27,7 +27,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, safe count states, and an Enter-room-first card presentation
 - protected `/studio/rooms/:roomId` production workspace with canonical short-code URLs, a 16:9 Stage/Program canvas, real RealtimeKit media, responsive Backstage/on-stage/cohost panels, invites, room settings, lifecycle controls, and the existing production dock
 - route-scoped cinematic room mode with a stage-first canvas, compact truthful production state, waiting/on-stage badges, the existing authoritative Backstage/tools panel as a focus-managed drawer, obvious exit controls, and optional event-confirmed browser fullscreen
-- Runtime-owned Grid, Interview, Spotlight, and Presentation layouts; Presentation renders the active RealtimeKit screen-share track with `object-fit: contain` while retaining participant camera tiles
+- Runtime-owned requested Auto, Grid, Interview, Spotlight, and Presentation layouts. Auto derives Presentation for an active share, Spotlight for an explicit spotlight or one participant, Interview for two, and Grid for three through nine while leaving requested mode `auto`; screen share remains `object-fit: contain` and camera tiles remain mounted with `object-fit: cover`
 - explicit device preflight with SDK device selectors, local camera preview, microphone activity, device-off choices, join-without-devices, secure-context/support checks, and permission/device error states
 - SDK-registered local and remote video, SDK-managed remote audio with autoplay recovery, actual microphone/camera state, active-speaker indication, and stable guest-keyed tiles across Stage reordering
 - one room-scoped director or guest media lifecycle with Strict Mode initialization guards, listener cleanup, token refresh, reconnect state, Runtime mapping refresh, and memory-only participant tokens
@@ -38,7 +38,9 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - guest room workspace using the same media lifecycle: Backstage receives Stage audio/video plus private preview without self-admission; on-stage guests publish permitted local choices, may self-Backstage, and cohosts retain only Runtime-granted authority
 - single-use, capped, and open invite controls with 24-hour default expiry or no-expiry, use/status summaries, and securely regenerable canonical copy links; no invite code, guest credential, avatar binary, or cohost authority is stored in browser storage
 - dedicated cohost management for the director, session cohosts, pending/accepted/declined/revoked permanent relationships, authenticated acceptance/decline, revoke actions, and all-current/future versus selected-room scope changes
-- canonical Room ID chips, exact Stage/Backstage/Co-host label cleanup, committed sidebar SVG icons, avatar/name/role/tier account-chip parity, and a slim Runtime version/health footer across public and authenticated shells
+- a compact room header with Room ID beside `ROOM DETAILS`, one confirmed Room Actions menu, far-right non-wrapping OFF AIR controls, an icon-over-label Rooms exit, and no duplicate lifecycle row or green-dot Live label
+- one theme-aware CSS-mask/currentColor icon renderer with regular/filled state switching; a Public-shell-parity account chip with the same single allowed role-or-tier badge suppression; and fixed/scrollable/bottom-pinned global sidebar regions
+- one collapsible right room panel whose collapsed state replaces the former duplicate left rail, a never-wrapping horizontally scrollable production dock with edge navigation, centered 1–9 Stage arrangements, a document-level participant-menu portal, destructive revoke/remove treatment, and visible themed narrow scrollbars
 - confirmed typed boundaries for Runtime/Auth sessions, Studio access, rooms, invites, lobby entries, guest self-state, media direction, and runtime-version view models
 - focused tests for auth/access normalization, safe return paths, no authorized-shell flash, theme and presentation preference validation/persistence, shell modes, auto-hide behavior, cinematic/SSE continuity, fullscreen state/rejection, invite-code safety, and runtime-version parsing
 - architecture and phased ALPHA roadmap documentation
@@ -150,7 +152,8 @@ StreamSuites-Studio/
 │   ├── data/
 │   ├── fonts/
 │   ├── games/
-│   ├── icons/
+│   ├── icons/                      # Public-parity badges plus Studio SVG families
+│   │   └── ui/                     # exitroom, waiting, invite, roomprefs and layout regular/filled pairs
 │   ├── illustrations/
 │   ├── js/
 │   ├── logos/
@@ -198,6 +201,10 @@ StreamSuites-Studio/
 │   │   │   ├── Card.tsx
 │   │   │   ├── EmptyState.tsx
 │   │   │   ├── FormField.tsx
+│   │   │   ├── ParticipantMenuPortal.test.tsx
+│   │   │   ├── ParticipantMenuPortal.tsx
+│   │   │   ├── StudioIcon.test.tsx
+│   │   │   ├── StudioIcon.tsx
 │   │   │   └── StatusChip.tsx
 │   │   ├── BrandMark.tsx
 │   │   └── ThemeToggle.tsx
@@ -208,6 +215,9 @@ StreamSuites-Studio/
 │   ├── lib/
 │   │   ├── inviteCode.test.ts
 │   │   └── inviteCode.ts
+│   ├── layout/
+│   │   ├── stageLayout.test.ts
+│   │   └── stageLayout.ts
 │   ├── media/
 │   │   ├── StudioMedia.test.tsx
 │   │   ├── StudioMediaElements.tsx

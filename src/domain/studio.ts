@@ -68,7 +68,7 @@ export interface RoomPresentation {
   readonly presentationGuestId: string | null;
 }
 
-export type StageLayout = "grid" | "interview" | "spotlight" | "presentation";
+export type StageLayout = "auto" | "grid" | "interview" | "spotlight" | "presentation";
 
 export interface RoomPermissions {
   readonly owner: boolean;
