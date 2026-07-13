@@ -34,9 +34,10 @@ interface StudioShellProps {
   readonly fullscreenSupported?: boolean;
   readonly fullscreenActive?: boolean;
   readonly onToggleFullscreen?: () => void;
+  readonly onOpenRoomTool?: (tool: "brand" | "media") => void;
 }
 
-export function StudioShell({ children, roomWorkspace = false, fullscreenSupported, fullscreenActive, onToggleFullscreen }: StudioShellProps) {
+export function StudioShell({ children, roomWorkspace = false, fullscreenSupported, fullscreenActive, onToggleFullscreen, onOpenRoomTool }: StudioShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [headerHeldOpen, setHeaderHeldOpen] = useState(false);
   const [headerRevealed, setHeaderRevealed] = useState(true);
@@ -108,13 +109,15 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
               <StudioIcon regular={studioIcon} active />
               <span className="studio-nav-link__label">Studio</span>
             </Link>
-            {futureNavigation.map(({ label, icon }) => (
-              <button key={label} className="studio-nav-link icon-control studio-tooltip" type="button" disabled data-tooltip={`${label} (Later)`} aria-label={`${label}, unavailable, later`}>
+            {futureNavigation.map(({ label, icon }) => {
+              const tool = label === "Brand" ? "brand" : label === "Media" ? "media" : null;
+              const available = Boolean(roomWorkspace && tool && onOpenRoomTool);
+              return <button key={label} className="studio-nav-link icon-control studio-tooltip" type="button" disabled={!available} data-tooltip={available ? `Open room ${label}` : `${label} (Later)`} aria-label={available ? `Open room ${label}` : `${label}, unavailable, later`} onClick={() => { if (tool) onOpenRoomTool?.(tool); }}>
                 <StudioIcon regular={icon} />
                 <span className="studio-nav-link__label">{label}</span>
-                <span className="studio-nav-link__future">Later</span>
-              </button>
-            ))}
+                {!available && <span className="studio-nav-link__future">Later</span>}
+              </button>;
+            })}
           </nav>
         </div>
         <div className="studio-sidebar__bottom">

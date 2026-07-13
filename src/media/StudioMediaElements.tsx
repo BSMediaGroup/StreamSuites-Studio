@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 import type { RTKParticipant } from "@cloudflare/realtimekit";
 import { Button } from "../components/ui/Button";
-import type { StudioGuest } from "../domain/studio";
+import { DEFAULT_ROOM_BRANDING, type ParticipantLabelMode, type RoomBranding, type StudioGuest } from "../domain/studio";
 import type { useStudioMedia } from "./useStudioMedia";
 
 type StudioMedia = ReturnType<typeof useStudioMedia>;
@@ -49,8 +49,15 @@ export function ScreenShareVideo({ track, label = "Shared screen" }: { track: Me
   return <>{error && <span className="media-element-error" role="status">{error}</span>}<video ref={ref} className="presentation-video" autoPlay muted playsInline aria-label={label} /></>;
 }
 
-export function ParticipantLabelOverlay({ name, subtitle }: { name: string; subtitle?: string | null }) {
-  return <span className="participant-label-overlay"><strong>{name}</strong>{subtitle && <small>{subtitle}</small>}</span>;
+export function ParticipantLabelOverlay({ name, subtitle, mode = "name_and_subtitle", branding = DEFAULT_ROOM_BRANDING }: { name: string; subtitle?: string | null; mode?: ParticipantLabelMode; branding?: RoomBranding }) {
+  if (mode === "hidden") return null;
+  const style = {
+    "--label-bg": branding.nameBadge.backgroundColor, "--label-text": branding.nameBadge.textColor,
+    "--label-accent": branding.nameBadge.accentColor, "--label-opacity": branding.nameBadge.opacity,
+    "--subtitle-text": branding.subtitle.mode === "separate" ? branding.subtitle.textColor : branding.nameBadge.textColor,
+    "--subtitle-opacity": branding.subtitle.mode === "separate" ? branding.subtitle.opacity : branding.nameBadge.opacity,
+  } as CSSProperties;
+  return <span className={`participant-label-overlay participant-label-overlay--${branding.nameBadge.position} participant-label-overlay--${branding.nameBadge.density} participant-label-overlay--${branding.nameBadge.shape}`} style={style}><strong>{name}</strong>{mode === "name_and_subtitle" && subtitle && <small>{subtitle}</small>}</span>;
 }
 
 export function ParticipantFallback({ guest, status }: { guest: Pick<StudioGuest, "displayName" | "avatarUrl" | "avatarColor">; status: string }) {
@@ -116,7 +123,7 @@ export function DevicePreflightDialog({ media }: { media: StudioMedia }) {
   );
 }
 
-export function MediaParticipantTile({ guest, media, className = "participant-tile", children, ...articleProps }: { guest: StudioGuest; media: StudioMedia; className?: string; children?: ReactNode } & Omit<HTMLAttributes<HTMLElement>, "children">) {
+export function MediaParticipantTile({ guest, media, className = "participant-tile", children, labelMode = "name_and_subtitle", branding = DEFAULT_ROOM_BRANDING, ...articleProps }: { guest: StudioGuest; media: StudioMedia; className?: string; children?: ReactNode; labelMode?: ParticipantLabelMode; branding?: RoomBranding } & Omit<HTMLAttributes<HTMLElement>, "children">) {
   const participant = media.remoteParticipants.get(`guest:${guest.id}`) ?? media.remoteParticipants.get(guest.id);
   const usableVideo = participant?.videoEnabled && participant.videoTrack?.readyState === "live";
   const reconnecting = media.state === "reconnecting";
@@ -124,7 +131,7 @@ export function MediaParticipantTile({ guest, media, className = "participant-ti
   return (
     <article {...articleProps} className={`${className}${media.activeRuntimeParticipantId === `guest:${guest.id}` || media.activeRuntimeParticipantId === guest.id ? " is-active-speaker" : ""}`} data-participant-id={guest.id}>
       {usableVideo && participant ? <RemoteMediaVideo participant={participant} label={guest.displayName} /> : <ParticipantFallback guest={guest} status={reconnecting ? "Media reconnecting" : providerMissing ? "Provider participant not connected" : `${participant?.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off`} />}
-      <ParticipantLabelOverlay name={guest.displayName} subtitle={guest.subtitle} />
+      <ParticipantLabelOverlay name={guest.displayName} subtitle={guest.subtitle} mode={labelMode} branding={branding} />
       {children}
     </article>
   );

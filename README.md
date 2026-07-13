@@ -4,7 +4,7 @@
 > **Flagship surface:** <https://studio.streamsuites.app>
 > **Deployment target:** Cloudflare Pages
 
-StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. It consumes Runtime/Auth-owned access, rooms, guest/cohost/Stage decisions, RealtimeKit mappings, and participant tokens, then renders private local/remote media through RealtimeKit. It does not broadcast or record and remains OFF AIR.
+StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. It consumes Runtime/Auth-owned access, rooms, guest/cohost/Stage decisions, participant-label settings, branding, room image assets, custom-layout snapshots, RealtimeKit mappings, and participant tokens, then renders private local/remote media through RealtimeKit. It stores no canonical room configuration, does not broadcast or record, and remains OFF AIR.
 
 Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. Admins may own/manage any room; creator/developer-capable accounts with active Studio access may own their rooms. Public accounts may participate through valid invitations without becoming creators or owners. Runtime/Auth transactionally enforces nine total visible Stage slots: the host/director reserves one and at most eight additional guests or cohosts may be on Stage. Backstage does not count toward that limit.
 
@@ -27,7 +27,10 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, safe count states, and an Enter-room-first card presentation
 - protected `/studio/rooms/:roomId` production workspace with canonical short-code URLs, a 16:9 Stage/Program canvas, real RealtimeKit media, responsive Backstage/on-stage/cohost panels, invites, room settings, lifecycle controls, and the existing production dock
 - route-scoped cinematic room mode with a stage-first canvas, compact truthful production state, waiting/on-stage badges, the existing authoritative Backstage/tools panel as a focus-managed drawer, obvious exit controls, and optional event-confirmed browser fullscreen
-- Runtime-owned requested Auto, Grid, Interview, Spotlight, and Presentation layouts. Auto derives Presentation for an active share, Spotlight for an explicit spotlight or one participant, Interview for two, and Grid for three through nine while leaving requested mode `auto`; screen share remains `object-fit: contain` and camera tiles remain mounted with `object-fit: cover`
+- Runtime-owned requested Auto, Grid, Interview, Spotlight, Presentation, and Custom layouts. Auto derives Presentation for an active share, Spotlight for an explicit spotlight or one participant, Interview for two, and Grid for three through nine while leaving requested mode `auto`; a room may save, name, select, reorder, and delete up to eight stable-ID custom snapshots of resolved built-in modes
+- Runtime-owned `name_and_subtitle`, `name_only`, and `hidden` broadcast-label visibility with management identity preserved, plus a working Room Settings custom-layout manager and an unclipped keyboard/focus-safe Custom selector using the exact existing slot 1–8 icon pairs
+- a working room Branding panel for solid/gradient/CDN-image Stage backgrounds, logo/bug placement/size/opacity, badge/subtitle styling, editor-only safe area, live Stage preview, canonical save/reset, and pending/error recovery
+- a working room Media panel for PNG/JPEG/WebP production assets with category filter, upload progress, responsive CDN-only thumbnails, select/assign, rename, and confirmed deletion; video/audio uploads and arbitrary remote URLs are not supported
 - explicit device preflight with SDK device selectors, local camera preview, microphone activity, device-off choices, join-without-devices, secure-context/support checks, and permission/device error states
 - SDK-registered local and remote video, SDK-managed remote audio with autoplay recovery, actual microphone/camera state, active-speaker indication, and stable guest-keyed tiles across Stage reordering
 - one room-scoped director or guest media lifecycle with Strict Mode initialization guards, listener cleanup, token refresh, reconnect state, Runtime mapping refresh, and memory-only participant tokens
@@ -65,6 +68,8 @@ The following are explicitly not shipped:
 - LiveKit, Egress, recording, RTMP, SRT, HLS, Cloudflare Stream, webhooks, public broadcasting, or provider destinations
 - chat, alerts, clips, polls, games, automation, or analytics integration
 - an OBS program-output route or server-side broadcast output
+- freeform drag/resize custom-layout geometry or a complete brand-kit system
+- secure director-visible Backstage camera-preview transport; Backstage management remains identity/readiness only
 - deployment, DNS, Pages project, or account-specific Cloudflare configuration
 
 ## Local setup
@@ -121,7 +126,7 @@ See [System architecture](docs/system-architecture.md) for the complete boundary
 
 ## Media direction
 
-The current Stage, Backstage tray, participant menus, ordering, and layout remain Runtime-authoritative. Cloudflare RealtimeKit Core 2.0.0 supplies explicit preflight, local/remote camera and audio, screen sharing, active speaker, Stage synchronization, reconnect/refresh, and host disable operations beneath the custom UI. The planned production migration remains self-hosted LiveKit plus Egress.
+The current Stage, Backstage tray, participant menus, ordering, label visibility, room branding, room assets, and custom layouts remain Runtime-authoritative. Cloudflare RealtimeKit Core 2.0.0 supplies explicit preflight, local/remote camera and audio, screen sharing, active speaker, Stage synchronization, reconnect/refresh, and host disable operations beneath the custom UI. Branding and layout reflow preserve stable participant-keyed media elements, while Presentation screen share remains `object-fit: contain`. The planned production migration remains self-hosted LiveKit plus Egress.
 
 The Python runtime/Auth API will orchestrate rooms, permissions, invitations, access, and token minting, but audio and video must bypass the Python runtime. During early ALPHA, final output is expected to use an OBS-capturable program view before server-side egress exists.
 
@@ -134,10 +139,11 @@ The roadmap is phased and describes planned work, not current capability:
 3. runtime-owned Studio rooms, short-code invites, temporary sessions, lobby admission, real-time events, and cohosts — **current milestone complete**
 4. polished pre-media stage, Backstage, guest identity, and production-control interactions — **current milestone complete**
 5. Cloudflare RealtimeKit Core private-room media lifecycle — **current milestone complete**
-6. OBS-capturable program output
-7. provider destinations and recording foundations
-8. later self-hosted LiveKit and Egress migration
-9. integration of existing StreamSuites chat, alerts, clips, polls, games, and automation
+6. room settings, Branding, Media, and eight-slot custom-layout foundations — **current milestone complete**
+7. OBS-capturable program output
+8. provider destinations and recording foundations
+9. later self-hosted LiveKit and Egress migration
+10. integration of existing StreamSuites chat, alerts, clips, polls, games, and automation
 
 See [ALPHA roadmap](docs/alpha-roadmap.md) for acceptance boundaries per phase.
 
@@ -184,6 +190,8 @@ StreamSuites-Studio/
 │   ├── auth/
 │   │   ├── StudioAuthProvider.tsx
 │   │   └── studioAuthContext.ts
+│   ├── branding/
+│   │   └── StageBranding.tsx
 │   ├── components/
 │   │   ├── AuthAccessBanner.tsx
 │   │   ├── StudioAccountMenu.test.tsx
@@ -197,6 +205,11 @@ StreamSuites-Studio/
 │   │   │   ├── SiteShell.tsx
 │   │   │   ├── StudioShell.test.tsx
 │   │   │   └── StudioShell.tsx
+│   │   ├── room/
+│   │   │   ├── CustomLayoutControls.tsx
+│   │   │   ├── RoomBrandingPanel.tsx
+│   │   │   ├── RoomMediaPanel.tsx
+│   │   │   └── RoomProductionFoundations.test.tsx
 │   │   ├── ui/
 │   │   │   ├── Button.tsx
 │   │   │   ├── Card.tsx

@@ -72,9 +72,17 @@ No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime
 
 Mocked SDK lifecycle, registration, intent-order, screen-share, Runtime provider transport, refresh, preset, cleanup, and capacity behavior is covered locally. Live configured Cloudflare/browser proof remains a deployment validation step.
 
-The next separate milestone may add Branding/Media foundations, custom layout tooling, participant-label visibility settings, and a provider-verified scoped Backstage preview architecture. None of those are part of this repair milestone.
+## 6. Room production foundations — complete
 
-## 6. OBS-capturable program output — planned
+- replace the subtitle-only presentation toggle with Runtime-owned `name_and_subtitle`, `name_only`, and `hidden` broadcast-label modes while preserving identity in management and accessibility surfaces
+- provide room-level Branding for solid/gradient/selected-image Stage backgrounds, logo/bug placement, badge/subtitle styling, editor-only safe-area visibility, canonical save/reset, and live Stage preview
+- manage room-owned logo, Stage-background, overlay, holding, and presentation-placeholder PNG/JPEG/WebP assets through validated, normalized, CDN-only Runtime records
+- provide a portal-based Custom selector plus Room Settings management for up to eight stable-ID named/reorderable/deletable snapshots of Grid, Interview, Spotlight, or Presentation
+- preserve stable RealtimeKit participant keys and registrations while label, branding, background, and built-in/custom layout presentation changes reflow around them
+
+Custom geometry drag/resize, account-wide brand kits, director-visible Backstage preview transport, recording, destinations, broadcasting, and server-side egress were not delivered by this phase. Studio remains OFF AIR.
+
+## 7. OBS-capturable program output — planned
 
 - add a dedicated clean program view for OBS capture
 - separate operator chrome from the captured output
@@ -82,19 +90,19 @@ The next separate milestone may add Branding/Media foundations, custom layout to
 
 This is the expected early ALPHA final-output strategy before server-side egress exists.
 
-## 7. Destinations and recording foundations — planned
+## 8. Destinations and recording foundations — planned
 
 - define verified provider adapters only after their actual contracts are inspected
 - keep credentials and stream keys in secure server-side configuration
 - add truthful destination and recording readiness states
 
-## 8. LiveKit and Egress migration — later planned
+## 9. LiveKit and Egress migration — later planned
 
 - migrate the production media path to self-hosted LiveKit
 - introduce Egress for production output and recording where approved
 - preserve Runtime/Auth room, permission, invite, token, audit, and persistence authority
 
-## 9. Existing StreamSuites tools as Studio capabilities — later planned
+## 10. Existing StreamSuites tools as Studio capabilities — later planned
 
 - chat and trigger tooling
 - alerts

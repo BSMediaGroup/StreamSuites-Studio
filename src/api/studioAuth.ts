@@ -1,6 +1,6 @@
 import { publicStudioConfig } from "../config/env";
-import { STUDIO_ADDITIONAL_STAGE_CAPACITY, STUDIO_DIRECTOR_STAGE_SLOTS, STUDIO_TOTAL_STAGE_CAPACITY } from "../domain/studio";
-import type { GuestLobbyState, GuestRoomView, InviteValidation, RoomInvite, RoomLifecycle, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
+import { DEFAULT_ROOM_BRANDING, STUDIO_ADDITIONAL_STAGE_CAPACITY, STUDIO_DIRECTOR_STAGE_SLOTS, STUDIO_TOTAL_STAGE_CAPACITY } from "../domain/studio";
+import type { BuiltInStageLayout, CustomLayout, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, RoomAsset, RoomAssetCategory, RoomBranding, RoomInvite, RoomLifecycle, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
 
 const ACCOUNT_TYPES = new Set<StreamSuitesAccountType>(["admin", "creator", "developer", "public"]);
@@ -187,7 +187,59 @@ function roomLifecycle(value: unknown): RoomLifecycle {
 }
 
 function stageLayout(value: unknown): StageLayout {
-  return value === "auto" || value === "interview" || value === "spotlight" || value === "presentation" ? value : "grid";
+  return value === "auto" || value === "custom" || value === "interview" || value === "spotlight" || value === "presentation" ? value : "grid";
+}
+
+function builtInStageLayout(value: unknown): BuiltInStageLayout {
+  return value === "interview" || value === "spotlight" || value === "presentation" ? value : "grid";
+}
+
+function participantLabelMode(value: unknown): ParticipantLabelMode {
+  return value === "name_only" || value === "hidden" ? value : "name_and_subtitle";
+}
+
+export function defaultRoomBranding(): RoomBranding {
+  return structuredClone(DEFAULT_ROOM_BRANDING);
+}
+
+function normalizeCustomLayout(value: unknown): CustomLayout {
+  if (!isRecord(value)) throw new StudioApiError(requestError("invalid_custom_layout_response", "Runtime/Auth returned invalid custom layout data."));
+  const id = stringOrNull(value.id), roomId = stringOrNull(value.room_id), displayName = stringOrNull(value.display_name), createdAt = stringOrNull(value.created_at), updatedAt = stringOrNull(value.updated_at);
+  if (!id || !roomId || !displayName || !createdAt || !updatedAt) throw new StudioApiError(requestError("invalid_custom_layout_response", "Runtime/Auth returned incomplete custom layout data."));
+  return { id, roomId, displayName, sortOrder: numberOr(value.sort_order), baseLayoutMode: builtInStageLayout(value.base_layout_mode), createdAt, updatedAt };
+}
+
+function normalizeBranding(value: unknown): RoomBranding {
+  const defaults = defaultRoomBranding(), item = isRecord(value) ? value : {};
+  const background = isRecord(item.stage_background) ? item.stage_background : {};
+  const logo = isRecord(item.logo) ? item.logo : {};
+  const badge = isRecord(item.name_badge) ? item.name_badge : {};
+  const subtitle = isRecord(item.subtitle) ? item.subtitle : {};
+  return {
+    version: 1,
+    stageBackground: {
+      mode: background.mode === "gradient" || background.mode === "image" ? background.mode : "solid",
+      color: stringOrNull(background.color) ?? defaults.stageBackground.color,
+      gradientColor: stringOrNull(background.gradient_color) ?? defaults.stageBackground.gradientColor,
+      imageAssetId: stringOrNull(background.image_asset_id), imageUrl: safeCdnAvatarUrl(background.image_url),
+      imageFit: background.image_fit === "contain" ? "contain" : "cover",
+      imagePosition: background.image_position === "top" || background.image_position === "bottom" ? background.image_position : "center",
+    },
+    logo: { assetId: stringOrNull(logo.asset_id), url: safeCdnAvatarUrl(logo.url), position: logo.position === "top-left" || logo.position === "bottom-left" || logo.position === "bottom-right" ? logo.position : "top-right", size: logo.size === "small" || logo.size === "large" ? logo.size : "medium", opacity: numberOr(logo.opacity, 1) },
+    nameBadge: { backgroundColor: stringOrNull(badge.background_color) ?? defaults.nameBadge.backgroundColor, textColor: stringOrNull(badge.text_color) ?? defaults.nameBadge.textColor, accentColor: stringOrNull(badge.accent_color) ?? defaults.nameBadge.accentColor, opacity: numberOr(badge.opacity, defaults.nameBadge.opacity), density: badge.density === "compact" ? "compact" : "standard", shape: badge.shape === "square" || badge.shape === "rounded" ? badge.shape : "subtle-rounded", position: badge.position === "lower-right" ? "lower-right" : "lower-left" },
+    subtitle: { mode: subtitle.mode === "separate" ? "separate" : "inherit", textColor: stringOrNull(subtitle.text_color) ?? defaults.subtitle.textColor, opacity: numberOr(subtitle.opacity, defaults.subtitle.opacity), textScale: "smaller" },
+    safeAreaVisible: item.safe_area_visible !== false,
+  };
+}
+
+function normalizePresentation(value: unknown) {
+  const item = isRecord(value) ? value : {};
+  const customLayouts = Array.isArray(item.custom_layouts) ? item.custom_layouts.map(normalizeCustomLayout) : [];
+  return {
+    participantLabelMode: participantLabelMode(item.participant_label_mode), layoutMode: stageLayout(item.layout_mode),
+    selectedCustomLayoutId: stringOrNull(item.selected_custom_layout_id), effectiveLayoutMode: builtInStageLayout(item.effective_layout_mode), customLayouts,
+    spotlightGuestId: stringOrNull(item.spotlight_guest_id), presentationGuestId: stringOrNull(item.presentation_guest_id),
+  };
 }
 
 function normalizeRoom(value: unknown): RoomSummary {
@@ -214,12 +266,8 @@ function normalizeRoom(value: unknown): RoomSummary {
     admittedGuestCount: numberOr(value.admitted_guest_count),
     backstageGuestCount: numberOr(value.backstage_guest_count, numberOr(value.waiting_guest_count)),
     onStageGuestCount: numberOr(value.on_stage_guest_count, numberOr(value.admitted_guest_count)),
-    presentation: {
-      showParticipantSubtitles: !isRecord(value.presentation) || value.presentation.show_participant_subtitles !== false,
-      layoutMode: stageLayout(isRecord(value.presentation) ? value.presentation.layout_mode : null),
-      spotlightGuestId: isRecord(value.presentation) ? stringOrNull(value.presentation.spotlight_guest_id) : null,
-      presentationGuestId: isRecord(value.presentation) ? stringOrNull(value.presentation.presentation_guest_id) : null,
-    },
+    presentation: normalizePresentation(value.presentation),
+    branding: normalizeBranding(value.branding),
     createdAt,
     updatedAt,
     openedAt: stringOrNull(value.opened_at),
@@ -270,12 +318,8 @@ function normalizeGuest(value: unknown): StudioGuest {
         title: stringOrNull(value.room.title) ?? "Studio room",
         description: stringOrNull(value.room.description),
         lifecycleState: roomLifecycle(value.room.lifecycle_state),
-        presentation: {
-          showParticipantSubtitles: !isRecord(value.room.presentation) || value.room.presentation.show_participant_subtitles !== false,
-          layoutMode: stageLayout(isRecord(value.room.presentation) ? value.room.presentation.layout_mode : null),
-          spotlightGuestId: isRecord(value.room.presentation) ? stringOrNull(value.room.presentation.spotlight_guest_id) : null,
-          presentationGuestId: isRecord(value.room.presentation) ? stringOrNull(value.room.presentation.presentation_guest_id) : null,
-        },
+        presentation: normalizePresentation(value.room.presentation),
+        branding: normalizeBranding(value.room.branding),
       }
     : undefined;
   const rawAvatarUrl = safeCdnAvatarUrl(value.avatar_url);
@@ -343,6 +387,9 @@ function normalizePermissions(value: unknown): RoomPermissions {
     manageInvites: item.manage_invites === true,
     updateRoom: item.update_room === true,
     updatePresentation: item.update_presentation === true,
+    updateBranding: item.update_branding === true,
+    manageAssets: item.manage_assets === true,
+    manageCustomLayouts: item.manage_custom_layouts === true,
     managePermanentCohosts: item.manage_permanent_cohosts === true,
     endRoom: item.end_room === true,
   };
@@ -546,12 +593,8 @@ export async function loadStudioGuestRoomView(signal?: AbortSignal): Promise<Gue
       totalStageCapacity: numberOr(view.room.total_stage_capacity, STUDIO_TOTAL_STAGE_CAPACITY),
       reservedDirectorStageSlots: numberOr(view.room.reserved_director_stage_slots, STUDIO_DIRECTOR_STAGE_SLOTS),
       maxAdditionalStageParticipants: numberOr(view.room.max_additional_stage_participants, STUDIO_ADDITIONAL_STAGE_CAPACITY),
-      presentation: {
-        showParticipantSubtitles: !isRecord(view.room.presentation) || view.room.presentation.show_participant_subtitles !== false,
-        layoutMode: stageLayout(isRecord(view.room.presentation) ? view.room.presentation.layout_mode : null),
-        spotlightGuestId: isRecord(view.room.presentation) ? stringOrNull(view.room.presentation.spotlight_guest_id) : null,
-        presentationGuestId: isRecord(view.room.presentation) ? stringOrNull(view.room.presentation.presentation_guest_id) : null,
-      },
+      presentation: normalizePresentation(view.room.presentation),
+      branding: normalizeBranding(view.room.branding),
     },
     self,
     stage: view.stage.map(normalizeGuest),
@@ -595,15 +638,16 @@ export async function reorderStudioStage(roomId: string, guestIds: readonly stri
   return Array.isArray(payload.items) ? payload.items.map(normalizeGuest) : [];
 }
 
-export async function updateStudioPresentation(roomId: string, input: boolean | { showParticipantSubtitles?: boolean; layoutMode?: StageLayout; spotlightGuestId?: string | null; presentationGuestId?: string | null }, signal?: AbortSignal): Promise<RoomSummary> {
-  const normalized = typeof input === "boolean" ? { showParticipantSubtitles: input } : input;
+export async function updateStudioPresentation(roomId: string, input: { participantLabelMode?: ParticipantLabelMode; layoutMode?: StageLayout; selectedCustomLayoutId?: string | null; spotlightGuestId?: string | null; presentationGuestId?: string | null }, signal?: AbortSignal): Promise<RoomSummary> {
+  const normalized = input;
   return normalizeRoom(
     (
       await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation`, {
         method: "PATCH",
         body: body({
-          ...(normalized.showParticipantSubtitles === undefined ? {} : { show_participant_subtitles: normalized.showParticipantSubtitles }),
+          ...(normalized.participantLabelMode === undefined ? {} : { participant_label_mode: normalized.participantLabelMode }),
           ...(normalized.layoutMode === undefined ? {} : { layout_mode: normalized.layoutMode }),
+          ...(normalized.selectedCustomLayoutId === undefined ? {} : { selected_custom_layout_id: normalized.selectedCustomLayoutId }),
           ...(normalized.spotlightGuestId === undefined ? {} : { spotlight_guest_id: normalized.spotlightGuestId }),
           ...(normalized.presentationGuestId === undefined ? {} : { presentation_guest_id: normalized.presentationGuestId }),
         }),
@@ -611,6 +655,77 @@ export async function updateStudioPresentation(roomId: string, input: boolean | 
       })
     ).room,
   );
+}
+
+function serializeBranding(branding: RoomBranding) {
+  return {
+    stage_background: { mode: branding.stageBackground.mode, color: branding.stageBackground.color, gradient_color: branding.stageBackground.gradientColor, image_asset_id: branding.stageBackground.imageAssetId, image_fit: branding.stageBackground.imageFit, image_position: branding.stageBackground.imagePosition },
+    logo: { asset_id: branding.logo.assetId, position: branding.logo.position, size: branding.logo.size, opacity: branding.logo.opacity },
+    name_badge: { background_color: branding.nameBadge.backgroundColor, text_color: branding.nameBadge.textColor, accent_color: branding.nameBadge.accentColor, opacity: branding.nameBadge.opacity, density: branding.nameBadge.density, shape: branding.nameBadge.shape, position: branding.nameBadge.position },
+    subtitle: { mode: branding.subtitle.mode, text_color: branding.subtitle.textColor, opacity: branding.subtitle.opacity, text_scale: branding.subtitle.textScale },
+    safe_area_visible: branding.safeAreaVisible,
+  };
+}
+
+export async function loadStudioBranding(roomId: string, signal?: AbortSignal): Promise<RoomBranding> {
+  return normalizeBranding((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/branding`, { signal })).branding);
+}
+
+export async function updateStudioBranding(roomId: string, branding: RoomBranding | null, signal?: AbortSignal): Promise<RoomBranding> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/branding`, { method: "PATCH", body: body(branding ? { branding: serializeBranding(branding) } : { reset: true }), signal });
+  return normalizeBranding(payload.branding);
+}
+
+function normalizeRoomAsset(value: unknown): RoomAsset {
+  if (!isRecord(value)) throw new StudioApiError(requestError("invalid_room_asset_response", "Runtime/Auth returned invalid room asset data."));
+  const id = stringOrNull(value.id), roomId = stringOrNull(value.room_id), displayName = stringOrNull(value.display_name), url = safeCdnAvatarUrl(value.url), createdAt = stringOrNull(value.created_at), updatedAt = stringOrNull(value.updated_at);
+  const category = value.category as RoomAssetCategory;
+  if (!id || !roomId || !displayName || !url || !createdAt || !updatedAt || !["logo", "stage_background", "overlay", "holding", "presentation_placeholder"].includes(category)) throw new StudioApiError(requestError("invalid_room_asset_response", "Runtime/Auth returned incomplete room asset data."));
+  return { id, roomId, displayName, url, category, mimeType: "image/webp", width: numberOr(value.width), height: numberOr(value.height), fileSize: numberOr(value.file_size), sortOrder: numberOr(value.sort_order), createdAt, updatedAt };
+}
+
+export async function listStudioRoomAssets(roomId: string, signal?: AbortSignal): Promise<RoomAsset[]> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/assets`, { signal });
+  return Array.isArray(payload.items) ? payload.items.map(normalizeRoomAsset) : [];
+}
+
+export async function uploadStudioRoomAsset(roomId: string, file: File, category: RoomAssetCategory, signal?: AbortSignal): Promise<RoomAsset> {
+  const form = new FormData(); form.append("file", file);
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/assets`, { method: "POST", body: form, headers: { "X-Studio-Asset-Category": category, "X-Studio-Asset-Name": file.name }, signal });
+  return normalizeRoomAsset(payload.asset);
+}
+
+export async function updateStudioRoomAsset(roomId: string, assetId: string, changes: { displayName?: string; category?: RoomAssetCategory }, signal?: AbortSignal): Promise<RoomAsset> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/assets/${encodeURIComponent(assetId)}`, { method: "PATCH", body: body({ ...(changes.displayName === undefined ? {} : { display_name: changes.displayName }), ...(changes.category === undefined ? {} : { category: changes.category }) }), signal });
+  return normalizeRoomAsset(payload.asset);
+}
+
+export async function deleteStudioRoomAsset(roomId: string, assetId: string, confirmAssignmentClear: boolean, signal?: AbortSignal): Promise<{ brandingAssignmentCleared: boolean }> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/assets/${encodeURIComponent(assetId)}`, { method: "DELETE", body: body({ confirm_assignment_clear: confirmAssignmentClear }), signal });
+  return { brandingAssignmentCleared: payload.branding_assignment_cleared === true };
+}
+
+export async function listStudioCustomLayouts(roomId: string, signal?: AbortSignal): Promise<CustomLayout[]> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/custom-layouts`, { signal });
+  return Array.isArray(payload.items) ? payload.items.map(normalizeCustomLayout) : [];
+}
+
+export async function createStudioCustomLayout(roomId: string, effectiveLayoutMode: BuiltInStageLayout, signal?: AbortSignal): Promise<CustomLayout> {
+  return normalizeCustomLayout((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/custom-layouts`, { method: "POST", body: body({ effective_layout_mode: effectiveLayoutMode }), signal })).layout);
+}
+
+export async function updateStudioCustomLayout(roomId: string, layoutId: string, displayName: string, signal?: AbortSignal): Promise<CustomLayout> {
+  return normalizeCustomLayout((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/custom-layouts/${encodeURIComponent(layoutId)}`, { method: "PATCH", body: body({ display_name: displayName }), signal })).layout);
+}
+
+export async function reorderStudioCustomLayouts(roomId: string, layoutIds: readonly string[], signal?: AbortSignal): Promise<CustomLayout[]> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/custom-layouts/reorder`, { method: "PUT", body: body({ layout_ids: layoutIds }), signal });
+  return Array.isArray(payload.items) ? payload.items.map(normalizeCustomLayout) : [];
+}
+
+export async function deleteStudioCustomLayout(roomId: string, layoutId: string, signal?: AbortSignal): Promise<{ presentationFellBackToGrid: boolean }> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/custom-layouts/${encodeURIComponent(layoutId)}`, { method: "DELETE", body: body({}), signal });
+  return { presentationFellBackToGrid: payload.presentation_fell_back_to_grid === true };
 }
 
 export async function loadRoomCohosts(roomId: string, signal?: AbortSignal): Promise<RoomCohosts> {
@@ -694,7 +809,7 @@ export function connectStudioEvents(options: { roomId?: string; guest?: boolean;
   let source: EventSource | null = null;
   let reconnects = 0;
   let timer = 0;
-  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
+  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
   const open = () => {
     if (closed) return;
     options.onState(reconnects ? "reconnecting" : "unavailable");

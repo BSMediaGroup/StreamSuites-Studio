@@ -55,6 +55,7 @@ export interface RoomSummary {
   readonly backstageGuestCount: number;
   readonly onStageGuestCount: number;
   readonly presentation: RoomPresentation;
+  readonly branding: RoomBranding;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly openedAt: string | null;
@@ -62,13 +63,90 @@ export interface RoomSummary {
 }
 
 export interface RoomPresentation {
-  readonly showParticipantSubtitles: boolean;
+  readonly participantLabelMode: ParticipantLabelMode;
   readonly layoutMode: StageLayout;
+  readonly selectedCustomLayoutId: string | null;
+  readonly effectiveLayoutMode: BuiltInStageLayout;
+  readonly customLayouts: readonly CustomLayout[];
   readonly spotlightGuestId: string | null;
   readonly presentationGuestId: string | null;
 }
 
-export type StageLayout = "auto" | "grid" | "interview" | "spotlight" | "presentation";
+export type ParticipantLabelMode = "name_and_subtitle" | "name_only" | "hidden";
+export type BuiltInStageLayout = "grid" | "interview" | "spotlight" | "presentation";
+export type StageLayout = "auto" | "custom" | BuiltInStageLayout;
+
+export interface CustomLayout {
+  readonly id: string;
+  readonly roomId: string;
+  readonly displayName: string;
+  readonly sortOrder: number;
+  readonly baseLayoutMode: BuiltInStageLayout;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface RoomBranding {
+  readonly version: 1;
+  readonly stageBackground: {
+    readonly mode: "solid" | "gradient" | "image";
+    readonly color: string;
+    readonly gradientColor: string;
+    readonly imageAssetId: string | null;
+    readonly imageUrl: string | null;
+    readonly imageFit: "cover" | "contain";
+    readonly imagePosition: "center" | "top" | "bottom";
+  };
+  readonly logo: {
+    readonly assetId: string | null;
+    readonly url: string | null;
+    readonly position: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+    readonly size: "small" | "medium" | "large";
+    readonly opacity: number;
+  };
+  readonly nameBadge: {
+    readonly backgroundColor: string;
+    readonly textColor: string;
+    readonly accentColor: string;
+    readonly opacity: number;
+    readonly density: "compact" | "standard";
+    readonly shape: "square" | "subtle-rounded" | "rounded";
+    readonly position: "lower-left" | "lower-right";
+  };
+  readonly subtitle: {
+    readonly mode: "inherit" | "separate";
+    readonly textColor: string;
+    readonly opacity: number;
+    readonly textScale: "smaller";
+  };
+  readonly safeAreaVisible: boolean;
+}
+
+export const DEFAULT_ROOM_BRANDING: RoomBranding = {
+  version: 1,
+  stageBackground: { mode: "solid", color: "#090c11", gradientColor: "#151a22", imageAssetId: null, imageUrl: null, imageFit: "cover", imagePosition: "center" },
+  logo: { assetId: null, url: null, position: "top-right", size: "medium", opacity: 1 },
+  nameBadge: { backgroundColor: "#080b10", textColor: "#ffffff", accentColor: "#8cc736", opacity: 0.9, density: "standard", shape: "subtle-rounded", position: "lower-left" },
+  subtitle: { mode: "inherit", textColor: "#d7dee8", opacity: 0.82, textScale: "smaller" },
+  safeAreaVisible: true,
+};
+
+export type RoomAssetCategory = "logo" | "stage_background" | "overlay" | "holding" | "presentation_placeholder";
+
+export interface RoomAsset {
+  readonly id: string;
+  readonly roomId: string;
+  readonly category: RoomAssetCategory;
+  readonly displayName: string;
+  readonly url: string;
+  readonly mimeType: "image/webp";
+  readonly width: number;
+  readonly height: number;
+  readonly fileSize: number;
+  readonly sortOrder: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
 
 export interface RoomPermissions {
   readonly owner: boolean;
@@ -85,6 +163,9 @@ export interface RoomPermissions {
   readonly manageInvites: boolean;
   readonly updateRoom: boolean;
   readonly updatePresentation: boolean;
+  readonly updateBranding: boolean;
+  readonly manageAssets: boolean;
+  readonly manageCustomLayouts: boolean;
   readonly managePermanentCohosts: boolean;
   readonly endRoom: boolean;
 }
@@ -156,6 +237,7 @@ export interface StudioGuest {
 export interface GuestRoomView {
   readonly room: NonNullable<StudioGuest["room"]> & {
     readonly presentation: RoomPresentation;
+    readonly branding: RoomBranding;
     readonly totalStageCapacity: number;
     readonly reservedDirectorStageSlots: number;
     readonly maxAdditionalStageParticipants: number;

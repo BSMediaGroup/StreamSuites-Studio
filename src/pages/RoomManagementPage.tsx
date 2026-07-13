@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Navigate, useParams } from "react-router-dom";
-import { createStudioInvite, connectStudioEvents, invitePermanentCohost, listStudioInvites, listStudioLobby, loadRoomCohosts, loadStudioRoomContext, moveStudioParticipant, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
+import { createStudioCustomLayout, createStudioInvite, connectStudioEvents, deleteStudioCustomLayout, invitePermanentCohost, listStudioInvites, listStudioLobby, loadRoomCohosts, loadStudioRoomContext, moveStudioParticipant, reorderStudioCustomLayouts, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioCustomLayout, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioAuth } from "../auth/studioAuthContext";
 import { SiteShell } from "../components/shell/SiteShell";
@@ -12,7 +12,11 @@ import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
 import { ParticipantMenuPortal, type ParticipantMenuItem } from "../components/ui/ParticipantMenuPortal";
 import { StudioIcon } from "../components/ui/StudioIcon";
-import type { InvitePolicy, RoomCohosts, RoomConnectionState, RoomInvite, RoomPermissions, RoomSummary, StageLayout, StudioGuest } from "../domain/studio";
+import type { InvitePolicy, RoomBranding, RoomCohosts, RoomConnectionState, RoomInvite, RoomPermissions, RoomSummary, StageLayout, StudioGuest } from "../domain/studio";
+import { CustomLayoutMenu, CustomLayoutsSection } from "../components/room/CustomLayoutControls";
+import { RoomBrandingPanel } from "../components/room/RoomBrandingPanel";
+import { RoomMediaPanel } from "../components/room/RoomMediaPanel";
+import { StageBrandingOverlay, stageBrandingStyle } from "../branding/StageBranding";
 import { usePresentationPreferences } from "../presentation/presentationContext";
 import { GuestRoomWorkspace } from "./GuestRoomWorkspace";
 import exitIcon from "../../assets/icons/ui/exitroom.svg";
@@ -42,6 +46,9 @@ import cameraFilledIcon from "../../assets/icons/ui/videocamera-filled.svg";
 import shareIcon from "../../assets/icons/ui/sharebox.svg";
 import mediaIcon from "../../assets/icons/ui/media.svg";
 import mediaFilledIcon from "../../assets/icons/ui/mediafill.svg";
+import brandIcon from "../../assets/icons/ui/starform.svg";
+import customIcon from "../../assets/icons/ui/layoutcustom.svg";
+import customFilledIcon from "../../assets/icons/ui/layoutcustom-filled.svg";
 import goLiveIcon from "../../assets/icons/ui/cast.svg";
 import optionsIcon from "../../assets/icons/ui/options.svg";
 import arrowIcon from "../../assets/icons/ui/mobilearrow.svg";
@@ -56,13 +63,14 @@ import { useStudioMedia } from "../media/useStudioMedia";
 import { BackstageMediaPreview, DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, ParticipantFallback, ParticipantLabelOverlay, ScreenShareVideo } from "../media/StudioMediaElements";
 import { resolveEffectiveStageLayout } from "../layout/stageLayout";
 
-type WorkspacePanel = "backstage" | "invites" | "room";
+type WorkspacePanel = "backstage" | "invites" | "room" | "brand" | "media";
 const layoutLabels: Record<StageLayout, string> = {
   auto: "Auto",
   grid: "Grid",
   interview: "Interview",
   spotlight: "Spotlight",
   presentation: "Presentation",
+  custom: "Custom",
 };
 
 const layoutIcons: Record<StageLayout, readonly [string, string]> = {
@@ -71,12 +79,15 @@ const layoutIcons: Record<StageLayout, readonly [string, string]> = {
   spotlight: [spotlightIcon, spotlightFilledIcon],
   presentation: [presentationIcon, presentationFilledIcon],
   auto: [autoIcon, autoFilledIcon],
+  custom: [customIcon, customFilledIcon],
 };
 
 const panelIcons: Record<WorkspacePanel, readonly [string, string]> = {
   backstage: [backstageIcon, backstageFilledIcon],
   invites: [inviteIcon, inviteFilledIcon],
   room: [roomPrefsIcon, roomPrefsFilledIcon],
+  brand: [brandIcon, brandIcon],
+  media: [mediaIcon, mediaFilledIcon],
 };
 
 function date(value: string | null) {
@@ -143,6 +154,8 @@ function HostRoomManagementPage() {
   const [inviteExpiry, setInviteExpiry] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 16));
   const [panel, setPanel] = useState<WorkspacePanel>("backstage");
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [brandingPreview, setBrandingPreview] = useState<RoomBranding | null>(null);
+  const [productionRefreshKey, setProductionRefreshKey] = useState(0);
   const [layout, setLayout] = useState<StageLayout>("grid");
   const [selectedParticipant, setSelectedParticipant] = useState("host");
   const [spotlightSelectionExplicit, setSpotlightSelectionExplicit] = useState(false);
@@ -210,6 +223,7 @@ function HostRoomManagementPage() {
         window.clearTimeout(refreshTimer);
         const eventName = event.type.replaceAll("_", " ");
         setAnnouncement(`Room update: ${eventName}.`);
+        if (["room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated"].includes(event.type)) setProductionRefreshKey((value) => value + 1);
         refreshTimer = window.setTimeout(() => void refreshAuthority(false), 80);
       },
     });
@@ -522,6 +536,48 @@ function HostRoomManagementPage() {
     finally { setBusy(""); }
   }
 
+  async function createCustomLayout() {
+    if (!room || busy || room.presentation.customLayouts.length >= 8) return;
+    setBusy("custom-layout");
+    try { const created = await createStudioCustomLayout(room.id, effectiveLayout); const updated = await updateStudioPresentation(room.id, { layoutMode: "custom", selectedCustomLayoutId: created.id }); setRoom(updated); setLayout("custom"); setAnnouncement(`${created.displayName} saved and applied.`); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Custom layout could not be created."); await refreshAuthority(false); }
+    finally { setBusy(""); }
+  }
+
+  async function selectCustomLayout(layoutId: string) {
+    if (!room || busy) return;
+    const previous = layout; setLayout("custom"); setBusy("custom-layout");
+    try { const updated = await updateStudioPresentation(room.id, { layoutMode: "custom", selectedCustomLayoutId: layoutId }); setRoom(updated); setAnnouncement("Custom layout applied."); }
+    catch (error) { setLayout(previous); setMessage(error instanceof Error ? error.message : "Custom layout could not be applied."); }
+    finally { setBusy(""); }
+  }
+
+  async function renameCustomLayout(layoutId: string, name: string) {
+    if (!room || busy) return; setBusy(layoutId);
+    try { await updateStudioCustomLayout(room.id, layoutId, name); await refreshAuthority(false); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Custom layout could not be renamed."); await refreshAuthority(false); }
+    finally { setBusy(""); }
+  }
+
+  async function moveCustomLayout(layoutId: string, direction: -1 | 1) {
+    if (!room || busy) return; const ids = room.presentation.customLayouts.map((item) => item.id), from = ids.indexOf(layoutId), to = from + direction; if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]]; setBusy(layoutId);
+    try { await reorderStudioCustomLayouts(room.id, ids); await refreshAuthority(false); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Custom layout order could not be saved."); await refreshAuthority(false); }
+    finally { setBusy(""); }
+  }
+
+  async function removeCustomLayout(layoutId: string) {
+    if (!room || busy) return; const target = room.presentation.customLayouts.find((item) => item.id === layoutId); if (!target || !window.confirm(`Delete ${target.displayName}?`)) return; setBusy(layoutId);
+    try { const result = await deleteStudioCustomLayout(room.id, layoutId); await refreshAuthority(false); if (result.presentationFellBackToGrid) { setLayout("grid"); setAnnouncement("Selected custom layout deleted. Stage returned to Grid."); } }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Custom layout could not be deleted."); await refreshAuthority(false); }
+    finally { setBusy(""); }
+  }
+
+  function manageCustomLayouts() {
+    openWorkspacePanel("room"); window.setTimeout(() => document.getElementById("custom-layout-manager")?.scrollIntoView({ block: "start" }), 0);
+  }
+
   function selectStageParticipant(participantId: string) {
     setSelectedParticipant(participantId);
     if (layout !== "auto" && layout !== "spotlight") return;
@@ -645,7 +701,9 @@ function HostRoomManagementPage() {
   const presentationShare = media.activeShares.find((share) => share.runtimeParticipantId === `guest:${room.presentation.presentationGuestId}` || share.runtimeParticipantId === room.presentation.presentationGuestId) ?? media.activeShares[0];
   const stageParticipantCount = room.reservedDirectorStageSlots + admitted.length;
   const selectedParticipantOnStage = selectedParticipant === "host" || admitted.some((guest) => guest.id === selectedParticipant);
-  const effectiveLayout = resolveEffectiveStageLayout({ requested: layout, activeScreenShare: Boolean(presentationShare), explicitSpotlight: spotlightSelectionExplicit && selectedParticipantOnStage, participantCount: stageParticipantCount });
+  const selectedCustomLayout = room.presentation.customLayouts.find((item) => item.id === room.presentation.selectedCustomLayoutId);
+  const effectiveLayout = resolveEffectiveStageLayout({ requested: layout, customBaseMode: selectedCustomLayout?.baseLayoutMode, activeScreenShare: Boolean(presentationShare), explicitSpotlight: spotlightSelectionExplicit && selectedParticipantOnStage, participantCount: stageParticipantCount });
+  const activeBranding = brandingPreview ?? room.branding;
   const interviewPrimaryIds = new Set(["host", admitted[0]?.id].filter(Boolean));
   const spotlightPrimaryId = selectedParticipantOnStage ? selectedParticipant : "host";
   const stageTileClass = (participantId: string) => effectiveLayout === "grid"
@@ -667,7 +725,7 @@ function HostRoomManagementPage() {
   ];
 
   return (
-    <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()}>
+    <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()} onOpenRoomTool={(tool) => openWorkspacePanel(tool)}>
       <section ref={roomWorkspaceRef} className="room-workspace" aria-label={`${room.title} Studio workspace`}>
         {cinematic && <div className="cinematic-room-actions" aria-label="Cinematic workspace controls">
           <button type="button" onClick={toggleCinematic}>Exit cinematic <kbd>F</kbd></button>
@@ -726,7 +784,7 @@ function HostRoomManagementPage() {
               <div>
                 <p className="eyebrow">STAGE OUTPUT</p>
                 <strong className="sr-only">Stage output</strong>
-                <span>Preview only · {layout === "auto" ? `Auto → ${layoutLabels[effectiveLayout]}` : layoutLabels[effectiveLayout]} · {media.state === "connected" ? "Media connected" : media.reason}</span>
+                <span>Preview only · {layout === "auto" ? `Auto → ${layoutLabels[effectiveLayout]}` : layout === "custom" ? `${selectedCustomLayout?.displayName ?? "Custom"} → ${layoutLabels[effectiveLayout]}` : layoutLabels[effectiveLayout]} · {media.state === "connected" ? "Media connected" : media.reason}</span>
               </div>
               <div className="layout-picker" ref={layoutRef} role="group" aria-label="Stage layout">
                 {(["grid", "interview", "spotlight", "presentation", "auto"] as StageLayout[]).map((option) => (
@@ -734,20 +792,22 @@ function HostRoomManagementPage() {
                     <StudioIcon regular={layoutIcons[option][0]} filled={layoutIcons[option][1]} active={layout === option} />
                   </button>
                 ))}
+                <CustomLayoutMenu layouts={room.presentation.customLayouts} selectedId={layout === "custom" ? room.presentation.selectedCustomLayoutId : null} disabled={!permissions?.updatePresentation} busy={busy === "custom-layout"} onCreate={() => void createCustomLayout()} onSelect={(id) => void selectCustomLayout(id)} onManage={manageCustomLayouts} />
               </div>
             </div>
-            <div className={`program-canvas program-canvas--${effectiveLayout}`} data-testid="program-canvas" data-layout={layout} data-effective-layout={effectiveLayout} data-participant-count={stageParticipantCount}>
+            <div className={`program-canvas program-canvas--${effectiveLayout}`} style={stageBrandingStyle(activeBranding)} data-testid="program-canvas" data-layout={layout} data-effective-layout={effectiveLayout} data-participant-count={stageParticipantCount}>
               {effectiveLayout === "presentation" && (presentationShare ? <div className="presentation-source"><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
-              <div className="program-safe-area" aria-hidden="true">
+              {activeBranding.safeAreaVisible && <div className="program-safe-area" aria-hidden="true">
                 <span>Safe area</span>
-              </div>
+              </div>}
+              <StageBrandingOverlay branding={activeBranding} />
               <div className="program-stage-grid">
                 <button type="button" className={`participant-tile participant-tile--host${selectedParticipant === "host" ? " is-selected" : ""}${stageTileClass("host")}`} onClick={() => selectStageParticipant("host")} aria-pressed={selectedParticipant === "host"} data-participant-id="host">
                   {media.videoEnabled && media.meeting?.self.videoTrack?.readyState === "live" ? <LocalMediaVideo media={media} /> : <ParticipantFallback guest={{ displayName: hostName, avatarColor: "green", avatarUrl: access.account?.avatarUrl ?? null }} status={media.state === "connected" ? `${media.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off` : media.reason} />}
-                  <ParticipantLabelOverlay name={hostName} subtitle="Host / Director" />
+                  <ParticipantLabelOverlay name={hostName} subtitle="Host / Director" mode={room.presentation.participantLabelMode} branding={activeBranding} />
                 </button>
                 {admitted.map((guest) => (
-                  <MediaParticipantTile className={`participant-tile${selectedParticipant === guest.id ? " is-selected" : ""}${stageTileClass(guest.id)}`} guest={guest} media={media} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => selectStageParticipant(guest.id)}>
+                  <MediaParticipantTile className={`participant-tile${selectedParticipant === guest.id ? " is-selected" : ""}${stageTileClass(guest.id)}`} guest={guest} media={media} labelMode={room.presentation.participantLabelMode} branding={activeBranding} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => selectStageParticipant(guest.id)}>
                     {/* Stable guest keys preserve registered media elements while Stage order and CSS layout change. */}
                     {permissions?.manageParticipants && <ParticipantMenuPortal participantName={guest.displayName} items={participantMenuItems(guest)} />}
                   </MediaParticipantTile>
@@ -778,19 +838,19 @@ function HostRoomManagementPage() {
             {cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
             {panelCollapsed ? <nav className="workspace-panel-rail" aria-label="Collapsed room tools">
               <button className="workspace-panel-expand icon-control studio-tooltip" type="button" aria-label="Expand room control panel" data-tooltip="Expand panel" onClick={() => setPanelCollapsed(false)}><StudioIcon regular={arrowIcon} /></button>
-              {(["backstage", "invites", "room"] as WorkspacePanel[]).map((item) => {
+              {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => {
                 const count = item === "backstage" ? waiting.length : item === "invites" ? invites.filter((invite) => invite.active).length : null;
-                return <button type="button" key={item} className={`workspace-panel-shortcut icon-control studio-tooltip${panel === item ? " is-active" : ""}`} data-tooltip={item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : "Room"} aria-label={`Open ${item} panel${count === null ? "" : `, ${count}`}`} onClick={(event) => openWorkspacePanel(item, event.currentTarget)}>
+                return <button type="button" key={item} className={`workspace-panel-shortcut icon-control studio-tooltip${panel === item ? " is-active" : ""}`} data-tooltip={item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : item === "brand" ? "Branding" : item === "media" ? "Media" : "Room"} aria-label={`Open ${item} panel${count === null ? "" : `, ${count}`}`} onClick={(event) => openWorkspacePanel(item, event.currentTarget)}>
                   <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
                   {count !== null && <span className="workspace-panel-count">{count}</span>}
                 </button>;
               })}
             </nav> : <>
             <nav className="workspace-tabs" aria-label="Workspace panels">
-              {(["backstage", "invites", "room"] as WorkspacePanel[]).map((item) => (
+              {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => (
                 <button type="button" key={item} className={`icon-control${panel === item ? " is-active" : ""}`} onClick={() => setPanel(item)} aria-pressed={panel === item}>
                   <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
-                  <span>{item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : "Room"}</span>
+                  <span>{item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : item === "brand" ? "Brand" : item === "media" ? "Media" : "Room"}</span>
                 </button>
               ))}
               {!cinematic && <button className="workspace-panel-collapse icon-control studio-tooltip" type="button" aria-label="Collapse room control panel" data-tooltip="Collapse panel" onClick={() => setPanelCollapsed(true)}><StudioIcon regular={arrowIcon} filled={arrowIcon} /></button>}
@@ -817,7 +877,7 @@ function HostRoomManagementPage() {
                           <GuestAvatar guest={guest} />
                           <div className="guest-card__identity">
                             <strong>{guest.displayName}</strong>
-                            {room.presentation.showParticipantSubtitles && guest.subtitle && <small>{guest.subtitle}</small>}
+                            {guest.subtitle && <small>{guest.subtitle}</small>}
                             <span>
                               Waiting since {date(guest.createdAt)} · {guest.signedIn ? "Signed in" : "Guest"}
                             </span>
@@ -873,7 +933,7 @@ function HostRoomManagementPage() {
                           <GuestAvatar guest={guest} />
                           <div className="guest-card__identity">
                             <strong>{guest.displayName}</strong>
-                            {room.presentation.showParticipantSubtitles && guest.subtitle && <small>{guest.subtitle}</small>}
+                            {guest.subtitle && <small>{guest.subtitle}</small>}
                             <span>On stage · admitted {date(guest.admittedAt)}</span>
                             {guest.sessionCohost && <StatusChip tone="alpha">Session cohost</StatusChip>}
                           </div>
@@ -1010,23 +1070,16 @@ function HostRoomManagementPage() {
                     {busy === "save" ? "Saving…" : "Save details"}
                   </Button>
                 </form>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={room.presentation.showParticipantSubtitles}
-                    disabled={!permissions?.updatePresentation}
-                    onChange={(event) => {
-                      const checked = event.target.checked;
-                      void updateStudioPresentation(room.id, checked)
-                        .then(setRoom)
-                        .catch((error) => setMessage(error instanceof Error ? error.message : "Presentation setting could not be changed."));
-                    }}
-                  />
-                  <span>Show participant subtitles</span>
-                </label>
+                <fieldset className="participant-label-settings" disabled={!permissions?.updatePresentation}><legend>Participant labels on Stage output</legend>
+                  {([['name_and_subtitle', 'Show names and subtitles'], ['name_only', 'Show names only'], ['hidden', 'Hide participant labels']] as const).map(([value, label]) => <label key={value} className="check-row"><input type="radio" name="participant-label-mode" value={value} checked={room.presentation.participantLabelMode === value} onChange={() => { const previous = room; setRoom({ ...room, presentation: { ...room.presentation, participantLabelMode: value } }); void updateStudioPresentation(room.id, { participantLabelMode: value }).then(setRoom).catch((error) => { setRoom(previous); setMessage(error instanceof Error ? error.message : "Participant label setting could not be changed."); }); }} /><span>{label}</span></label>)}
+                </fieldset>
+                <p className="fine-print">This controls only broadcast-output badges. Backstage and management identity remains visible.</p>
+                <CustomLayoutsSection layouts={room.presentation.customLayouts} selectedId={layout === "custom" ? room.presentation.selectedCustomLayoutId : null} disabled={!permissions?.manageCustomLayouts} busyId={busy} onCreate={() => void createCustomLayout()} onSelect={(id) => void selectCustomLayout(id)} onRename={(id, name) => void renameCustomLayout(id, name)} onMove={(id, direction) => void moveCustomLayout(id, direction)} onDelete={(id) => void removeCustomLayout(id)} />
                 <p className="fine-print">Updated {date(room.updatedAt)}. Room, lifecycle, invite, cohost, and lobby truth remains in Runtime/Auth.</p>
               </div>
             )}
+            {panel === "brand" && <RoomBrandingPanel roomId={room.id} canonical={room.branding} canEdit={Boolean(permissions?.updateBranding)} refreshKey={productionRefreshKey} onPreview={setBrandingPreview} onCanonical={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} />}
+            {panel === "media" && <RoomMediaPanel roomId={room.id} branding={activeBranding} canEdit={Boolean(permissions?.manageAssets)} refreshKey={productionRefreshKey} onBranding={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} onChanged={() => setProductionRefreshKey((value) => value + 1)} />}
             </>}
           </aside>
         </div>
