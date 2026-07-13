@@ -102,8 +102,8 @@ export function LandingPage() {
           <p className="eyebrow">ALPHA scope</p>
           <h2>Small room. Honest status.</h2>
           <p>
-            Runtime/Auth now enforces nine admitted guest stage slots, with the host/director
-            separate and extra guests allowed to wait. Every media capability remains unshipped.
+            Runtime/Auth now enforces nine total Stage slots: one reserved for the director and
+            eight additional participants. Backstage does not count. Every media capability remains unshipped.
           </p>
         </div>
         <ButtonLink to="/login" variant="secondary">

@@ -58,6 +58,10 @@ export function GuestRoomWorkspace() {
 
   async function move(location: "stage" | "backstage") {
     if (!view || busy) return;
+    if (location === "stage" && view.stage.length >= view.room.maxAdditionalStageParticipants) {
+      setMessage("Stage full — 9 participants including the director.");
+      return;
+    }
     setBusy(location);
     try { await moveStudioGuestSelf(location); await refresh(); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Participant location could not be updated."); }
@@ -88,7 +92,8 @@ export function GuestRoomWorkspace() {
           <p>Media not connected · OFF AIR</p>
           {view.room.presentation.layoutMode === "presentation" && <div className="presentation-source-placeholder">Presentation source not connected</div>}
           <div className={`program-canvas program-canvas--${view.room.presentation.layoutMode}`}>
-            {view.stage.length ? view.stage.map((participant) => (
+            <article className="stage-participant" data-stage-slot="director"><div><strong>Director</strong><small>Reserved Stage slot</small></div></article>
+            {view.stage.length ? view.stage.slice(0, view.room.maxAdditionalStageParticipants).map((participant) => (
               <article className="stage-participant" key={participant.id}>
                 <Avatar guest={participant} />
                 <div><strong>{participant.displayName}</strong>{participant.subtitle && <small>{participant.subtitle}</small>}<small>{participant.microphoneMuted ? "Intended muted" : "Intended unmuted"} · {participant.cameraHidden ? "Camera intended hidden" : "Camera intended visible"}</small></div>
@@ -98,7 +103,7 @@ export function GuestRoomWorkspace() {
         </section>
         <section className="backstage-tray" aria-labelledby="guest-backstage-title">
           <div className="backstage-tray__heading"><h2 id="guest-backstage-title">Backstage</h2><StatusChip tone="pending">{selfOnStage ? 0 : 1}</StatusChip></div>
-          {!selfOnStage ? <article className="backstage-tile"><Avatar guest={view.self} /><div><strong>{view.self.displayName}</strong><small>{view.self.subtitle || "Waiting Backstage"}</small></div><div className="participant-actions"><Button variant="quiet" disabled={Boolean(busy)} onClick={() => void media("microphone")}>{view.self.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button><Button variant="quiet" disabled={Boolean(busy)} onClick={() => void media("camera")}>{view.self.cameraHidden ? "Show camera intent" : "Hide camera intent"}</Button>{view.permissions.selfStage && <Button disabled={Boolean(busy)} onClick={() => void move("stage")}>Move to Stage</Button>}</div></article> : <EmptyState title="You are on Stage"><p>Use your participant action to move Backstage.</p></EmptyState>}
+          {!selfOnStage ? <article className="backstage-tile"><Avatar guest={view.self} /><div><strong>{view.self.displayName}</strong><small>{view.self.subtitle || "Waiting Backstage"}</small></div><div className="participant-actions"><Button variant="quiet" disabled={Boolean(busy)} onClick={() => void media("microphone")}>{view.self.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button><Button variant="quiet" disabled={Boolean(busy)} onClick={() => void media("camera")}>{view.self.cameraHidden ? "Show camera intent" : "Hide camera intent"}</Button>{view.permissions.selfStage && <Button disabled={Boolean(busy) || view.stage.length >= view.room.maxAdditionalStageParticipants} onClick={() => void move("stage")}>Move to Stage</Button>}</div></article> : <EmptyState title="You are on Stage"><p>Use your participant action to move Backstage.</p></EmptyState>}
         </section>
         {selfOnStage && <div className="guest-self-controls"><Button variant="secondary" disabled={Boolean(busy)} onClick={() => void move("backstage")}>Move backstage</Button><Button variant="quiet" disabled={Boolean(busy)} onClick={() => void media("microphone")}>{view.self.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button><Button variant="quiet" disabled={Boolean(busy)} onClick={() => void media("camera")}>{view.self.cameraHidden ? "Show camera intent" : "Hide camera intent"}</Button></div>}
         {message && <p role="status">{message}</p>}

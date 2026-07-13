@@ -364,6 +364,10 @@ function HostRoomManagementPage() {
 
   async function guestAction(guest: StudioGuest, action: "admit" | "deny" | "remove") {
     if (!room || guestBusy) return;
+    if (action === "admit" && admitted.length >= room.maxAdditionalStageParticipants) {
+      setMessage("Stage full — 9 participants including the director. Move someone Backstage before admitting another participant.");
+      return;
+    }
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setGuestBusy(guest.id);
     setMessage("");
@@ -379,8 +383,8 @@ function HostRoomManagementPage() {
         else backstageHeadingRef.current?.focus();
       });
     } catch (error) {
-      if (error instanceof StudioApiError && error.code === "stage_full") {
-        setMessage("Stage full: Runtime/Auth allows at most nine admitted guests. Remove a guest before admitting another.");
+      if (error instanceof StudioApiError && ["stage_full", "stage_capacity_reached"].includes(error.code)) {
+        setMessage("Stage full — 9 participants including the director. Move someone Backstage before admitting another participant.");
       } else {
         setMessage(error instanceof Error ? error.message : "Guest state could not be changed.");
       }
@@ -391,12 +395,20 @@ function HostRoomManagementPage() {
 
   async function moveParticipant(guest: StudioGuest, location: "stage" | "backstage") {
     if (!room || guestBusy) return;
+    if (location === "stage" && admitted.length >= room.maxAdditionalStageParticipants) {
+      setMessage("Stage full — 9 participants including the director. Move someone Backstage before admitting another participant.");
+      return;
+    }
     setGuestBusy(guest.id); setMessage("");
     try {
       await moveStudioParticipant(room.id, guest.id, location);
       await refreshAuthority(false);
       setMessage(`${guest.displayName} moved ${location === "stage" ? "onto Stage" : "Backstage"}. No guest session was invalidated.`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Participant location could not be changed."); }
+    } catch (error) {
+      setMessage(error instanceof StudioApiError && ["stage_full", "stage_capacity_reached"].includes(error.code)
+        ? "Stage full — 9 participants including the director. Move someone Backstage before admitting another participant."
+        : error instanceof Error ? error.message : "Participant location could not be changed.");
+    }
     finally { setGuestBusy(""); }
   }
 
@@ -525,8 +537,8 @@ function HostRoomManagementPage() {
   }
 
   const hostName = access.account?.displayName || "Host / Director";
-  const visibleAdmitted = layout === "spotlight" ? admitted.filter((guest) => guest.id === selectedParticipant).slice(0, 1) : layout === "interview" ? admitted.slice(0, 1) : admitted.slice(0, 5);
-  const emptySlots = layout === "grid" ? Math.max(0, 4 - (1 + visibleAdmitted.length)) : layout === "interview" && visibleAdmitted.length === 0 ? 1 : 0;
+  const visibleAdmitted = layout === "spotlight" ? admitted.filter((guest) => guest.id === selectedParticipant).slice(0, 1) : layout === "interview" ? admitted.slice(0, 1) : admitted.slice(0, room.maxAdditionalStageParticipants);
+  const emptySlots = layout === "grid" ? Math.max(0, room.totalStageCapacity - (room.reservedDirectorStageSlots + visibleAdmitted.length)) : layout === "interview" && visibleAdmitted.length === 0 ? 1 : 0;
 
   return (
     <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()}>
@@ -699,7 +711,7 @@ function HostRoomManagementPage() {
                 <GuestAvatar guest={guest} />
                 <div><strong>{guest.displayName}</strong><small>{guest.subtitle || (guest.sessionCohost ? "Session cohost" : "Waiting Backstage")}</small></div>
                 <div className="participant-actions">
-                  <Button disabled={Boolean(guestBusy) || room.onStageGuestCount >= room.maxGuestStageOccupants} onClick={() => void moveParticipant(guest, "stage")}>Move to Stage</Button>
+                  <Button disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}>Move to Stage</Button>
                   <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "microphone")}>{guest.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button>
                   <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "camera")}>{guest.cameraHidden ? "Show camera" : "Hide camera"}</Button>
                 </div>
@@ -746,7 +758,7 @@ function HostRoomManagementPage() {
                             {guest.sessionCohost && <StatusChip tone="alpha">Session cohost</StatusChip>}
                           </div>
                           <div className="guest-card__actions">
-                            <Button disabled={Boolean(guestBusy) || room.onStageGuestCount >= room.maxGuestStageOccupants} onClick={() => void moveParticipant(guest, "stage")}>
+                            <Button disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}>
                               {guestBusy === guest.id ? "Working…" : "Move to Stage"}
                             </Button>
                             <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void guestAction(guest, "deny")}>
@@ -768,9 +780,9 @@ function HostRoomManagementPage() {
                       ))}
                     </div>
                   )}
-                  {room.admittedGuestCount >= room.maxGuestStageOccupants && waiting.length > 0 && (
+                  {admitted.length >= room.maxAdditionalStageParticipants && waiting.length > 0 && (
                     <p className="stage-full-note" role="note">
-                      Stage full. Remove an on-stage guest before admitting another.
+                      Stage full — 9 participants including the director. Move someone Backstage to free one additional slot.
                     </p>
                   )}
                 </section>
@@ -781,12 +793,12 @@ function HostRoomManagementPage() {
                       <h2 id="on-stage-heading" className="sr-only">On Stage</h2>
                     </div>
                     <StatusChip tone="alpha">
-                      {admitted.length} / {room.maxGuestStageOccupants}
+                      {admitted.length} / {room.maxAdditionalStageParticipants} additional · {room.totalStageCapacity} total
                     </StatusChip>
                   </div>
                   {admitted.length === 0 ? (
                     <EmptyState title="No guests on stage">
-                      <p>The host/director remains separate from the nine Runtime-owned guest slots.</p>
+                      <p>8 additional Stage slots are available; the director reserves 1 of 9 total slots.</p>
                     </EmptyState>
                   ) : (
                     <div className="guest-card-list">

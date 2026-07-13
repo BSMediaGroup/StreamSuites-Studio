@@ -36,6 +36,10 @@ export interface AuthAccessGateState {
 
 export type RoomLifecycle = "draft" | "open" | "closed" | "ended";
 
+export const STUDIO_TOTAL_STAGE_CAPACITY = 9;
+export const STUDIO_DIRECTOR_STAGE_SLOTS = 1;
+export const STUDIO_ADDITIONAL_STAGE_CAPACITY = STUDIO_TOTAL_STAGE_CAPACITY - STUDIO_DIRECTOR_STAGE_SLOTS;
+
 export interface RoomSummary {
   readonly id: string;
   readonly ownerAccountId: string;
@@ -43,6 +47,9 @@ export interface RoomSummary {
   readonly description: string | null;
   readonly lifecycleState: RoomLifecycle;
   readonly maxGuestStageOccupants: number;
+  readonly totalStageCapacity: number;
+  readonly reservedDirectorStageSlots: number;
+  readonly maxAdditionalStageParticipants: number;
   readonly waitingGuestCount: number;
   readonly admittedGuestCount: number;
   readonly backstageGuestCount: number;
@@ -140,7 +147,12 @@ export interface StudioGuest {
 }
 
 export interface GuestRoomView {
-  readonly room: NonNullable<StudioGuest["room"]> & { readonly presentation: RoomPresentation };
+  readonly room: NonNullable<StudioGuest["room"]> & {
+    readonly presentation: RoomPresentation;
+    readonly totalStageCapacity: number;
+    readonly reservedDirectorStageSlots: number;
+    readonly maxAdditionalStageParticipants: number;
+  };
   readonly self: StudioGuest;
   readonly stage: readonly StudioGuest[];
   readonly permissions: RoomPermissions;

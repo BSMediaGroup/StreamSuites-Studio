@@ -241,7 +241,10 @@ describe("Studio Runtime/Auth adapter", () => {
         title: "Launch room",
         description: null,
         lifecycle_state: "open",
-        max_guest_stage_occupants: 9,
+        max_guest_stage_occupants: 8,
+        total_stage_capacity: 9,
+        reserved_director_stage_slots: 1,
+        max_additional_stage_participants: 8,
         waiting_guest_count: 2,
         admitted_guest_count: 1,
         created_at: "2026-07-11T00:00:00Z",
@@ -252,7 +255,7 @@ describe("Studio Runtime/Auth adapter", () => {
     }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await expect(listStudioRooms()).resolves.toEqual([
-      expect.objectContaining({ id: "room-1", title: "Launch room", lifecycleState: "open", maxGuestStageOccupants: 9 }),
+      expect.objectContaining({ id: "room-1", title: "Launch room", lifecycleState: "open", maxGuestStageOccupants: 8, totalStageCapacity: 9, reservedDirectorStageSlots: 1, maxAdditionalStageParticipants: 8 }),
     ]);
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/studio/rooms"), expect.objectContaining({ credentials: "include", cache: "no-store" }));
   });

@@ -45,14 +45,14 @@ it("loads creator room summaries without inventing media state", async () => {
     const url = String(input);
     if (url.includes("/auth/session")) return response(payload.session);
     if (url.includes("/api/studio/access")) return response(payload.access);
-    return response({ success: true, items: [{ id: "room-1", owner_account_id: "creator-1", title: "Real room", description: null, lifecycle_state: "draft", max_guest_stage_occupants: 9, waiting_guest_count: 0, admitted_guest_count: 0, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", opened_at: null, ended_at: null }] });
+    return response({ success: true, items: [{ id: "room-1", owner_account_id: "creator-1", title: "Real room", description: null, lifecycle_state: "draft", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, waiting_guest_count: 0, admitted_guest_count: 0, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", opened_at: null, ended_at: null }] });
   }));
   render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><StudioPage /></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
   expect(await screen.findByText("Real room")).toBeInTheDocument();
   expect(screen.getByText(/Media and broadcasting are not connected/i)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Enter room" })).toHaveAttribute("href", "/studio/rooms/room-1");
   expect(screen.getByText("0 waiting backstage")).toBeInTheDocument();
-  expect(screen.getByText("0 / 9 on stage")).toBeInTheDocument();
+  expect(screen.getByText("0 / 8 additional on stage · 9 total including director")).toBeInTheDocument();
   expect(screen.queryByText(/viewer count/i)).not.toBeInTheDocument();
 });
 
@@ -62,7 +62,7 @@ it("keeps ended rooms visible without presenting an active Enter room action", a
     const url = String(input);
     if (url.includes("/auth/session")) return response(payload.session);
     if (url.includes("/api/studio/access")) return response(payload.access);
-    return response({ success: true, items: [{ id: "room-ended", owner_account_id: "creator-1", title: "Finished room", description: "Archived authority", lifecycle_state: "ended", max_guest_stage_occupants: 9, waiting_guest_count: 0, admitted_guest_count: 0, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T01:00:00Z", opened_at: "2026-07-11T00:10:00Z", ended_at: "2026-07-11T01:00:00Z" }] });
+    return response({ success: true, items: [{ id: "room-ended", owner_account_id: "creator-1", title: "Finished room", description: "Archived authority", lifecycle_state: "ended", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, waiting_guest_count: 0, admitted_guest_count: 0, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T01:00:00Z", opened_at: "2026-07-11T00:10:00Z", ended_at: "2026-07-11T01:00:00Z" }] });
   }));
   render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><StudioPage /></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
   expect(await screen.findByText("Finished room")).toBeInTheDocument();
@@ -84,13 +84,13 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   Object.defineProperty(document, "exitFullscreen", { configurable: true, value: vi.fn(() => { fullscreenElement = null; document.dispatchEvent(new Event("fullscreenchange")); return Promise.resolve(); }) });
   Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => fullscreenElement });
   const payload = authPayload("creator");
-  let lobby = [
+  let lobby: Array<{ id: string; room_id: string; display_name: string; account_id: string | null; state: string; session_cohost?: boolean; stage_position: number | null; created_at: string; updated_at: string; expires_at: string; admitted_at: string | null; denied_at: null; removed_at: null; left_at: null }> = [
     { id: "guest-wait", room_id: "room-1", display_name: "Waiting Guest", account_id: null, state: "backstage", stage_position: null, created_at: "2026-07-11T00:20:00Z", updated_at: "2026-07-11T00:20:00Z", expires_at: "2026-07-11T12:20:00Z", admitted_at: null, denied_at: null, removed_at: null, left_at: null },
     { id: "guest-stage", room_id: "room-1", display_name: "Stage Guest", account_id: null, state: "on_stage", stage_position: 0, created_at: "2026-07-11T00:10:00Z", updated_at: "2026-07-11T00:15:00Z", expires_at: "2026-07-11T12:10:00Z", admitted_at: "2026-07-11T00:15:00Z", denied_at: null, removed_at: null, left_at: null },
   ];
   let invites: object[] = [];
   let layout = "grid";
-  const room = () => ({ id: "room-1", owner_account_id: "creator-1", title: "Production room", description: "Confirmed room description", lifecycle_state: "open", max_guest_stage_occupants: 9, backstage_guest_count: lobby.filter((guest) => guest.state === "backstage").length, on_stage_guest_count: lobby.filter((guest) => guest.state === "on_stage").length, presentation: { show_participant_subtitles: true, layout_mode: layout, spotlight_guest_id: null, presentation_guest_id: null }, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:30:00Z", opened_at: "2026-07-11T00:05:00Z", ended_at: null });
+  const room = () => ({ id: "room-1", owner_account_id: "creator-1", title: "Production room", description: "Confirmed room description", lifecycle_state: "open", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, backstage_guest_count: lobby.filter((guest) => guest.state === "backstage").length, on_stage_guest_count: lobby.filter((guest) => guest.state === "on_stage").length, presentation: { show_participant_subtitles: true, layout_mode: layout, spotlight_guest_id: null, presentation_guest_id: null }, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:30:00Z", opened_at: "2026-07-11T00:05:00Z", ended_at: null });
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/auth/session")) return response(payload.session);
@@ -165,6 +165,58 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog", { name: "Live output is not connected yet." })).not.toBeInTheDocument();
   await waitFor(() => expect(goLiveTrigger).toHaveFocus());
+});
+
+it("enforces nine total Stage slots across layouts and recovers after a capacity rejection", async () => {
+  class EventSourceStub { onerror: (() => void) | null = null; addEventListener() {} close() {} }
+  vi.stubGlobal("EventSource", EventSourceStub);
+  const payload = authPayload("creator");
+  let layout = "grid";
+  let lobby: Array<{ id: string; room_id: string; display_name: string; account_id: string | null; state: string; session_cohost?: boolean; stage_position: number | null; created_at: string; updated_at: string; expires_at: string; admitted_at: string | null; denied_at: null; removed_at: null; left_at: null }> = [
+    ...Array.from({ length: 8 }, (_, index) => ({ id: `stage-${index}`, room_id: "room-capacity", display_name: `Stage ${index}`, account_id: index === 0 ? "cohost-1" : null, state: "on_stage", session_cohost: index === 0, stage_position: index, created_at: `2026-07-11T00:0${index}:00Z`, updated_at: "2026-07-11T00:20:00Z", expires_at: "2026-07-11T12:00:00Z", admitted_at: "2026-07-11T00:20:00Z", denied_at: null, removed_at: null, left_at: null })),
+    { id: "wait", room_id: "room-capacity", display_name: "Waiting", account_id: null, state: "backstage", stage_position: null, created_at: "2026-07-11T00:30:00Z", updated_at: "2026-07-11T00:30:00Z", expires_at: "2026-07-11T12:30:00Z", admitted_at: null, denied_at: null, removed_at: null, left_at: null },
+  ];
+  const room = () => ({ id: "room-capacity", owner_account_id: "creator-1", title: "Capacity room", description: null, lifecycle_state: "open", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, backstage_guest_count: lobby.filter((guest) => guest.state === "backstage").length, on_stage_guest_count: lobby.filter((guest) => guest.state === "on_stage").length, presentation: { show_participant_subtitles: true, layout_mode: layout, spotlight_guest_id: null, presentation_guest_id: null }, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:30:00Z", opened_at: "2026-07-11T00:05:00Z", ended_at: null });
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/auth/session")) return response(payload.session);
+    if (url.includes("/api/studio/access")) return response(payload.access);
+    if (url.endsWith("/participants/stage-0/backstage")) {
+      lobby = lobby.map((guest) => guest.id === "stage-0" ? { ...guest, state: "backstage", stage_position: null } : guest);
+      return response({ success: true, guest: lobby.find((guest) => guest.id === "stage-0") });
+    }
+    if (url.endsWith("/participants/wait/stage")) return response({ success: false, error: "Stage capacity reached: maximum of 9 Stage participants including the director.", error_code: "stage_capacity_reached" }, 409);
+    if (url.endsWith("/presentation") && init?.method === "PATCH") { layout = String(JSON.parse(String(init.body)).layout_mode); return response({ success: true, room: room() }); }
+    if (url.endsWith("/lobby")) return response({ success: true, items: lobby });
+    if (url.endsWith("/invites")) return response({ success: true, items: [] });
+    if (url.endsWith("/cohosts")) return response({ success: true, director: { id: "creator-1", display_name: "creator", avatar_url: null }, session: [lobby[0]], permanent: [], permissions: { owner: true, manage_backstage: true, manage_participants: true, update_presentation: true, end_room: true } });
+    if (url.endsWith("/api/studio/rooms/room-capacity")) return response({ success: true, room: room(), permissions: { owner: true, manage_backstage: true, manage_participants: true, update_presentation: true, end_room: true } });
+    return response({}, 404);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const rendered = render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter initialEntries={["/studio/rooms/room-capacity"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Routes><Route path="/studio/rooms/:roomId" element={<RoomManagementPage />} /></Routes></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
+  expect(await screen.findByRole("heading", { name: "Capacity room" })).toBeInTheDocument();
+  expect(rendered.container.querySelectorAll("[data-testid='program-canvas'] .participant-tile")).toHaveLength(9);
+  expect(screen.getByText("8 / 8 additional · 9 total")).toBeInTheDocument();
+  screen.getAllByRole("button", { name: "Move to Stage" }).forEach((button) => expect(button).toBeDisabled());
+  for (const mode of ["Interview", "Spotlight", "Presentation"] as const) {
+    fireEvent.click(screen.getByRole("button", { name: mode }));
+    await waitFor(() => expect(screen.getByTestId("program-canvas")).toHaveAttribute("data-layout", mode.toLowerCase()));
+    expect(rendered.container.querySelectorAll("[data-testid='program-canvas'] .participant-tile").length).toBeLessThanOrEqual(9);
+  }
+  expect(rendered.container.querySelectorAll("[data-testid='program-canvas'] .participant-tile")).toHaveLength(9);
+  fireEvent.click(screen.getByRole("button", { name: "View options" }));
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Enter cinematic/i }));
+  expect(rendered.container.querySelectorAll("[data-testid='program-canvas'] .participant-tile")).toHaveLength(9);
+  const stageZeroActions = screen.getByLabelText("Actions for Stage 0").parentElement;
+  fireEvent.click(screen.getByLabelText("Actions for Stage 0"));
+  fireEvent.click(stageZeroActions?.querySelector<HTMLButtonElement>('button[role="menuitem"]') as HTMLButtonElement);
+  await waitFor(() => screen.getAllByRole("button", { name: "Move to Stage" }).forEach((button) => expect(button).toBeEnabled()));
+  expect(lobby.filter((guest) => guest.state === "on_stage")).toHaveLength(7);
+  const waitingTile = screen.getAllByText("Waiting")[0].closest(".backstage-tile");
+  fireEvent.click(waitingTile?.querySelector<HTMLButtonElement>("button") as HTMLButtonElement);
+  expect(await screen.findByText("Stage full — 9 participants including the director. Move someone Backstage before admitting another participant.")).toBeInTheDocument();
+  expect(lobby.filter((guest) => guest.state === "on_stage")).toHaveLength(7);
 });
 
 it("validates an invite, joins the lobby, and displays admission-neutral waiting state", async () => {

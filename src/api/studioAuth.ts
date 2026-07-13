@@ -1,4 +1,5 @@
 import { publicStudioConfig } from "../config/env";
+import { STUDIO_ADDITIONAL_STAGE_CAPACITY, STUDIO_DIRECTOR_STAGE_SLOTS, STUDIO_TOTAL_STAGE_CAPACITY } from "../domain/studio";
 import type { GuestLobbyState, GuestRoomView, InviteValidation, RoomInvite, RoomLifecycle, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
 
@@ -156,7 +157,10 @@ function normalizeRoom(value: unknown): RoomSummary {
     ownerAccountId,
     description: stringOrNull(value.description),
     lifecycleState: roomLifecycle(value.lifecycle_state),
-    maxGuestStageOccupants: numberOr(value.max_guest_stage_occupants, 9),
+    maxGuestStageOccupants: numberOr(value.max_guest_stage_occupants, STUDIO_ADDITIONAL_STAGE_CAPACITY),
+    totalStageCapacity: numberOr(value.total_stage_capacity, STUDIO_TOTAL_STAGE_CAPACITY),
+    reservedDirectorStageSlots: numberOr(value.reserved_director_stage_slots, STUDIO_DIRECTOR_STAGE_SLOTS),
+    maxAdditionalStageParticipants: numberOr(value.max_additional_stage_participants, numberOr(value.max_guest_stage_occupants, STUDIO_ADDITIONAL_STAGE_CAPACITY)),
     waitingGuestCount: numberOr(value.waiting_guest_count),
     admittedGuestCount: numberOr(value.admitted_guest_count),
     backstageGuestCount: numberOr(value.backstage_guest_count, numberOr(value.waiting_guest_count)),
@@ -480,6 +484,9 @@ export async function loadStudioGuestRoomView(signal?: AbortSignal): Promise<Gue
       title: stringOrNull(view.room.title) ?? "Studio room",
       description: stringOrNull(view.room.description),
       lifecycleState: roomLifecycle(view.room.lifecycle_state),
+      totalStageCapacity: numberOr(view.room.total_stage_capacity, STUDIO_TOTAL_STAGE_CAPACITY),
+      reservedDirectorStageSlots: numberOr(view.room.reserved_director_stage_slots, STUDIO_DIRECTOR_STAGE_SLOTS),
+      maxAdditionalStageParticipants: numberOr(view.room.max_additional_stage_participants, STUDIO_ADDITIONAL_STAGE_CAPACITY),
       presentation: {
         showParticipantSubtitles: !isRecord(view.room.presentation) || view.room.presentation.show_participant_subtitles !== false,
         layoutMode: stageLayout(isRecord(view.room.presentation) ? view.room.presentation.layout_mode : null),

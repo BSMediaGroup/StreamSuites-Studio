@@ -34,7 +34,7 @@ No self-service application, room, guest invite, or media behavior was delivered
 - support single-use, capped, and open invitations with transactional entrant counts, authorized re-copy, default 24-hour expiry, optional no-expiry, exhaustion, revocation, and rate-limited entry
 - create separate temporary room-scoped guest sessions without replacing the shared account cookie
 - persist canonical backstage/on_stage/denied/removed/left/expired participant location, repeatably migrate legacy waiting/admitted rows, and expose permission-aware guest-self plus director/cohost management APIs
-- enforce a transactional maximum of nine on-stage guest occupants while keeping the host/director and Backstage outside that cap; ordinary guests can self-Backstage but cannot self-admit, while cohosts can move themselves both ways
+- enforce a transactional maximum of nine total visible Stage slots, reserving one for the host/director and permitting at most eight additional guests or cohosts; Backstage does not count, ordinary guests can self-Backstage but cannot self-admit, and cohosts can move themselves both ways
 - ship the room dashboard, protected management workspace, and real join/lobby UI without claiming media connectivity
 - persist monotonic safe room events and expose credentialed host/cohost and guest-isolated SSE with replay, heartbeat, reconnect, and disconnected-only fallback polling
 - support normalized guest display names, optional subtitles, visual initials colors, CDN-backed room-only WebP fallback avatars, intended microphone/camera state, persistent Stage order, and Runtime-owned Grid/Interview/Spotlight/Presentation state

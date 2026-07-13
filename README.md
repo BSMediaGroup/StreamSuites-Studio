@@ -6,7 +6,7 @@
 
 StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. This client authenticates through the existing Runtime/Auth session authority and now consumes runtime-owned closed-ALPHA access, persistent rooms, secure guest invitations, temporary guest sessions, and lobby/admission decisions. It still does not provide media, broadcasting, or recording.
 
-Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. Admins may own/manage any room; creator/developer-capable accounts with active Studio access may own their rooms. Public accounts may participate through valid invitations without becoming creators or owners. Runtime/Auth transactionally enforces nine admitted guest stage slots, with the host/director outside those slots and no nine-person limit on the waiting lobby.
+Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. Admins may own/manage any room; creator/developer-capable accounts with active Studio access may own their rooms. Public accounts may participate through valid invitations without becoming creators or owners. Runtime/Auth transactionally enforces nine total visible Stage slots: the host/director reserves one and at most eight additional guests or cohosts may be on Stage. Backstage does not count toward that limit.
 
 ## Current implementation
 
