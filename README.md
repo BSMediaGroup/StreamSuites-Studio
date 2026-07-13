@@ -1,10 +1,10 @@
 # StreamSuites Studio
 
-> **Status: ALPHA pre-media Studio workspace — closed access**
+> **Status: ALPHA private-room media workspace — closed access**
 > **Flagship surface:** <https://studio.streamsuites.app>
 > **Deployment target:** Cloudflare Pages
 
-StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. This client authenticates through the existing Runtime/Auth session authority and now consumes runtime-owned closed-ALPHA access, persistent rooms, secure guest invitations, temporary guest sessions, and lobby/admission decisions. It still does not provide media, broadcasting, or recording.
+StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. It consumes Runtime/Auth-owned access, rooms, guest/cohost/Stage decisions, RealtimeKit mappings, and participant tokens, then renders private local/remote media through RealtimeKit. It does not broadcast or record and remains OFF AIR.
 
 Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. Admins may own/manage any room; creator/developer-capable accounts with active Studio access may own their rooms. Public accounts may participate through valid invitations without becoming creators or owners. Runtime/Auth transactionally enforces nine total visible Stage slots: the host/director reserves one and at most eight additional guests or cohosts may be on Stage. Backstage does not count toward that limit.
 
@@ -25,13 +25,17 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - the existing `assets/logos/sscmattesilver.webp` header logo in both themes
 - reusable buttons, cards, status chips, empty states, and form fields
 - runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, safe count states, and an Enter-room-first card presentation
-- protected `/studio/rooms/:roomId` pre-media production workspace with canonical short-code URLs, a 16:9 Stage/Program canvas, responsive real-time Backstage waiting/on-stage/cohost panels, policy-controlled reusable invites, room settings, lifecycle controls, and a production control dock
+- protected `/studio/rooms/:roomId` production workspace with canonical short-code URLs, a 16:9 Stage/Program canvas, real RealtimeKit media, responsive Backstage/on-stage/cohost panels, invites, room settings, lifecycle controls, and the existing production dock
 - route-scoped cinematic room mode with a stage-first canvas, compact truthful production state, waiting/on-stage badges, the existing authoritative Backstage/tools panel as a focus-managed drawer, obvious exit controls, and optional event-confirmed browser fullscreen
-- Runtime-owned Grid, Interview, Spotlight, and Presentation layouts synchronized for authorized clients; Presentation truthfully shows `Presentation source not connected` until screen-share media exists
-- truthful `OFF AIR` orientation with an inactive `00:00:00` timer and explanatory Go live dialog; camera, microphone, screen share, and live output controls remain explicitly unavailable
+- Runtime-owned Grid, Interview, Spotlight, and Presentation layouts; Presentation renders the active RealtimeKit screen-share track with `object-fit: contain` while retaining participant camera tiles
+- explicit device preflight with SDK device selectors, local camera preview, microphone activity, device-off choices, join-without-devices, secure-context/support checks, and permission/device error states
+- SDK-registered local and remote video, SDK-managed remote audio with autoplay recovery, actual microphone/camera state, active-speaker indication, and stable guest-keyed tiles across Stage reordering
+- one room-scoped director or guest media lifecycle with Strict Mode initialization guards, listener cleanup, token refresh, reconnect state, Runtime mapping refresh, and memory-only participant tokens
+- Runtime-first Stage/Backstage synchronization, guest/cohost preset reconciliation, permission-checked host force-mute/video-disable, and reconciliation-required state on provider failure
+- truthful `OFF AIR` orientation with an inactive `00:00:00` timer and disabled output integration; media connection does not imply broadcast
 - credentialed room and guest SSE with live/reconnecting/fallback-polling/unavailable status, burst-coalesced authoritative refetch, bounded polling only while disconnected, and manual refresh as secondary recovery
 - real `/join/:inviteCode` validation with an in-page reusable login sheet, bounded safe OAuth draft restoration, account-optional joining, visual keyboard-accessible initials colors, validated CDN-backed fallback avatar, and canonical Backstage/On Stage states
-- guest room workspace showing the real safe Stage while the caller waits Backstage, a horizontal Backstage tray, permission-aware participant menus, self/cohost transitions, intended mic/camera state, drag and keyboard Stage ordering, and distinct move-Backstage versus remove-from-room actions
+- guest room workspace using the same media lifecycle: Backstage receives Stage audio/video plus private preview without self-admission; on-stage guests publish permitted local choices, may self-Backstage, and cohosts retain only Runtime-granted authority
 - single-use, capped, and open invite controls with 24-hour default expiry or no-expiry, use/status summaries, and securely regenerable canonical copy links; no invite code, guest credential, avatar binary, or cohost authority is stored in browser storage
 - dedicated cohost management for the director, session cohosts, pending/accepted/declined/revoked permanent relationships, authenticated acceptance/decline, revoke actions, and all-current/future versus selected-room scope changes
 - canonical Room ID chips, exact Stage/Backstage/Co-host label cleanup, committed sidebar SVG icons, avatar/name/role/tier account-chip parity, and a slim Runtime version/health footer across public and authenticated shells
@@ -54,11 +58,9 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 
 The following are explicitly not shipped:
 
-- media-provider room tokens or connectivity
-- camera, microphone, screen share, WebRTC, TURN, or SFU behavior
-- Cloudflare RealtimeKit credentials in the browser (participant tokens are issued privately by Runtime/Auth and held only in memory)
-- LiveKit, Egress, recording, RTMP, or provider destination integration
-- real audio/video tracks, chat, alerts, clips, polls, games, automation, or analytics
+- Cloudflare API credentials in the browser; participant tokens are issued privately by Runtime/Auth and held only in memory
+- LiveKit, Egress, recording, RTMP, SRT, HLS, Cloudflare Stream, webhooks, public broadcasting, or provider destinations
+- chat, alerts, clips, polls, games, automation, or analytics integration
 - an OBS program-output route or server-side broadcast output
 - deployment, DNS, Pages project, or account-specific Cloudflare configuration
 
@@ -116,7 +118,7 @@ See [System architecture](docs/system-architecture.md) for the complete boundary
 
 ## Media direction
 
-The current Stage, Backstage tray, participant menus, ordering, and layout remain Runtime-authoritative. Cloudflare RealtimeKit Core 2.0.0 now supplies an explicit, participant-token-gated media connection and local microphone/camera/screen controls beneath the custom UI. The planned production migration remains self-hosted LiveKit plus Egress.
+The current Stage, Backstage tray, participant menus, ordering, and layout remain Runtime-authoritative. Cloudflare RealtimeKit Core 2.0.0 supplies explicit preflight, local/remote camera and audio, screen sharing, active speaker, Stage synchronization, reconnect/refresh, and host disable operations beneath the custom UI. The planned production migration remains self-hosted LiveKit plus Egress.
 
 The Python runtime/Auth API will orchestrate rooms, permissions, invitations, access, and token minting, but audio and video must bypass the Python runtime. During early ALPHA, final output is expected to use an OBS-capturable program view before server-side egress exists.
 
@@ -128,7 +130,7 @@ The roadmap is phased and describes planned work, not current capability:
 2. existing StreamSuites Auth/session bridge and closed-ALPHA access authority — **current milestone complete**
 3. runtime-owned Studio rooms, short-code invites, temporary sessions, lobby admission, real-time events, and cohosts — **current milestone complete**
 4. polished pre-media stage, Backstage, guest identity, and production-control interactions — **current milestone complete**
-5. Cloudflare RealtimeKit Core connection and local camera, microphone, and screen share — **implemented foundation**
+5. Cloudflare RealtimeKit Core private-room media lifecycle — **current milestone complete**
 6. OBS-capturable program output
 7. provider destinations and recording foundations
 8. later self-hosted LiveKit and Egress migration
@@ -206,6 +208,10 @@ StreamSuites-Studio/
 │   ├── lib/
 │   │   ├── inviteCode.test.ts
 │   │   └── inviteCode.ts
+│   ├── media/
+│   │   ├── StudioMedia.test.tsx
+│   │   ├── StudioMediaElements.tsx
+│   │   └── useStudioMedia.ts
 │   ├── pages/
 │   │   ├── JoinPage.tsx
 │   │   ├── GuestRoomWorkspace.tsx

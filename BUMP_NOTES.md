@@ -2,6 +2,11 @@
 
 ## CURRENT VER= 0.5.0-alpha / PENDING VER= 0.5.1-alpha
 
+- Functional RealtimeKit media: replaced connected-but-placeholder tiles with SDK-registered local/remote video, SDK remote-audio playback and autoplay recovery, active-speaker/reconnect/provider-missing state, and stable guest-keyed tiles. Presentation now renders the actual screen-share track while keeping the camera filmstrip.
+- Device and lifecycle completion: Connect media now opens explicit device preflight with local preview, camera/microphone/supported-speaker selectors, microphone activity, device choices, join without devices, truthful errors, one guarded join/leave/listener lifecycle, and Runtime token refresh. Tokens remain memory-only.
+- Guest and authority completion: `GuestRoomWorkspace` now shares the same media lifecycle, receives Stage media while Backstage, publishes only while provider/Runtime Stage state permits, and synchronizes self Stage/Backstage. Director/cohost operations remain Runtime-first, host controls only force-disable, and provider failures become reconciliation-required.
+- Human note: real private room camera, microphone, remote audio/video, and screen sharing now work beneath the existing shell, but Studio remains OFF AIR and no recording, broadcast, webhook, LiveKit, or Egress path was added.
+
 - Stage capacity correction: Studio now displays nine total Stage slots, one reserved director slot, and eight additional guest/cohost slots. Admission controls disable before a ninth additional optimistic move, recover as soon as someone moves Backstage, and render the safe Runtime `stage_capacity_reached` response without exposing backend details.
 - Layout alignment: Grid, Interview, Spotlight, Presentation, fullscreen, and cinematic rendering use the same nine-total/eight-additional ceiling, keep Stage order and Backstage/participant menus intact, and never render a tenth Stage tile. RealtimeKit Grid Size remains `9` and no preset or environment value changed.
 - Stage-capacity validation: `npm run check`, focused/full Vitest coverage, lint, build, and `git diff --check` were run for this correction; no live Runtime/Auth process or Cloudflare API was used.

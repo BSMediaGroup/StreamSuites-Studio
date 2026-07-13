@@ -96,33 +96,71 @@ export interface StudioMediaStatus {
   meetingProvisioned: boolean;
   participantMapped: boolean;
   reasonCode: string;
+  reconciliationRequired: boolean;
+  reconciliationReason: string | null;
+  participantBindings: StudioMediaParticipantBinding[];
+}
+
+export interface StudioMediaParticipantBinding {
+  runtimeParticipantId: string;
+  customParticipantId: string;
 }
 
 export interface StudioMediaSession {
   provider: "cloudflare_realtimekit";
   authToken: string;
-  participantId: string;
-  customParticipantId: string;
   runtimeParticipantId: string;
+  participantBindings: StudioMediaParticipantBinding[];
   runtime: Record<string, unknown>;
 }
 
 export async function loadStudioMediaStatus(roomId: string, signal?: AbortSignal): Promise<StudioMediaStatus> {
   const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/media/status`, { signal });
   const media = isRecord(payload.media) ? payload.media : {};
+  const participantBindings = Array.isArray(media.participant_bindings) ? media.participant_bindings.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const runtimeParticipantId = stringOrNull(item.runtime_participant_id), customParticipantId = stringOrNull(item.custom_participant_id);
+    return runtimeParticipantId && customParticipantId ? [{ runtimeParticipantId, customParticipantId }] : [];
+  }) : [];
   return { provider: "cloudflare_realtimekit", enabled: media.enabled === true, configured: media.configured === true,
     meetingProvisioned: media.meeting_provisioned === true, participantMapped: media.participant_mapped === true,
-    reasonCode: stringOrNull(media.reason_code) ?? "unavailable" };
+    reasonCode: stringOrNull(media.reason_code) ?? "unavailable",
+    reconciliationRequired: media.reconciliation_required === true,
+    reconciliationReason: stringOrNull(media.reconciliation_reason), participantBindings };
 }
 
 export async function createStudioMediaSession(roomId: string, signal?: AbortSignal): Promise<StudioMediaSession> {
   const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/media/session`, { method: "POST", signal });
   const media = isRecord(payload.media_session) ? payload.media_session : {};
-  const token = stringOrNull(media.auth_token), participantId = stringOrNull(media.participant_id);
-  const customId = stringOrNull(media.custom_participant_id), runtimeId = stringOrNull(media.runtime_participant_id);
-  if (!token || !participantId || !customId || !runtimeId) throw new StudioApiError(requestError("invalid_media_session", "Runtime/Auth returned incomplete media initialization data."));
-  return { provider: "cloudflare_realtimekit", authToken: token, participantId, customParticipantId: customId,
-    runtimeParticipantId: runtimeId, runtime: isRecord(media.runtime) ? media.runtime : {} };
+  const token = stringOrNull(media.auth_token), runtimeId = stringOrNull(media.runtime_participant_id);
+  const participantBindings = Array.isArray(media.participant_bindings) ? media.participant_bindings.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const runtimeParticipantId = stringOrNull(item.runtime_participant_id), customParticipantId = stringOrNull(item.custom_participant_id);
+    return runtimeParticipantId && customParticipantId ? [{ runtimeParticipantId, customParticipantId }] : [];
+  }) : [];
+  if (!token || !runtimeId) throw new StudioApiError(requestError("invalid_media_session", "Runtime/Auth returned incomplete media initialization data."));
+  return { provider: "cloudflare_realtimekit", authToken: token, runtimeParticipantId: runtimeId, participantBindings,
+    runtime: isRecord(media.runtime) ? media.runtime : {} };
+}
+
+export async function refreshStudioMediaSession(roomId: string, signal?: AbortSignal): Promise<string> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/media/refresh`, { method: "POST", signal });
+  const media = isRecord(payload.media_session) ? payload.media_session : {};
+  const token = stringOrNull(media.auth_token);
+  if (!token) throw new StudioApiError(requestError("invalid_media_session", "Runtime/Auth returned an invalid refreshed media token."));
+  return token;
+}
+
+export async function updateOwnStudioMediaIntent(roomId: string, intent: { microphoneMuted?: boolean; cameraHidden?: boolean; screenSharing?: boolean }, signal?: AbortSignal): Promise<void> {
+  await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/media/intent`, { method: "POST", body: JSON.stringify({
+    ...(intent.microphoneMuted === undefined ? {} : { microphone_muted: intent.microphoneMuted }),
+    ...(intent.cameraHidden === undefined ? {} : { camera_hidden: intent.cameraHidden }),
+    ...(intent.screenSharing === undefined ? {} : { screen_sharing: intent.screenSharing }),
+  }), signal });
+}
+
+export async function reportStudioMediaFailure(roomId: string, reasonCode: string, signal?: AbortSignal): Promise<void> {
+  await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/media/failure`, { method: "POST", body: JSON.stringify({ reason_code: reasonCode }), signal });
 }
 
 export async function leaveStudioMediaSession(roomId: string, signal?: AbortSignal): Promise<void> {

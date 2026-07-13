@@ -56,15 +56,19 @@ No camera, microphone, screen sharing, media track, broadcast output, or recordi
 - provide a room-scoped cinematic Stage mode, waiting-count-aware Backstage drawer using the existing authoritative state/actions, compact truthful production dock, `F` shortcut, focus/Escape recovery, and optional `fullscreenchange`-confirmed browser fullscreen
 - preserve invite drafts through the embedded Auth sheet/OAuth return, route joined guests into the canonical room workspace, provide permission-aware participant menus and dedicated cohost scope/revoke management, and align Room ID/account badge/sidebar/footer shell details with established surfaces
 
-No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime connection, recording, or broadcast output was delivered by this phase. Cloudflare Realtime remains the next media milestone.
+No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime connection, recording, or broadcast output was delivered by this phase; private-room media was completed separately in phase 5.
 
-## 5. Cloudflare RealtimeKit Core media — foundation implemented
+## 5. Cloudflare RealtimeKit Core media — complete for private room media
 
-- connect through Runtime/Auth-issued participant tokens and integrate local camera, microphone, and screen sharing through RealtimeKit Core
-- follow up with complete device preflight, remote tile/audio registration, active speaker, provider Stage/host controls, and reconciliation polish
-- request room/media authorization from Runtime/Auth
-- keep audio and video transport outside the Python runtime
-- verify real browser permission, reconnect, device-change, and participant behavior
+- connect through Runtime/Auth-issued and refreshed participant tokens held only in memory
+- provide explicit device preflight, local preview, SDK device selection, device-off join, and permission/device error states
+- register/deregister real local and remote video, play remote audio with autoplay recovery, and show actual media/reconnect/active-speaker state without changing Stage order
+- use the same lifecycle in the guest workspace so Backstage receives Stage media without publication and on-stage guests publish only after Runtime admission
+- apply Runtime-first Stage/Backstage, guest/cohost preset, host force-disable, provider removal, and reconciliation-required flows while preserving nine total Stage slots
+- render participant-initiated RealtimeKit screen sharing in manual Presentation layout while retaining camera tiles
+- keep audio and video outside Python and keep Studio OFF AIR
+
+Mocked SDK lifecycle, registration, intent-order, screen-share, Runtime provider transport, refresh, preset, cleanup, and capacity behavior is covered locally. Live configured Cloudflare/browser proof remains a deployment validation step.
 
 ## 6. OBS-capturable program output — planned
 

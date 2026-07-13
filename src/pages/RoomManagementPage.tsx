@@ -16,6 +16,7 @@ import { GuestRoomWorkspace } from "./GuestRoomWorkspace";
 import exitIcon from "../../assets/icons/ui/backspace.svg";
 import removePersonIcon from "../../assets/icons/ui/personremove.svg";
 import { useStudioMedia } from "../media/useStudioMedia";
+import { DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, ScreenShareVideo } from "../media/StudioMediaElements";
 
 type WorkspacePanel = "backstage" | "invites" | "room";
 const layoutLabels: Record<StageLayout, string> = {
@@ -101,7 +102,7 @@ function HostRoomManagementPage() {
   const panelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const goLiveTriggerRef = useRef<HTMLElement | null>(null);
   const { preferences, setCinematic, toggleCinematic } = usePresentationPreferences();
-  const media = useStudioMedia(roomId);
+  const media = useStudioMedia(roomId, { location: "on_stage", canScreenShare: true });
   const cinematic = preferences.cinematic === "on";
   const fullscreenSupported = typeof document !== "undefined" && typeof document.documentElement.requestFullscreen === "function";
   useGlobalActivity(status === "loading" || Boolean(busy) || Boolean(guestBusy), "Loading room authority");
@@ -164,6 +165,12 @@ function HostRoomManagementPage() {
 
   const waiting = useMemo(() => guests.filter((guest) => guest.state === "backstage"), [guests]);
   const admitted = useMemo(() => guests.filter((guest) => guest.state === "on_stage").sort((a, b) => (a.stagePosition ?? 999) - (b.stagePosition ?? 999)), [guests]);
+  const mediaState = media.state;
+  const refreshMediaMappings = media.refreshMappings;
+
+  useEffect(() => {
+    if (mediaState === "connected") void refreshMediaMappings();
+  }, [guests, mediaState, refreshMediaMappings]);
 
   useEffect(() => {
     const update = () => setFullscreenActive(Boolean(document.fullscreenElement));
@@ -373,11 +380,12 @@ function HostRoomManagementPage() {
     setMessage("");
     try {
       await transitionStudioGuest(room.id, guest.id, action);
+      if (action === "admit") await media.syncParticipantLocation(guest.id, "on_stage");
       const [nextRoom, nextGuests] = await Promise.all([loadStudioRoomContext(room.id), listStudioLobby(room.id)]);
       setRoom(nextRoom.room);
       setPermissions(nextRoom.permissions);
       setGuests(nextGuests);
-      setMessage(action === "admit" ? "Guest admitted by Runtime/Auth. Media remains unconnected." : `Guest ${action === "deny" ? "denied" : "removed from stage"} by Runtime/Auth.`);
+      setMessage(action === "admit" ? "Guest admitted by Runtime/Auth and synchronized with RealtimeKit." : `Guest ${action === "deny" ? "denied" : "removed from the room"} by Runtime/Auth.`);
       requestAnimationFrame(() => {
         if (previousFocus?.isConnected) previousFocus.focus();
         else backstageHeadingRef.current?.focus();
@@ -402,6 +410,7 @@ function HostRoomManagementPage() {
     setGuestBusy(guest.id); setMessage("");
     try {
       await moveStudioParticipant(room.id, guest.id, location);
+      await media.syncParticipantLocation(guest.id, location === "stage" ? "on_stage" : "backstage");
       await refreshAuthority(false);
       setMessage(`${guest.displayName} moved ${location === "stage" ? "onto Stage" : "Backstage"}. No guest session was invalidated.`);
     } catch (error) {
@@ -416,9 +425,11 @@ function HostRoomManagementPage() {
     if (!room || guestBusy) return;
     setGuestBusy(guest.id);
     try {
-      await updateStudioMediaIntent(field === "microphone" ? { roomId: room.id, guestId: guest.id, microphoneMuted: !guest.microphoneMuted } : { roomId: room.id, guestId: guest.id, cameraHidden: !guest.cameraHidden });
+      const disabling = field === "microphone" ? !guest.microphoneMuted : !guest.cameraHidden;
+      await updateStudioMediaIntent(field === "microphone" ? { roomId: room.id, guestId: guest.id, microphoneMuted: disabling } : { roomId: room.id, guestId: guest.id, cameraHidden: disabling });
+      if (disabling) await media.forceDisableParticipant(guest.id, field === "microphone" ? "audio" : "video");
       await refreshAuthority(false);
-      setMessage("Intended participant state updated. No physical media track was changed.");
+      setMessage(disabling ? `${field === "microphone" ? "Microphone" : "Camera"} disabled after Runtime authorization.` : `The participant may now enable their ${field}; their hardware was not force-enabled.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Participant intended state could not be updated."); }
     finally { setGuestBusy(""); }
   }
@@ -539,6 +550,7 @@ function HostRoomManagementPage() {
   const hostName = access.account?.displayName || "Host / Director";
   const visibleAdmitted = layout === "spotlight" ? admitted.filter((guest) => guest.id === selectedParticipant).slice(0, 1) : layout === "interview" ? admitted.slice(0, 1) : admitted.slice(0, room.maxAdditionalStageParticipants);
   const emptySlots = layout === "grid" ? Math.max(0, room.totalStageCapacity - (room.reservedDirectorStageSlots + visibleAdmitted.length)) : layout === "interview" && visibleAdmitted.length === 0 ? 1 : 0;
+  const presentationShare = media.activeShares.find((share) => share.runtimeParticipantId === `guest:${room.presentation.presentationGuestId}` || share.runtimeParticipantId === room.presentation.presentationGuestId) ?? media.activeShares[0];
 
   return (
     <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()}>
@@ -633,7 +645,7 @@ function HostRoomManagementPage() {
               <div>
                 <p className="eyebrow">STAGE OUTPUT</p>
                 <strong className="sr-only">Stage output</strong>
-                <span>Preview only · Media not connected</span>
+                <span>Preview only · {media.state === "connected" ? "Media connected" : media.reason}</span>
               </div>
               <div className="layout-picker" ref={layoutRef} role="group" aria-label="Stage layout">
                 {(Object.keys(layoutLabels) as StageLayout[]).map((option) => (
@@ -644,25 +656,20 @@ function HostRoomManagementPage() {
               </div>
             </div>
             <div className={`program-canvas program-canvas--${layout}`} data-testid="program-canvas" data-layout={layout}>
-              {layout === "presentation" && <div className="presentation-source-placeholder">Presentation source not connected</div>}
+              {layout === "presentation" && (presentationShare ? <div className="presentation-source"><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
               <div className="program-safe-area" aria-hidden="true">
                 <span>Safe area</span>
               </div>
               <button type="button" className={`participant-tile participant-tile--host ${selectedParticipant === "host" ? "is-selected" : ""}`} onClick={() => setSelectedParticipant("host")} aria-pressed={selectedParticipant === "host"}>
-                <span className="participant-avatar">{initial(hostName)}</span>
+                {media.videoEnabled && media.meeting ? <LocalMediaVideo media={media} /> : <span className="participant-avatar">{initial(hostName)}</span>}
                 <span className="participant-identity">
                   <strong>{hostName}</strong>
-                  <small>Host / Director · Awaiting media</small>
+                  <small>Host / Director · {media.state === "connected" ? `${media.audioEnabled ? "Microphone on" : "Microphone muted"} · ${media.videoEnabled ? "Camera on" : "Camera off"}` : media.reason}</small>
                 </span>
               </button>
               {visibleAdmitted.map((guest) => (
-                <article className={`participant-tile ${selectedParticipant === guest.id ? "is-selected" : ""}`} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => setSelectedParticipant(guest.id)}>
-                  {guest.avatarUrl ? <img className="participant-avatar" src={guest.avatarUrl} alt="" crossOrigin="use-credentials" /> : <span className={`participant-avatar guest-avatar--${guest.avatarColor}`}>{initial(guest.displayName)}</span>}
-                  <span className="participant-identity">
-                    <strong>{guest.displayName}</strong>
-                    {room.presentation.showParticipantSubtitles && guest.subtitle && <small>{guest.subtitle}</small>}
-                    <small>{guest.microphoneMuted ? "Intended muted" : "Intended unmuted"} · {guest.cameraHidden ? "Camera hidden" : "Camera visible"} · Awaiting media</small>
-                  </span>
+                <MediaParticipantTile className={`participant-tile ${selectedParticipant === guest.id ? "is-selected" : ""}`} guest={guest} media={media} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => setSelectedParticipant(guest.id)}>
+                  {/* Stable guest keys preserve registered media elements while Stage order changes. */}
                   {permissions?.manageParticipants && <details className="participant-menu" onClick={(event) => event.stopPropagation()}>
                     <summary aria-label={`Actions for ${guest.displayName}`}>…</summary>
                     <div role="menu">
@@ -676,7 +683,7 @@ function HostRoomManagementPage() {
                       <button className="is-destructive" role="menuitem" type="button" onClick={() => { if (window.confirm(`Remove ${guest.displayName} from the room?`)) void guestAction(guest, "remove"); }}>Remove from room</button>
                     </div>
                   </details>}
-                </article>
+                </MediaParticipantTile>
               ))}
               {Array.from({ length: emptySlots }, (_, index) => (
                 <div className="participant-tile participant-tile--empty" key={`empty-${index}`}>
@@ -701,8 +708,8 @@ function HostRoomManagementPage() {
                 </div>
               )}
               <div className="program-canvas__notice">
-                <strong>Media not connected</strong>
-                <span>No camera, microphone, screen share, track, or broadcast output is active.</span>
+                <strong>{media.state === "connected" ? "Media connected · OFF AIR" : "Media not connected"}</strong>
+                <span>{media.state === "connected" ? "RealtimeKit transports room media only; no broadcast output is active." : "No camera, microphone, screen share, track, or broadcast output is active."}</span>
               </div>
             </div>
             <section className="backstage-tray" aria-labelledby="backstage-tray-heading">
@@ -968,7 +975,8 @@ function HostRoomManagementPage() {
           <ControlButton label="Microphone" helper={media.state === "connected" ? (media.audioEnabled ? "Mute microphone" : "Enable microphone") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.audioEnabled} onClick={() => void media.toggleAudio()} />
           <ControlButton label="Camera" helper={media.state === "connected" ? (media.videoEnabled ? "Turn camera off" : "Enable camera") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.videoEnabled} onClick={() => void media.toggleVideo()} />
           <ControlButton label="Screen share" helper={media.state === "connected" ? (media.screenEnabled ? "Stop sharing" : "Share a screen") : media.reason} disabled={media.state !== "connected" || Boolean(media.pending)} active={media.screenEnabled} onClick={() => void media.toggleScreen()} />
-          <ControlButton label={media.state === "connected" ? "Disconnect media" : "Connect media"} helper={media.reason} disabled={["provisioning", "connecting"].includes(media.state)} active={media.state === "connected"} onClick={() => void (media.state === "connected" ? media.leave() : media.connect())} />
+          <ControlButton label={media.state === "connected" ? "Disconnect media" : "Connect media"} helper={media.reason} disabled={["provisioning", "connecting"].includes(media.state)} active={media.state === "connected"} onClick={() => void (media.state === "connected" ? media.leave() : media.openPreflight())} />
+          {media.audioBlocked && <ControlButton label="Enable audio" helper="Browser blocked remote audio playback" onClick={() => void media.enableAudio()} />}
           <ControlButton
             label="Layout"
             helper={`${layoutLabels[layout]} preview`}
@@ -987,6 +995,7 @@ function HostRoomManagementPage() {
           <ControlButton label="Go live" helper="Output integration not connected" onClick={openGoLiveInfo} />
         </div>
       </section>
+      <DevicePreflightDialog media={media} />
 
       {showGoLiveInfo && (
         <div

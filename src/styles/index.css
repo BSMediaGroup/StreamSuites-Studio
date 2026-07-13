@@ -1248,6 +1248,74 @@ p {
   .workspace-side-panel { transition: none !important; }
 }
 
+/* RealtimeKit media is mounted inside the existing room surfaces; OFF AIR remains unchanged. */
+.participant-video,
+.device-preflight__video,
+.presentation-video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #090c11;
+}
+
+.participant-video,
+.device-preflight__video { object-fit: cover; }
+.presentation-video { object-fit: contain; }
+
+.participant-tile > .participant-video,
+.stage-participant > .participant-video,
+.stage-participant > .participant-avatar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.participant-tile > .participant-identity,
+.stage-participant > div {
+  position: relative;
+  z-index: 1;
+}
+
+.presentation-source {
+  grid-column: 1 / -1;
+  min-height: min(58vh, 620px);
+  overflow: hidden;
+  border-radius: 0.7rem;
+  background: #090c11;
+}
+
+.participant-tile.is-active-speaker,
+.stage-participant.is-active-speaker {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent, #64d5ff) 75%, transparent);
+}
+
+.device-preflight { width: min(760px, calc(100vw - 2rem)); }
+.device-preflight__preview {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle, #343b46);
+  border-radius: 0.65rem;
+  background: #090c11;
+  color: #aeb6c2;
+}
+.device-preflight__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-top: 1rem; }
+.device-preflight__fields label { display: grid; gap: 0.35rem; font-size: 0.78rem; }
+.device-preflight__fields select { min-width: 0; }
+.device-preflight__choice { grid-template-columns: auto 1fr; align-items: center; }
+.microphone-meter { display: block; height: 0.35rem; overflow: hidden; border-radius: 999px; background: #242a33; }
+.microphone-meter > span { display: block; height: 100%; background: #59d98e; transition: width 80ms linear; }
+
+@media (max-width: 640px) {
+  .device-preflight__fields { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .microphone-meter > span { transition: none; }
+}
+
 .studio-page-heading {
   display: flex;
   align-items: flex-start;

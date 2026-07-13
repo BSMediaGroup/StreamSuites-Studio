@@ -2,24 +2,24 @@
 
 ## Status
 
-This document separates the implemented session/access/room authority foundation from planned media work. Lines marked planned must not be interpreted as working integration.
+This document separates implemented private-room RealtimeKit media from planned output/broadcast infrastructure. Lines marked planned must not be interpreted as working integration.
 
 ## Authority and media paths
 
 ```mermaid
 flowchart LR
     User["Creator or invited guest"]
-    Studio["Studio browser client<br/>current: Auth, configurable shell, cinematic pre-media Stage,<br/>live Backstage, invites and control dock"]
+    Studio["Studio browser client<br/>current: Auth, shell, private room media,<br/>live Stage/Backstage, invites and control dock"]
 
     subgraph Runtime["StreamSuites runtime/Auth authority"]
         Auth["Accounts, shared sessions, roles, tiers,<br/>Studio ALPHA grants and admin APIs"]
         Rooms["Implemented short-code rooms and invites,<br/>temporary guests, cohosts, events and lobby admission"]
-        MediaTokens["Planned media-token authority"]
+        MediaTokens["Implemented media mapping,<br/>participant-token and intent authority"]
         State["Canonical state, persistence,<br/>exports and version"]
     end
 
-    subgraph InitialMedia["Initial ALPHA media path - planned"]
-        Realtime["Cloudflare Realtime<br/>SFU/TURN"]
+    subgraph InitialMedia["Current ALPHA private-room media path"]
+        Realtime["Cloudflare RealtimeKit<br/>SFU/TURN"]
     end
 
     subgraph ProductionMedia["Later production media path - planned"]
@@ -37,7 +37,7 @@ flowchart LR
     Rooms --> State
     MediaTokens --> State
 
-    Studio -. "planned audio/video; bypasses runtime" .-> Realtime
+    Studio -->|"private audio/video; bypasses runtime"| Realtime
     Studio -. "planned program view" .-> OBS
     OBS -. "operator-configured output" .-> Destinations
 
@@ -69,13 +69,13 @@ flowchart LR
 - `src/config/env.ts` accepts a public Runtime/Auth override, with established production/local fallbacks, plus the optional runtime-version URL.
 - `src/api/studioAuth.ts` validates Auth/access plus room, invite-policy, guest-profile, cohost, presentation, SSE, and lobby contracts, always sends credentials, supports cancellation, and normalizes machine-readable errors.
 - `/login` uses existing Runtime/Auth OAuth and email/password paths with a validated same-origin return target. `/join/:inviteCode` reuses that implementation inside a focus-trapped sheet; safe display name, subtitle, and supported initials color may cross OAuth in a namespaced 15-minute `sessionStorage` draft, while credentials, challenge/bypass values, invite code, avatar bytes, cookies, and authority never do. Password completion refreshes Auth in place and OAuth returns to the exact invite route.
-- The room dashboard, pre-media room workspace, and guest join flow hold fetched server state only in React memory. No room, lobby, invite code, guest token/credential, avatar binary, or cohost authority is persisted or logged by Studio.
+- The room dashboard, media workspace, and guest join flow hold fetched server state only in React memory. No room, lobby, invite code, participant token, guest credential, avatar binary, or cohost authority is persisted or logged by Studio.
 - `/studio` presents Runtime room summaries with canonical Room ID chips. `/studio/rooms/:roomId` dispatches to director/cohost management or the current guest's safe Stage/Backstage workspace, canonicalizes old UUID URLs, and exposes only permission-summary-approved participant, ordering, presentation, invite, and cohost actions. Guest joins navigate into this route rather than remaining on a text waiting page.
 - `PresentationProvider` owns one validated local object for expanded/compact/hidden desktop navigation, standard/slim/auto-hide headers, and off/on cinematic presentation. Those modes change layout classes without remounting the room route or reconnecting SSE. Corrupt fields fall back independently; no room, guest, invite, permission, event, or media value is accepted into that storage object.
 - Cinematic presentation is active only for the protected room workspace. It retains room identity, lifecycle/broadcast truth, `OFF AIR`, connection state, arrival counts, layouts, and the production dock while promoting the same Backstage/invite/settings panel and handlers into a focus-managed overlay. It does not create a second lobby store.
 - Browser fullscreen is an optional, explicit room action using the standard Fullscreen API. Support and `fullscreenchange` determine the visible state; requests may enable cinematic presentation but do not overwrite saved sidebar/header modes, and rejected requests are reported without claiming success.
 - Grid, Interview, Spotlight, and Presentation layout plus valid spotlight/presentation participant selection are Runtime-owned and SSE synchronized. Drag and keyboard Stage order changes submit the exact stable-ID set and roll back on failure; open panels and explanatory dialogs remain local presentation state.
-- Participant microphone-muted and camera-hidden controls update Runtime-owned intended state only. The production dock and helper copy keep screen sharing and real tracks unavailable, while `OFF AIR`, inactive `00:00:00`, and the Go live explanation explicitly state that media/output integration is unavailable. No permission prompt or media API is used.
+- Explicit preflight uses RealtimeKit device APIs and requests permission only after user action. Local/remote video registration, SDK audio playback, active speaker, screen sharing, Stage synchronization, and guest lifecycle sit beneath the existing workspace. SDK media changes precede Runtime intent updates; `OFF AIR`, inactive `00:00:00`, and disabled Go live remain separate output truth.
 - No canonical auth/access state, Turnstile token, bypass code, bypass flag, room/invite/guest/cohost/permission state, or SSE/media state is saved to browser storage. The bypass response expiry and Turnstile completion live only in component memory; the authoritative bypass is Runtime's HttpOnly cookie. `streamsuites_studio_theme` and validated `streamsuites_studio_presentation` display modes are the only local preferences.
 - Turnstile script/config loading is shared, one render generation owns the visible widget, and normal auth/access/form rerenders cannot recreate it. The shell loading bar uses reference-counted transient UI activity and does not participate in the widget lifecycle.
 - The authenticated topbar menu renders only safe session fields already returned by Runtime/Auth, with committed role/admin/tier assets kept distinct, and delegates logout to `POST /auth/logout`; no Studio-owned account destination or session copy is introduced.
