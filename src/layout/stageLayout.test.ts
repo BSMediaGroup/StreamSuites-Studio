@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { resolveEffectiveStageLayout } from "./stageLayout";
+import { resolveEffectiveStageLayout, stageGridRows } from "./stageLayout";
 import studioStyles from "../styles/index.css?raw";
 
 describe("resolveEffectiveStageLayout", () => {
+  it("provides the exact centered 1-9 row contract", () => {
+    expect(Array.from({ length: 9 }, (_, index) => stageGridRows(index + 1))).toEqual([[1], [2], [2, 1], [2, 2], [3, 2], [3, 3], [3, 3, 1], [3, 3, 2], [3, 3, 3]]);
+  });
   it.each([
     [1, "spotlight"],
     [2, "interview"],
@@ -39,6 +42,20 @@ describe("Stage workspace CSS contract", () => {
     expect(studioStyles).toContain('.program-canvas[data-participant-count="2"] .program-stage-grid');
     expect(studioStyles).toMatch(/data-participant-count="2"[\s\S]*grid-template-columns:\s*repeat\(2/);
     expect(studioStyles).toMatch(/data-participant-count="2"[\s\S]*height:\s*100%/);
+  });
+
+  it("centers explicit rows and distinguishes Runtime Fill/Fit geometry", () => {
+    expect(studioStyles).toMatch(/\.program-stage-row\s*\{[^}]*justify-content:\s*center/);
+    expect(studioStyles).toMatch(/data-slot-sizing="fit"[\s\S]*aspect-ratio:\s*16\s*\/\s*9/);
+    expect(studioStyles).toMatch(/program-stage-row\s*>\s*\.participant-tile[\s\S]*height:\s*100%/);
+  });
+
+  it("contains overlay/outside presentation strips at every edge", () => {
+    expect(studioStyles).toContain(".program-canvas--presentation.presentation-overlay.edge-top");
+    expect(studioStyles).toContain(".program-canvas--presentation.presentation-overlay.edge-bottom");
+    expect(studioStyles).toContain(".program-canvas--presentation.presentation-overlay:is(.edge-left,.edge-right)");
+    expect(studioStyles).toContain(".program-canvas--presentation.presentation-outside:is(.edge-top,.edge-bottom)");
+    expect(studioStyles).toContain(".program-canvas--presentation.presentation-outside:is(.edge-left,.edge-right)");
   });
 
   it("pins sidebar chrome, stretches the room panel, portals tooltips, and doubles only exit", () => {

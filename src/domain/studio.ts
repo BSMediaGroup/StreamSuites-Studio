@@ -70,6 +70,16 @@ export interface RoomPresentation {
   readonly customLayouts: readonly CustomLayout[];
   readonly spotlightGuestId: string | null;
   readonly presentationGuestId: string | null;
+  readonly guestSlotSizing: "fill" | "fit";
+  readonly participantMode: "overlay" | "outside";
+  readonly participantEdge: "top" | "bottom" | "left" | "right";
+}
+
+export interface PresentationSource {
+  readonly id: string; readonly roomId: string; readonly sourceType: "screen_share";
+  readonly ownerParticipantId: string; readonly displayName: string;
+  readonly location: "backstage" | "on_stage" | "stopped";
+  readonly createdAt: string; readonly updatedAt: string; readonly startedAt: string; readonly stoppedAt: string | null;
 }
 
 export type ParticipantLabelMode = "name_and_subtitle" | "name_only" | "hidden";

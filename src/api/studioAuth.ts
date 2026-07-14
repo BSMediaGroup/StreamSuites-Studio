@@ -1,6 +1,6 @@
 import { publicStudioConfig } from "../config/env";
 import { DEFAULT_ROOM_BRANDING, STUDIO_ADDITIONAL_STAGE_CAPACITY, STUDIO_DIRECTOR_STAGE_SLOTS, STUDIO_TOTAL_STAGE_CAPACITY } from "../domain/studio";
-import type { BuiltInStageLayout, CustomLayout, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, RoomAsset, RoomAssetCategory, RoomBranding, RoomInvite, RoomLifecycle, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
+import type { BuiltInStageLayout, CustomLayout, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, PresentationSource, RoomAsset, RoomAssetCategory, RoomBranding, RoomInvite, RoomLifecycle, RoomPresentation, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
 
 const ACCOUNT_TYPES = new Set<StreamSuitesAccountType>(["admin", "creator", "developer", "public"]);
@@ -232,13 +232,16 @@ function normalizeBranding(value: unknown): RoomBranding {
   };
 }
 
-function normalizePresentation(value: unknown) {
+function normalizePresentation(value: unknown): RoomPresentation {
   const item = isRecord(value) ? value : {};
   const customLayouts = Array.isArray(item.custom_layouts) ? item.custom_layouts.map(normalizeCustomLayout) : [];
   return {
     participantLabelMode: participantLabelMode(item.participant_label_mode), layoutMode: stageLayout(item.layout_mode),
     selectedCustomLayoutId: stringOrNull(item.selected_custom_layout_id), effectiveLayoutMode: builtInStageLayout(item.effective_layout_mode), customLayouts,
     spotlightGuestId: stringOrNull(item.spotlight_guest_id), presentationGuestId: stringOrNull(item.presentation_guest_id),
+    guestSlotSizing: item.guest_slot_sizing === "fit" ? "fit" : "fill",
+    participantMode: item.presentation_participant_mode === "outside" ? "outside" : "overlay",
+    participantEdge: item.presentation_participant_edge === "top" || item.presentation_participant_edge === "left" || item.presentation_participant_edge === "right" ? item.presentation_participant_edge : "bottom",
   };
 }
 
@@ -638,7 +641,7 @@ export async function reorderStudioStage(roomId: string, guestIds: readonly stri
   return Array.isArray(payload.items) ? payload.items.map(normalizeGuest) : [];
 }
 
-export async function updateStudioPresentation(roomId: string, input: { participantLabelMode?: ParticipantLabelMode; layoutMode?: StageLayout; selectedCustomLayoutId?: string | null; spotlightGuestId?: string | null; presentationGuestId?: string | null }, signal?: AbortSignal): Promise<RoomSummary> {
+export async function updateStudioPresentation(roomId: string, input: { participantLabelMode?: ParticipantLabelMode; layoutMode?: StageLayout; selectedCustomLayoutId?: string | null; spotlightGuestId?: string | null; presentationGuestId?: string | null; guestSlotSizing?: "fill" | "fit"; participantMode?: "overlay" | "outside"; participantEdge?: "top" | "bottom" | "left" | "right" }, signal?: AbortSignal): Promise<RoomSummary> {
   const normalized = input;
   return normalizeRoom(
     (
@@ -650,12 +653,26 @@ export async function updateStudioPresentation(roomId: string, input: { particip
           ...(normalized.selectedCustomLayoutId === undefined ? {} : { selected_custom_layout_id: normalized.selectedCustomLayoutId }),
           ...(normalized.spotlightGuestId === undefined ? {} : { spotlight_guest_id: normalized.spotlightGuestId }),
           ...(normalized.presentationGuestId === undefined ? {} : { presentation_guest_id: normalized.presentationGuestId }),
+          ...(normalized.guestSlotSizing === undefined ? {} : { guest_slot_sizing: normalized.guestSlotSizing }),
+          ...(normalized.participantMode === undefined ? {} : { presentation_participant_mode: normalized.participantMode }),
+          ...(normalized.participantEdge === undefined ? {} : { presentation_participant_edge: normalized.participantEdge }),
         }),
         signal,
       })
     ).room,
   );
 }
+
+function normalizePresentationSource(value: unknown): PresentationSource {
+  if (!isRecord(value)) throw new StudioApiError(requestError("invalid_presentation_source", "Runtime/Auth returned invalid presentation source data."));
+  const id = stringOrNull(value.id), roomId = stringOrNull(value.room_id), ownerParticipantId = stringOrNull(value.owner_participant_id), displayName = stringOrNull(value.display_name), createdAt = stringOrNull(value.created_at), updatedAt = stringOrNull(value.updated_at), startedAt = stringOrNull(value.started_at);
+  if (!id || !roomId || !ownerParticipantId || !displayName || !createdAt || !updatedAt || !startedAt) throw new StudioApiError(requestError("invalid_presentation_source", "Runtime/Auth returned incomplete presentation source data."));
+  return { id, roomId, ownerParticipantId, displayName, sourceType: "screen_share", location: value.location === "on_stage" || value.location === "stopped" ? value.location : "backstage", createdAt, updatedAt, startedAt, stoppedAt: stringOrNull(value.stopped_at) };
+}
+export async function loadPresentationSources(roomId: string, signal?: AbortSignal): Promise<PresentationSource[]> { const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation-sources`, { signal }); return Array.isArray(payload.items) ? payload.items.map(normalizePresentationSource) : []; }
+export async function registerPresentationSource(roomId: string, signal?: AbortSignal): Promise<PresentationSource> { return normalizePresentationSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation-sources`, { method: "POST", signal })).source); }
+export async function movePresentationSource(roomId: string, sourceId: string, location: "backstage" | "on_stage", signal?: AbortSignal): Promise<PresentationSource> { return normalizePresentationSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation-sources/${encodeURIComponent(sourceId)}`, { method: "PATCH", body: body({ location }), signal })).source); }
+export async function stopPresentationSource(roomId: string, sourceId: string, signal?: AbortSignal): Promise<PresentationSource> { return normalizePresentationSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation-sources/${encodeURIComponent(sourceId)}`, { method: "DELETE", signal })).source); }
 
 function serializeBranding(branding: RoomBranding) {
   return {
@@ -809,7 +826,7 @@ export function connectStudioEvents(options: { roomId?: string; guest?: boolean;
   let source: EventSource | null = null;
   let reconnects = 0;
   let timer = 0;
-  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
+  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
   const open = () => {
     if (closed) return;
     options.onState(reconnects ? "reconnecting" : "unavailable");

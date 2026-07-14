@@ -61,6 +61,9 @@ No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime
 
 ## 5. Cloudflare RealtimeKit Core media — complete for private room media
 
+- completed Backstage-first presentation-source staging for the current single active screen share, including Runtime-owned Fill/Fit and overlay/outside edge settings, exact centered 1–9 camera rows, director/cohost Stage placement, presenter-only capture start/stop, and stable existing media elements
+- next: custom browser sources and granular freeform placement; recording, destinations/output, webhooks, LiveKit, and Egress remain later milestones
+
 - connect through Runtime/Auth-issued and refreshed participant tokens held only in memory
 - provide explicit device preflight, local preview, SDK device selection, device-off join, and permission/device error states
 - register/deregister real local and remote video, play remote audio with autoplay recovery, and show actual media/reconnect/active-speaker state without changing Stage order

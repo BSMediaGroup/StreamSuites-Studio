@@ -3380,3 +3380,42 @@ body,
   .linked-account-state { grid-template-columns: auto minmax(0, 1fr); }
   .linked-account-state .button { grid-column: 1 / -1; }
 }
+
+/* Final cascade for Runtime-owned Stage source and exact 1-9 row rendering. */
+.program-canvas--grid .program-stage-grid { display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; max-width: 1120px; max-height: 100%; gap: clamp(.3rem,.8vw,.65rem); }
+.program-stage-row { display: flex; flex: 1 1 0; min-width: 0; min-height: 0; align-items: center; justify-content: center; gap: clamp(.3rem,.8vw,.65rem); }
+.program-canvas--grid .program-stage-row > .participant-tile { width: calc((100% - (var(--stage-row-size) - 1) * clamp(.3rem,.8vw,.65rem)) / var(--stage-row-size)); height: 100%; min-width: 0; min-height: 0; aspect-ratio: auto; }
+.program-canvas--grid[data-slot-sizing="fit"] .program-stage-row > .participant-tile { flex: 0 1 auto; width: auto; max-width: calc((100% - (var(--stage-row-size) - 1) * clamp(.3rem,.8vw,.65rem)) / var(--stage-row-size)); aspect-ratio: 16 / 9; }
+.program-canvas--grid .participant-video { object-fit: cover; }
+.program-canvas:not(.program-canvas--grid) .program-stage-grid { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; }
+.program-canvas:not(.program-canvas--grid) .program-stage-row { display: contents; }
+.program-canvas--interview .participant-tile.is-primary { flex: 1 1 42%; max-width: 48%; }
+.program-canvas--spotlight .participant-tile.is-primary { flex: 1 1 76%; max-width: 86%; }
+.program-canvas:not(.program-canvas--grid) .participant-tile.is-filmstrip { flex: 0 1 clamp(7rem,18%,12rem); }
+.presentation-source-card { border-style: dashed; }
+.presentation-source-preview { position: relative; display: grid; width: 9rem; max-width: 100%; aspect-ratio: 16 / 9; place-items: center; overflow: hidden; border-radius: .55rem; background: #05070a; }
+.presentation-source-preview .presentation-video { width: 100%; height: 100%; object-fit: contain; }
+.presentation-source__backstage { position: absolute; z-index: 5; top: .65rem; right: .65rem; }
+.program-canvas--presentation.has-presentation { display: grid; position: relative; padding: 1rem; }
+.program-canvas--presentation.has-presentation .presentation-source { width: 100%; height: 100%; max-height: 100%; }
+.program-canvas--presentation.has-presentation .presentation-video { width: 100%; height: 100%; object-fit: contain; }
+.program-canvas--presentation.has-presentation .program-stage-grid { display: flex; z-index: 4; gap: .4rem; overflow: auto; }
+.program-canvas--presentation.has-presentation .program-stage-row { display: contents; }
+.program-canvas--presentation.has-presentation .participant-tile { flex: 0 0 clamp(7rem,12vw,11rem); width: clamp(7rem,12vw,11rem); height: auto; aspect-ratio: 16 / 9; }
+.program-canvas--presentation.presentation-overlay .program-stage-grid { position: absolute; padding: .45rem; border-radius: .7rem; background: rgb(5 8 12 / .66); backdrop-filter: blur(5px); }
+.program-canvas--presentation.presentation-overlay:is(.edge-top,.edge-bottom) .program-stage-grid { left: 5%; width: 90%; height: auto; flex-direction: row; }
+.program-canvas--presentation.presentation-overlay.edge-top .program-stage-grid { top: .5rem; }
+.program-canvas--presentation.presentation-overlay.edge-bottom .program-stage-grid { bottom: 3.4rem; }
+.program-canvas--presentation.presentation-overlay:is(.edge-left,.edge-right) .program-stage-grid { top: 5%; width: auto; max-width: 13rem; height: 82%; flex-direction: column; }
+.program-canvas--presentation.presentation-overlay.edge-left .program-stage-grid { left: .5rem; }
+.program-canvas--presentation.presentation-overlay.edge-right .program-stage-grid { right: .5rem; }
+.program-canvas--presentation.presentation-outside:is(.edge-top,.edge-bottom) { grid-template-rows: minmax(5rem,24%) minmax(0,1fr); }
+.program-canvas--presentation.presentation-outside.edge-bottom { grid-template-rows: minmax(0,1fr) minmax(5rem,24%); }
+.program-canvas--presentation.presentation-outside:is(.edge-left,.edge-right) { grid-template-columns: minmax(8rem,24%) minmax(0,1fr); }
+.program-canvas--presentation.presentation-outside.edge-right { grid-template-columns: minmax(0,1fr) minmax(8rem,24%); }
+.program-canvas--presentation.presentation-outside:is(.edge-top,.edge-left) .program-stage-grid { order: 0; }
+.program-canvas--presentation.presentation-outside:is(.edge-top,.edge-left) .presentation-source { order: 1; }
+.program-canvas--presentation.presentation-outside:is(.edge-bottom,.edge-right) .presentation-source { order: 0; }
+.program-canvas--presentation.presentation-outside:is(.edge-bottom,.edge-right) .program-stage-grid { order: 1; }
+.program-canvas--presentation.presentation-outside:is(.edge-top,.edge-bottom) .program-stage-grid { width: 100%; flex-direction: row; }
+.program-canvas--presentation.presentation-outside:is(.edge-left,.edge-right) .program-stage-grid { height: 100%; flex-direction: column; }

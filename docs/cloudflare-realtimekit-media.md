@@ -2,6 +2,8 @@
 
 Studio uses installed `@cloudflare/realtimekit` and `@cloudflare/realtimekit-react` 2.0.0 beneath the existing room UI. Runtime/Auth remains canonical for room membership, guest/cohost permission, Stage/Backstage, Stage order/capacity, presentation mode, mappings, participant-token issue/refresh, intent, and reconciliation. RealtimeKit transports private room tracks only.
 
+Screen-share publication now registers a safe, stable Runtime presentation source that begins Backstage. The current registered RealtimeKit video track is reused for preview and Stage `object-fit: contain`; moving between Backstage and Stage changes only Runtime source location and does not reconnect the meeting or stop capture. Presenter stop/leave and room end clear stale source authority. One active provider share is supported, source records never contain track/token/provider credentials, participant capacity remains nine, and Studio remains OFF AIR. Overlay/outside edge placement affects camera presentation only; media still bypasses Python.
+
 ## Device preflight and lifecycle
 
 `Connect media` is the only path that provisions a participant and touches devices. It opens preflight, initializes one room-scoped SDK client with audio/video defaults off and `modules.experimentalAudioPlayback` enabled, obtains devices through `self.getAllDevices()`, selects with `self.setDevice()`, and uses `self.enableVideo()`/`enableAudio()` for the real preview and meter. Supported browsers expose speaker selection only when the initialized audio manager exists.

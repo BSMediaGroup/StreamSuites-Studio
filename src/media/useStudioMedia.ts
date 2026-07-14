@@ -72,6 +72,7 @@ export function useStudioMedia(roomId: string, options: StudioMediaOptions = {})
   const [microphoneChoice, setMicrophoneChoice] = useState(true);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [activeRuntimeParticipantId, setActiveRuntimeParticipantId] = useState<string | null>(null);
+  const [selfRuntimeParticipantId, setSelfRuntimeParticipantId] = useState<string | null>(null);
   const [mediaRevision, setRevision] = useState(0);
   const [bindings, setBindings] = useState<StudioMediaParticipantBinding[]>([]);
   const initialized = useRef(false);
@@ -182,6 +183,7 @@ export function useStudioMedia(roomId: string, options: StudioMediaOptions = {})
       const session = await createStudioMediaSession(roomId);
       if (!isCurrentLifecycle(generation)) return;
       setBindings(session.participantBindings);
+      setSelfRuntimeParticipantId(session.runtimeParticipantId);
       const client = await initializeMeeting(session.authToken, (error: ClientError) => {
         const activeClient = meetingRef.current;
         if (error.code === "0004" && activeClient && isCurrentLifecycle(generation, activeClient)) void refreshExpiredConnection(activeClient);
@@ -407,12 +409,12 @@ export function useStudioMedia(roomId: string, options: StudioMediaOptions = {})
   const activeShares = useMemo(() => {
     void mediaRevision;
     const shares: Array<{ runtimeParticipantId: string; track: MediaStreamTrack; local: boolean }> = [];
-    if (activeMeeting?.self.screenShareEnabled && activeMeeting.self.screenShareTracks.video) shares.push({ runtimeParticipantId: "self", track: activeMeeting.self.screenShareTracks.video, local: true });
+    if (activeMeeting?.self.screenShareEnabled && activeMeeting.self.screenShareTracks.video && selfRuntimeParticipantId) shares.push({ runtimeParticipantId: selfRuntimeParticipantId, track: activeMeeting.self.screenShareTracks.video, local: true });
     remoteParticipants.forEach((participant, runtimeParticipantId) => {
       if (participant.screenShareEnabled && participant.screenShareTracks.video) shares.push({ runtimeParticipantId, track: participant.screenShareTracks.video, local: false });
     });
     return shares;
-  }, [activeMeeting, mediaRevision, remoteParticipants]);
+  }, [activeMeeting, mediaRevision, remoteParticipants, selfRuntimeParticipantId]);
 
   const toggleScreen = useCallback(async () => {
     const currentMeeting = meetingRef.current;
@@ -518,7 +520,7 @@ export function useStudioMedia(roomId: string, options: StudioMediaOptions = {})
 
   return {
     meeting: activeMeeting, state, reason, pending, preflightOpen, devices, speakerSupported, selectedCameraId, selectedMicrophoneId, selectedSpeakerId,
-    cameraChoice, microphoneChoice, audioBlocked, remoteParticipants, activeRuntimeParticipantId, activeShares,
+    cameraChoice, microphoneChoice, audioBlocked, remoteParticipants, activeRuntimeParticipantId, selfRuntimeParticipantId, activeShares,
     openPreflight, closePreflight, joinPreflight, selectDevice, setPreflightChoice, leave, refreshMappings, refreshExpiredConnection,
     toggleAudio: () => commitToggle("audio"), toggleVideo: () => commitToggle("video"), toggleScreen, enableAudio,
     syncSelfLocation, syncParticipantLocation, forceDisableParticipant,
