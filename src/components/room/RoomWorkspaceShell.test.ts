@@ -5,14 +5,15 @@ import roomStyles from "../../styles/room-workspace.css?raw";
 
 describe("room workspace shell contract", () => {
   it("restores the canonical contextual panel to the right of the Stage without a duplicate rail", () => {
-    expect(roomStyles).toContain(".production-workspace.is-panel-expanded { grid-template-columns: minmax(0, 1fr) 360px; }");
+    expect(roomStyles).toContain(".production-workspace.is-panel-expanded { grid-template-columns: minmax(0, 1fr) 424px; }");
     expect(roomStyles).toContain(".production-workspace .program-panel");
     expect(roomStyles).toMatch(/\.workspace-side-panel[^}]*grid-column:\s*2/);
-    expect(roomSource).toContain('aria-label="Contextual room controls"');
-    expect(roomSource).not.toContain("workspace-panel-rail");
+    expect(roomSource).toContain('aria-label="Room production sidebar"');
+    expect(roomSource).toContain('className="workspace-panel-rail"');
+    expect(roomSource).toContain('className="workspace-panel-content"');
     expect(shellSource.match(/<aside/g)).toHaveLength(1);
     expect(roomSource.match(/<aside/g)).toHaveLength(1);
-    expect(shellSource).toContain('aria-label="Studio workspace"');
+    expect(shellSource).toContain('aria-label="Primary Studio sidebar"');
   });
 
   it("keeps hover expansion ephemeral while pinned and hidden widths remain explicit", () => {
@@ -23,18 +24,24 @@ describe("room workspace shell contract", () => {
     expect(roomSource).toContain('setSidebar("collapsed")');
   });
 
-  it("keeps right-panel tabs readable in one horizontally scrollable row", () => {
-    expect(roomSource).toContain('className="workspace-tabs__scroll"');
-    expect(roomSource).toContain('aria-label="Previous room panels"');
-    expect(roomSource).toContain('aria-label="Next room panels"');
-    expect(roomSource).toContain("scrollPanelTabs(-1)");
-    expect(roomSource).toContain("scrollPanelTabs(1)");
-    expect(roomSource).toContain("scrollIntoView?.");
-    expect(roomStyles).toMatch(/\.workspace-tabs__scroll[^}]*flex-wrap:\s*nowrap/);
-    expect(roomStyles).toMatch(/\.workspace-tabs__scroll[^}]*overflow-x:\s*auto/);
-    expect(roomStyles).toMatch(/\.workspace-tabs \.workspace-tabs__scroll > button[^}]*min-width:\s*88px/);
-    expect(roomStyles).toContain("grid-template-columns: 30px minmax(0, 1fr) 30px");
-    expect(roomStyles).toContain("overflow-x: clip");
+  it("uses dedicated vertical right panels with no compressed horizontal top-level tabs", () => {
+    expect(roomSource).not.toContain("workspace-tabs");
+    expect(roomSource).not.toContain("scrollPanelTabs");
+    expect(roomSource).toContain('aria-label={`Open ${panelLabels[item]} panel`}');
+    expect(roomSource).toContain('<h2>{panelLabels[panel]}</h2>');
+    expect(roomStyles).toMatch(/\.workspace-panel-rail[^}]*flex-direction:\s*column/);
+    expect(roomStyles).toContain(".room-workspace { display: block; max-width: 100%; min-height: 100%; overflow-x: clip; }");
+  });
+
+  it("keeps left and right overlay and pinned geometry independent", () => {
+    expect(roomStyles).toContain(".studio-shell--sidebar-collapsed { grid-template-columns: 64px minmax(0, 1fr); }");
+    expect(roomStyles).toContain(".studio-shell--sidebar-expanded { grid-template-columns: 424px minmax(0, 1fr); }");
+    expect(roomStyles).toMatch(/studio-shell--sidebar-peeking[^}]*position:\s*absolute/);
+    expect(roomStyles).toContain(".production-workspace.is-panel-collapsed { grid-template-columns: minmax(0, 1fr) 64px; }");
+    expect(roomStyles).toContain(".production-workspace.is-panel-expanded { grid-template-columns: minmax(0, 1fr) 424px; }");
+    expect(roomStyles).toMatch(/\.workspace-side-panel\.is-collapsed\.is-peeking[^}]*position:\s*absolute/);
+    expect(roomSource).toContain("Collapse room production sidebar");
+    expect(shellSource).toContain("Collapse Studio sidebar");
   });
 
   it("fits a 16:9 Stage by both container dimensions and lets Backstage follow the viewport", () => {

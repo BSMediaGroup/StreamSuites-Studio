@@ -11,6 +11,7 @@ export interface PresentationPreferences {
 }
 
 export const STUDIO_PRESENTATION_STORAGE_KEY = "streamsuites_studio_presentation";
+export const STUDIO_CONTEXT_SIDEBAR_STORAGE_KEY = "streamsuites_studio_room_production_sidebar";
 export const defaultPresentationPreferences: PresentationPreferences = {
   sidebar: "collapsed",
   header: "standard",
@@ -21,6 +22,16 @@ export const defaultPresentationPreferences: PresentationPreferences = {
 const sidebarModes: readonly SidebarMode[] = ["expanded", "collapsed", "hidden"];
 const headerModes: readonly HeaderMode[] = ["standard", "slim", "auto-hide"];
 const noticeDurations: readonly NoticeDuration[] = [3000, 5000, 8000, 12000, "manual"];
+
+export function parseContextSidebarMode(value: string | null): SidebarMode {
+  if (!value) return defaultPresentationPreferences.sidebar;
+  try {
+    const mode = (JSON.parse(value) as { mode?: unknown }).mode;
+    return sidebarModes.includes(mode as SidebarMode) ? mode as SidebarMode : defaultPresentationPreferences.sidebar;
+  } catch {
+    return defaultPresentationPreferences.sidebar;
+  }
+}
 
 export function parsePresentationPreferences(value: string | null): PresentationPreferences {
   if (!value) return defaultPresentationPreferences;
@@ -39,7 +50,9 @@ export function parsePresentationPreferences(value: string | null): Presentation
 
 export function loadPresentationPreferences(): PresentationPreferences {
   try {
-    return parsePresentationPreferences(window.localStorage.getItem(STUDIO_PRESENTATION_STORAGE_KEY));
+    const preferences = parsePresentationPreferences(window.localStorage.getItem(STUDIO_PRESENTATION_STORAGE_KEY));
+    const dedicatedSidebar = window.localStorage.getItem(STUDIO_CONTEXT_SIDEBAR_STORAGE_KEY);
+    return dedicatedSidebar === null ? preferences : { ...preferences, sidebar: parseContextSidebarMode(dedicatedSidebar) };
   } catch {
     return defaultPresentationPreferences;
   }
@@ -48,6 +61,7 @@ export function loadPresentationPreferences(): PresentationPreferences {
 export function persistPresentationPreferences(value: PresentationPreferences) {
   try {
     window.localStorage.setItem(STUDIO_PRESENTATION_STORAGE_KEY, JSON.stringify(value));
+    window.localStorage.setItem(STUDIO_CONTEXT_SIDEBAR_STORAGE_KEY, JSON.stringify({ mode: value.sidebar }));
   } catch {
     // Storage may be unavailable; presentation preferences remain usable in memory.
   }

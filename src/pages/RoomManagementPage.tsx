@@ -92,6 +92,7 @@ const panelIcons: Record<WorkspacePanel, readonly [string, string]> = {
   brand: [brandIcon, brandIcon],
   media: [mediaIcon, mediaFilledIcon],
 };
+const panelLabels: Record<WorkspacePanel, string> = { backstage: "Backstage", invites: "Invites", room: "Room", brand: "Branding", media: "Media" };
 
 function date(value: string | null) {
   return value
@@ -179,7 +180,6 @@ function HostRoomManagementPage() {
   const goLiveTriggerRef = useRef<HTMLElement | null>(null);
   const roomActionsRef = useRef<HTMLDivElement>(null);
   const roomActionsTriggerRef = useRef<HTMLButtonElement>(null);
-  const panelTabsScrollRef = useRef<HTMLDivElement>(null);
   const dockScrollRef = useRef<HTMLDivElement>(null);
   const noticeId = useRef(0);
   const panelCloseTimer = useRef(0);
@@ -212,9 +212,6 @@ function HostRoomManagementPage() {
   }
 
   useEffect(() => () => window.clearTimeout(panelCloseTimer.current), []);
-  useEffect(() => {
-    panelTabsScrollRef.current?.querySelector<HTMLElement>(`[data-panel-tab="${panel}"]`)?.scrollIntoView?.({ behavior: "smooth", block: "nearest", inline: "nearest" });
-  }, [panel]);
 
   const refreshAuthority = useCallback(
     async (showLoading = true) => {
@@ -689,10 +686,6 @@ function HostRoomManagementPage() {
     dockScrollRef.current?.scrollBy({ left: direction * Math.max(260, dockScrollRef.current.clientWidth * 0.7), behavior: "smooth" });
   }
 
-  function scrollPanelTabs(direction: -1 | 1) {
-    panelTabsScrollRef.current?.scrollBy({ left: direction * Math.max(140, panelTabsScrollRef.current.clientWidth * 0.7), behavior: "smooth" });
-  }
-
   async function moveStageOrder(guestId: string, direction: -1 | 1) {
     if (!room || guestBusy) return;
     const ids = admitted.map((guest) => guest.id);
@@ -771,7 +764,7 @@ function HostRoomManagementPage() {
 
   if (status === "loading") {
     return (
-      <StudioShell>
+      <StudioShell roomWorkspace>
         <Card className="workspace-loading" role="status">
           <p className="eyebrow">Runtime-owned room</p>
           <h1>Preparing the Studio workspace…</h1>
@@ -782,7 +775,7 @@ function HostRoomManagementPage() {
   }
   if (status === "error" || !room) {
     return (
-      <StudioShell>
+      <StudioShell roomWorkspace>
         <Card>
           <EmptyState title={errorKind === "not-found" ? "Room not found" : "Room unavailable"}>
             <p>{message}</p>
@@ -924,21 +917,21 @@ function HostRoomManagementPage() {
 
           {cinematic && cinematicPanelOpen && <button className="cinematic-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
           {!cinematic && mobilePanelOpen && <button className="workspace-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setMobilePanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
-          <aside ref={sidePanelRef} className={`workspace-side-panel is-${preferences.sidebar}${panelPeek ? " is-peeking" : ""}${mobilePanelOpen ? " is-mobile-open" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Contextual room controls" onPointerEnter={revealPanel} onPointerLeave={schedulePanelClose} onFocusCapture={revealPanel} onBlurCapture={(event) => { if (!sidePanelRef.current?.contains(event.relatedTarget as Node)) schedulePanelClose(); }} {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
+          <aside ref={sidePanelRef} className={`workspace-side-panel is-${preferences.sidebar}${panelPeek ? " is-peeking" : ""}${mobilePanelOpen ? " is-mobile-open" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Room production sidebar" onPointerEnter={revealPanel} onPointerLeave={schedulePanelClose} onFocusCapture={revealPanel} onBlurCapture={(event) => { if (!sidePanelRef.current?.contains(event.relatedTarget as Node)) schedulePanelClose(); }} {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
             {cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
-            <nav className="workspace-tabs" aria-label="Workspace panels">
-              <button className="workspace-tabs__nav workspace-tabs__nav--previous icon-control studio-tooltip" data-tooltip="Previous room panels" type="button" aria-label="Previous room panels" onClick={() => scrollPanelTabs(-1)}><StudioIcon regular={previousIcon} /></button>
-              <div ref={panelTabsScrollRef} className="workspace-tabs__scroll" role="tablist" aria-label="Scrollable room panels" tabIndex={0} onWheel={(event) => { if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) event.currentTarget.scrollLeft += event.deltaY; }}>
+            <nav className="workspace-panel-rail" aria-label="Room production panels">
+              <div className="workspace-panel-rail__items">
                 {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => (
-                  <button type="button" role="tab" key={item} data-panel-tab={item} className={`icon-control${panel === item ? " is-active" : ""}`} onClick={() => setPanel(item)} aria-selected={panel === item}>
+                  <button type="button" key={item} className={`icon-control studio-tooltip${panel === item ? " is-active" : ""}`} data-tooltip={panelLabels[item]} onClick={() => { setPanel(item); if (preferences.sidebar === "collapsed") setPanelPeek(true); }} aria-label={`Open ${panelLabels[item]} panel`} aria-pressed={panel === item}>
                     <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
-                    <span>{item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : item === "brand" ? "Brand" : item === "media" ? "Media" : "Room"}</span>
                     {(item === "backstage" || item === "invites") && <span className="workspace-panel-count">{item === "backstage" ? waiting.length : invites.filter((invite) => invite.active).length}</span>}
                   </button>
                 ))}
               </div>
-              <button className="workspace-tabs__nav workspace-tabs__nav--next icon-control studio-tooltip" data-tooltip="Next room panels" type="button" aria-label="Next room panels" onClick={() => scrollPanelTabs(1)}><StudioIcon regular={nextIcon} /></button>
+              {!cinematic && preferences.sidebar !== "hidden" && <button className="workspace-panel-toggle icon-control studio-tooltip" data-tooltip={preferences.sidebar === "expanded" ? "Collapse room production sidebar" : "Pin room production sidebar"} type="button" aria-label={preferences.sidebar === "expanded" ? "Collapse room production sidebar" : "Pin room production sidebar"} onClick={() => { setPanelPeek(false); toggleSidebar(); }}><StudioIcon regular={arrowIcon} filled={arrowIcon} active={preferences.sidebar === "expanded"} /><span className="sr-only">{preferences.sidebar === "expanded" ? "Collapse" : "Pin"}</span></button>}
             </nav>
+            <div className="workspace-panel-content" aria-label={`${panelLabels[panel]} panel`}>
+              <header className="workspace-panel-content__heading"><p className="eyebrow">ROOM PRODUCTION</p><h2>{panelLabels[panel]}</h2></header>
 
             {panel === "backstage" && (
               <div className="backstage-panel">
@@ -1183,7 +1176,7 @@ function HostRoomManagementPage() {
             )}
             {panel === "brand" && <RoomBrandingPanel roomId={room.id} canonical={room.branding} canEdit={Boolean(permissions?.updateBranding)} refreshKey={productionRefreshKey} onPreview={setBrandingPreview} onCanonical={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} />}
             {panel === "media" && <RoomMediaPanel roomId={room.id} branding={activeBranding} browserSources={browserSources} canEdit={Boolean(permissions?.manageAssets && permissions?.manageBrowserSources)} refreshKey={productionRefreshKey} onBranding={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} onChanged={() => refreshAuthority(false)} onNotice={setMessage} />}
-            {!cinematic && preferences.sidebar !== "hidden" && <button className="workspace-panel-toggle icon-control" type="button" aria-label={preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"} onClick={() => { setPanelPeek(false); toggleSidebar(); }}><StudioIcon regular={arrowIcon} filled={arrowIcon} active={preferences.sidebar === "expanded"} /><span>{preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"}</span></button>}
+            </div>
           </aside>
         </div>
 

@@ -21,12 +21,33 @@ import sidebarIcon from "../../../assets/icons/ui/sidebar.svg";
 import sidebarCloseIcon from "../../../assets/icons/ui/sidebarclose.svg";
 import sidebarOpenIcon from "../../../assets/icons/ui/sidebaropen.svg";
 
-const futureNavigation = [
-  { label: "Brand", icon: brandIcon },
-  { label: "Media", icon: mediaIcon },
-  { label: "Destinations", icon: destinationsIcon },
-  { label: "Settings", icon: settingsIcon },
+type PrimarySidebarSection = "studio" | "brand" | "media" | "destinations" | "settings";
+type PrimarySidebarMode = "expanded" | "collapsed" | "hidden";
+
+export const STUDIO_PRIMARY_SIDEBAR_STORAGE_KEY = "streamsuites_studio_primary_sidebar";
+
+const primaryNavigation: readonly { readonly id: PrimarySidebarSection; readonly label: string; readonly icon: string }[] = [
+  { id: "studio", label: "Studio", icon: studioIcon },
+  { id: "brand", label: "Brand", icon: brandIcon },
+  { id: "media", label: "Media", icon: mediaIcon },
+  { id: "destinations", label: "Destinations", icon: destinationsIcon },
+  { id: "settings", label: "Settings", icon: settingsIcon },
 ];
+
+export function parsePrimarySidebarMode(value: string | null): PrimarySidebarMode {
+  if (!value) return "collapsed";
+  try {
+    const mode = (JSON.parse(value) as { mode?: unknown }).mode;
+    return mode === "expanded" || mode === "collapsed" || mode === "hidden" ? mode : "collapsed";
+  } catch {
+    return "collapsed";
+  }
+}
+
+function loadPrimarySidebarMode(): PrimarySidebarMode {
+  try { return parsePrimarySidebarMode(window.localStorage.getItem(STUDIO_PRIMARY_SIDEBAR_STORAGE_KEY)); }
+  catch { return "collapsed"; }
+}
 
 interface StudioShellProps {
   readonly children: ReactNode;
@@ -38,11 +59,15 @@ interface StudioShellProps {
 
 export function StudioShell({ children, roomWorkspace = false, fullscreenSupported, fullscreenActive, onToggleFullscreen }: StudioShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [primarySidebar, setPrimarySidebar] = useState<"expanded" | "collapsed" | "hidden">("expanded");
+  const [primarySidebar, setPrimarySidebar] = useState<PrimarySidebarMode>(loadPrimarySidebarMode);
+  const [primarySection, setPrimarySection] = useState<PrimarySidebarSection>("studio");
+  const [primaryPeek, setPrimaryPeek] = useState(false);
   const [headerHeldOpen, setHeaderHeldOpen] = useState(false);
   const [headerRevealed, setHeaderRevealed] = useState(true);
   const headerRef = useRef<HTMLElement>(null);
+  const primarySidebarRef = useRef<HTMLElement>(null);
   const hideTimer = useRef(0);
+  const primaryCloseTimer = useRef(0);
   const { preferences, toggleCinematic } = usePresentationPreferences();
   const location = useLocation();
   const cinematic = roomWorkspace && preferences.cinematic === "on";
@@ -63,6 +88,11 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
     return () => window.clearTimeout(timer);
   }, [autoHide, headerHeldOpen]);
   useEffect(() => () => window.clearTimeout(hideTimer.current), []);
+  useEffect(() => {
+    try { window.localStorage.setItem(STUDIO_PRIMARY_SIDEBAR_STORAGE_KEY, JSON.stringify({ mode: primarySidebar })); }
+    catch { /* Storage may be unavailable; the sidebar remains usable in memory. */ }
+  }, [primarySidebar]);
+  useEffect(() => () => window.clearTimeout(primaryCloseTimer.current), []);
   useEffect(() => setMenuOpen(false), [location.pathname]);
   useEffect(() => {
     if (!menuOpen) return;
@@ -73,8 +103,24 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
     return () => { document.removeEventListener("keydown", key); document.removeEventListener("pointerdown", pointer); };
   }, [menuOpen]);
 
+  const revealPrimarySidebar = useCallback(() => {
+    window.clearTimeout(primaryCloseTimer.current);
+    if (primarySidebar === "collapsed") setPrimaryPeek(true);
+  }, [primarySidebar]);
+  const schedulePrimarySidebarClose = useCallback(() => {
+    window.clearTimeout(primaryCloseTimer.current);
+    primaryCloseTimer.current = window.setTimeout(() => {
+      if (!primarySidebarRef.current?.contains(document.activeElement)) setPrimaryPeek(false);
+    }, 180);
+  }, []);
+
+  function selectPrimarySection(section: PrimarySidebarSection) {
+    setPrimarySection(section);
+    if (primarySidebar === "collapsed") setPrimaryPeek(true);
+  }
+
   const effectiveSidebar = cinematic ? "hidden" : primarySidebar;
-  const shellClass = `studio-shell studio-shell--sidebar-${effectiveSidebar} studio-shell--header-${cinematic ? "cinematic" : preferences.header}${roomWorkspace ? ` studio-shell--room-workspace studio-shell--context-panel-${preferences.sidebar}` : ""}${autoHide && !headerRevealed ? " studio-shell--header-hidden" : ""}${cinematic ? " studio-shell--cinematic" : ""}${menuOpen ? " studio-shell--menu-open" : ""}`;
+  const shellClass = `studio-shell studio-shell--sidebar-${effectiveSidebar}${primaryPeek && effectiveSidebar === "collapsed" ? " studio-shell--sidebar-peeking" : ""} studio-shell--header-${cinematic ? "cinematic" : preferences.header}${roomWorkspace ? ` studio-shell--room-workspace studio-shell--context-panel-${preferences.sidebar}` : ""}${autoHide && !headerRevealed ? " studio-shell--header-hidden" : ""}${cinematic ? " studio-shell--cinematic" : ""}${menuOpen ? " studio-shell--menu-open" : ""}`;
 
   return (
     <div className={shellClass}>
@@ -101,30 +147,30 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
       <GlobalLoadingBar />
       <AuthAccessBanner />
 
-      <aside id="studio-sidebar" className="studio-sidebar" aria-label="Studio workspace">
-        <div className="studio-sidebar__header"><span>{roomWorkspace ? "Room workspace" : "Studio workspace"}</span></div>
-        <div className="studio-sidebar__scroll">
-          <nav>
-            <Link className="studio-nav-link studio-nav-link--active icon-control studio-tooltip" to="/studio" data-tooltip={roomWorkspace ? "Rooms" : "Studio"} aria-label={roomWorkspace ? "Back to Rooms" : "Studio"}>
-              <StudioIcon regular={studioIcon} active />
-              <span className="studio-nav-link__label">{roomWorkspace ? "Rooms" : "Studio"}</span>
-            </Link>
-            {!roomWorkspace && futureNavigation.map(({ label, icon }) => {
-              return <button key={label} className="studio-nav-link icon-control studio-tooltip" type="button" disabled data-tooltip={`${label} (Later)`} aria-label={`${label}, unavailable, later`}>
-                <StudioIcon regular={icon} />
-                <span className="studio-nav-link__label">{label}</span>
-                <span className="studio-nav-link__future">Later</span>
+      <aside ref={primarySidebarRef} id="studio-sidebar" className="studio-sidebar" aria-label="Primary Studio sidebar" onPointerEnter={revealPrimarySidebar} onPointerLeave={schedulePrimarySidebarClose} onFocusCapture={revealPrimarySidebar} onBlurCapture={(event) => { if (!primarySidebarRef.current?.contains(event.relatedTarget as Node)) schedulePrimarySidebarClose(); }}>
+        <nav className="studio-sidebar__rail" aria-label={roomWorkspace ? "In-room Studio navigation" : "Studio navigation"}>
+          <div className="studio-sidebar__rail-items">
+            {primaryNavigation.map((item) => {
+              const label = roomWorkspace && item.id === "studio" ? "Rooms" : item.label;
+              return <button key={item.id} className={`studio-nav-link icon-control studio-tooltip${primarySection === item.id ? " studio-nav-link--active" : ""}`} type="button" data-tooltip={label} aria-label={`Open ${label} panel`} aria-pressed={primarySection === item.id} onClick={() => selectPrimarySection(item.id)}>
+                <StudioIcon regular={item.icon} active={primarySection === item.id} />
+                <span className="sr-only">{label}</span>
               </button>;
             })}
-          </nav>
-        </div>
-        <div className="studio-sidebar__bottom">
-          <div className="studio-sidebar__note">
-            <strong>Closed ALPHA · OFF AIR</strong>
-            <p>Runtime/Auth owns room authority; RealtimeKit carries private room media only.</p>
           </div>
-          <button className="sidebar-mode-cycle icon-control studio-tooltip" data-tooltip={primarySidebar === "expanded" ? "Collapse Studio sidebar" : "Expand Studio sidebar"} type="button" onClick={() => setPrimarySidebar((current) => current === "expanded" ? "collapsed" : "expanded")} aria-label={primarySidebar === "expanded" ? "Collapse Studio sidebar" : "Expand Studio sidebar"}><StudioIcon regular={sidebarCloseIcon} filled={sidebarOpenIcon} active={primarySidebar === "collapsed"} /> <span>{primarySidebar === "expanded" ? "Collapse sidebar" : "Expand sidebar"}</span></button>
-        </div>
+          <button className="sidebar-mode-cycle icon-control studio-tooltip" data-tooltip={primarySidebar === "expanded" ? "Collapse Studio sidebar" : "Pin Studio sidebar"} type="button" onClick={() => { setPrimaryPeek(false); setPrimarySidebar((current) => current === "expanded" ? "collapsed" : "expanded"); }} aria-label={primarySidebar === "expanded" ? "Collapse Studio sidebar" : "Pin Studio sidebar"}><StudioIcon regular={sidebarCloseIcon} filled={sidebarOpenIcon} active={primarySidebar === "expanded"} /><span className="sr-only">{primarySidebar === "expanded" ? "Collapse" : "Pin"}</span></button>
+        </nav>
+        <section className="studio-sidebar__panel" aria-label={`${primaryNavigation.find((item) => item.id === primarySection)?.label} panel`}>
+          <div className="studio-sidebar__header"><span>{roomWorkspace ? "In-room Studio" : "Studio workspace"}</span><h2>{roomWorkspace && primarySection === "studio" ? "Rooms" : primaryNavigation.find((item) => item.id === primarySection)?.label}</h2></div>
+          <div className="studio-sidebar__scroll">
+            {primarySection === "studio" && <div className="studio-primary-panel"><p className="eyebrow">PRODUCT WORKSPACE</p><p>{roomWorkspace ? "Return to the room list without replacing the current production tools." : "Create and manage Runtime/Auth-owned Studio rooms."}</p>{roomWorkspace && <Link className="button button--secondary" to="/studio">Open Studio rooms</Link>}</div>}
+            {primarySection === "brand" && <div className="studio-primary-panel"><p className="eyebrow">BRAND</p><p>Product-level brand foundations remain separate from the current room.</p>{roomWorkspace && <p className="fine-print">Use the right Branding panel for this room's live Stage preview.</p>}</div>}
+            {primarySection === "media" && <div className="studio-primary-panel"><p className="eyebrow">MEDIA</p><p>Product media foundations remain separate from room-scoped assets and browser sources.</p>{roomWorkspace && <p className="fine-print">Use the right Media panel for this room.</p>}</div>}
+            {primarySection === "destinations" && <div className="studio-primary-panel"><p className="eyebrow">DESTINATIONS</p><h3>No destinations connected</h3><p>Destination credentials and canonical output state belong to Runtime/Auth. Studio remains OFF AIR and does not claim provider configuration or broadcasting success.</p></div>}
+            {primarySection === "settings" && <div className="studio-primary-panel"><p className="eyebrow">SETTINGS</p><p>Use View for local shell display preferences. Identity, permissions, rooms, and shared production state remain server-owned.</p></div>}
+          </div>
+          <div className="studio-sidebar__note"><strong>Closed ALPHA · OFF AIR</strong><p>Runtime/Auth owns room authority; RealtimeKit carries private room media only.</p></div>
+        </section>
       </aside>
 
       {effectiveSidebar === "hidden" && !cinematic && <button className="sidebar-restore icon-control studio-tooltip" data-tooltip="Restore Studio sidebar" type="button" onClick={() => setPrimarySidebar("collapsed")} aria-label="Restore Studio sidebar"><StudioIcon regular={sidebarOpenIcon} filled={sidebarOpenIcon} /></button>}

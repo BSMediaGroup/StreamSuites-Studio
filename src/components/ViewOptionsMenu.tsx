@@ -16,10 +16,9 @@ interface ViewOptionsMenuProps {
 }
 
 const headerOptions: readonly [HeaderMode, string][] = [["standard", "Standard"], ["slim", "Slim"], ["auto-hide", "Auto-hide"]];
-const sidebarOptions: readonly [SidebarMode, string][] = [["expanded", "Expanded"], ["collapsed", "Icons only"], ["hidden", "Hidden"]];
 const noticeDurationOptions: readonly [NoticeDuration, string][] = [[3000, "3 seconds"], [5000, "5 seconds"], [8000, "8 seconds"], [12000, "12 seconds"], ["manual", "Until dismissed"]];
 
-export function ViewOptionsMenu({ roomWorkspace = false, primarySidebar = "expanded", onSetPrimarySidebar, fullscreenSupported = false, fullscreenActive = false, onToggleFullscreen, onOpenChange }: ViewOptionsMenuProps) {
+export function ViewOptionsMenu({ roomWorkspace = false, primarySidebar = "collapsed", onSetPrimarySidebar, fullscreenSupported = false, fullscreenActive = false, onToggleFullscreen, onOpenChange }: ViewOptionsMenuProps) {
   const { preferences, setSidebar, setHeader, toggleCinematic, setNoticeDuration } = usePresentationPreferences();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -46,7 +45,8 @@ export function ViewOptionsMenu({ roomWorkspace = false, primarySidebar = "expan
         <StudioIcon regular={viewIcon} filled={viewFilledIcon} active={open} /><span className="view-options__label">View</span>
       </button>
       {open && <div id="view-options-menu" className="view-options__menu" role="menu" aria-label="Studio display options">
-        {roomWorkspace ? <fieldset><legend>Contextual panel</legend><button className="view-options__panel-visibility" type="button" role="menuitem" onClick={() => setSidebar(preferences.sidebar === "hidden" ? "collapsed" : "hidden")}>{preferences.sidebar === "hidden" ? "Show contextual panel" : "Hide contextual panel"}</button></fieldset> : <fieldset><legend>Sidebar</legend>{sidebarOptions.map(([value, label]) => <label key={value}><input type="radio" name="primary-sidebar-mode" checked={primarySidebar === value} onChange={() => onSetPrimarySidebar?.(value)} /> <span>{label}</span></label>)}</fieldset>}
+        <fieldset><legend>Primary sidebar</legend><button className="view-options__panel-visibility" type="button" role="menuitem" onClick={() => onSetPrimarySidebar?.(primarySidebar === "hidden" ? "collapsed" : "hidden")}>{primarySidebar === "hidden" ? "Show primary sidebar" : "Hide primary sidebar"}</button></fieldset>
+        {roomWorkspace && <fieldset><legend>Room production sidebar</legend><button className="view-options__panel-visibility" type="button" role="menuitem" onClick={() => setSidebar(preferences.sidebar === "hidden" ? "collapsed" : "hidden")}>{preferences.sidebar === "hidden" ? "Show room production sidebar" : "Hide room production sidebar"}</button></fieldset>}
         <fieldset><legend>Header</legend>{headerOptions.map(([value, label]) => <label key={value}><input type="radio" name="header-mode" checked={preferences.header === value} onChange={() => setHeader(value)} /> <span>{label}</span></label>)}</fieldset>
         {roomWorkspace && <fieldset><legend>Contextual notice duration</legend><select aria-label="Contextual notice duration" value={preferences.noticeDuration} onChange={(event) => setNoticeDuration(event.target.value === "manual" ? "manual" : Number(event.target.value) as NoticeDuration)}>{noticeDurationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></fieldset>}
         {roomWorkspace && <div className="view-options__actions">
