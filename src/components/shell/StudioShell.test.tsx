@@ -12,26 +12,25 @@ vi.mock("../AuthAccessBanner", () => ({ AuthAccessBanner: () => null }));
 beforeEach(() => window.localStorage.clear());
 afterEach(() => { cleanup(); vi.useRealTimers(); window.localStorage.clear(); });
 
-it("defaults to collapsed and the bottom toggle only alternates collapsed and expanded", () => {
+it("restores the expanded primary sidebar and its independent bottom toggle", () => {
   render(<ThemeProvider><PresentationProvider><MemoryRouter><StudioShell><p>Workspace</p></StudioShell></MemoryRouter></PresentationProvider></ThemeProvider>);
   const shell = screen.getByText("Workspace").closest(".studio-shell")!;
-  expect(shell).toHaveClass("studio-shell--sidebar-collapsed");
-  fireEvent.click(screen.getByRole("button", { name: "Expand panel" }));
   expect(shell).toHaveClass("studio-shell--sidebar-expanded");
-  fireEvent.click(screen.getByRole("button", { name: "Collapse panel" }));
+  fireEvent.click(screen.getByRole("button", { name: "Collapse Studio sidebar" }));
   expect(shell).toHaveClass("studio-shell--sidebar-collapsed");
+  fireEvent.click(screen.getByRole("button", { name: "Expand Studio sidebar" }));
+  expect(shell).toHaveClass("studio-shell--sidebar-expanded");
   expect(shell).not.toHaveClass("studio-shell--sidebar-hidden");
 });
 
-it("uses the View menu as the only full hide and restore path", () => {
+it("keeps lobby sidebar display controls separate from contextual preferences", () => {
   render(<ThemeProvider><PresentationProvider><MemoryRouter><StudioShell><p>Workspace</p></StudioShell></MemoryRouter></PresentationProvider></ThemeProvider>);
   const shell = screen.getByText("Workspace").closest(".studio-shell")!;
 
   fireEvent.click(screen.getByRole("button", { name: "View options" }));
-  fireEvent.click(screen.getByRole("menuitem", { name: "Hide contextual panel" }));
+  fireEvent.click(screen.getByLabelText("Hidden"));
   expect(shell).toHaveClass("studio-shell--sidebar-hidden");
-  expect(screen.queryByRole("button", { name: "Restore Studio sidebar" })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("menuitem", { name: "Show contextual panel" }));
+  fireEvent.click(screen.getByRole("button", { name: "Restore Studio sidebar" }));
   expect(shell).toHaveClass("studio-shell--sidebar-collapsed");
 
   fireEvent.click(screen.getByLabelText("Slim"));
@@ -40,10 +39,26 @@ it("uses the View menu as the only full hide and restore path", () => {
   expect(JSON.parse(window.localStorage.getItem(STUDIO_PRESENTATION_STORAGE_KEY)!)).toEqual({ sidebar: "collapsed", header: "auto-hide", cinematic: "off", noticeDuration: 5000 });
 });
 
-it("removes general product navigation from the room workspace shell", () => {
+it("uses route-specific primary navigation in rooms without contextual shortcuts", () => {
   render(<ThemeProvider><PresentationProvider><MemoryRouter><StudioShell roomWorkspace><p>Room Stage</p></StudioShell></MemoryRouter></PresentationProvider></ThemeProvider>);
-  expect(screen.queryByRole("complementary", { name: "Studio workspace" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Expand panel" })).not.toBeInTheDocument();
+  const shell = screen.getByText("Room Stage").closest(".studio-shell")!;
+  expect(screen.getByRole("complementary", { name: "Studio workspace" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Back to Rooms" })).toHaveAttribute("href", "/studio");
+  expect(screen.queryByRole("button", { name: /Brand/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Media/ })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "View options" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Hide contextual panel" }));
+  expect(shell).toHaveClass("studio-shell--context-panel-hidden");
+  expect(shell).toHaveClass("studio-shell--sidebar-expanded");
+  expect(screen.getByRole("complementary", { name: "Studio workspace" })).toBeInTheDocument();
+});
+
+it("keeps the original lobby product destinations out of active-room content", () => {
+  render(<ThemeProvider><PresentationProvider><MemoryRouter><StudioShell><p>Lobby</p></StudioShell></MemoryRouter></PresentationProvider></ThemeProvider>);
+  expect(screen.getByRole("link", { name: "Studio" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Brand, unavailable, later" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Back to Rooms" })).not.toBeInTheDocument();
 });
 
 it("delays auto-hide, stays visible while View is open, and reveals from the top activation strip", () => {

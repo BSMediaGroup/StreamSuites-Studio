@@ -179,6 +179,7 @@ function HostRoomManagementPage() {
   const goLiveTriggerRef = useRef<HTMLElement | null>(null);
   const roomActionsRef = useRef<HTMLDivElement>(null);
   const roomActionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const panelTabsScrollRef = useRef<HTMLDivElement>(null);
   const dockScrollRef = useRef<HTMLDivElement>(null);
   const noticeId = useRef(0);
   const panelCloseTimer = useRef(0);
@@ -211,6 +212,9 @@ function HostRoomManagementPage() {
   }
 
   useEffect(() => () => window.clearTimeout(panelCloseTimer.current), []);
+  useEffect(() => {
+    panelTabsScrollRef.current?.querySelector<HTMLElement>(`[data-panel-tab="${panel}"]`)?.scrollIntoView?.({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [panel]);
 
   const refreshAuthority = useCallback(
     async (showLoading = true) => {
@@ -685,6 +689,10 @@ function HostRoomManagementPage() {
     dockScrollRef.current?.scrollBy({ left: direction * Math.max(260, dockScrollRef.current.clientWidth * 0.7), behavior: "smooth" });
   }
 
+  function scrollPanelTabs(direction: -1 | 1) {
+    panelTabsScrollRef.current?.scrollBy({ left: direction * Math.max(140, panelTabsScrollRef.current.clientWidth * 0.7), behavior: "smooth" });
+  }
+
   async function moveStageOrder(guestId: string, direction: -1 | 1) {
     if (!room || guestBusy) return;
     const ids = admitted.map((guest) => guest.id);
@@ -919,13 +927,17 @@ function HostRoomManagementPage() {
           <aside ref={sidePanelRef} className={`workspace-side-panel is-${preferences.sidebar}${panelPeek ? " is-peeking" : ""}${mobilePanelOpen ? " is-mobile-open" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Contextual room controls" onPointerEnter={revealPanel} onPointerLeave={schedulePanelClose} onFocusCapture={revealPanel} onBlurCapture={(event) => { if (!sidePanelRef.current?.contains(event.relatedTarget as Node)) schedulePanelClose(); }} {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
             {cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
             <nav className="workspace-tabs" aria-label="Workspace panels">
-              {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => (
-                <button type="button" key={item} className={`icon-control${panel === item ? " is-active" : ""}`} onClick={() => setPanel(item)} aria-pressed={panel === item}>
-                  <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
-                  <span>{item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : item === "brand" ? "Brand" : item === "media" ? "Media" : "Room"}</span>
-                  {(item === "backstage" || item === "invites") && <span className="workspace-panel-count">{item === "backstage" ? waiting.length : invites.filter((invite) => invite.active).length}</span>}
-                </button>
-              ))}
+              <button className="workspace-tabs__nav workspace-tabs__nav--previous icon-control studio-tooltip" data-tooltip="Previous room panels" type="button" aria-label="Previous room panels" onClick={() => scrollPanelTabs(-1)}><StudioIcon regular={previousIcon} /></button>
+              <div ref={panelTabsScrollRef} className="workspace-tabs__scroll" role="tablist" aria-label="Scrollable room panels" tabIndex={0} onWheel={(event) => { if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) event.currentTarget.scrollLeft += event.deltaY; }}>
+                {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => (
+                  <button type="button" role="tab" key={item} data-panel-tab={item} className={`icon-control${panel === item ? " is-active" : ""}`} onClick={() => setPanel(item)} aria-selected={panel === item}>
+                    <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
+                    <span>{item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : item === "brand" ? "Brand" : item === "media" ? "Media" : "Room"}</span>
+                    {(item === "backstage" || item === "invites") && <span className="workspace-panel-count">{item === "backstage" ? waiting.length : invites.filter((invite) => invite.active).length}</span>}
+                  </button>
+                ))}
+              </div>
+              <button className="workspace-tabs__nav workspace-tabs__nav--next icon-control studio-tooltip" data-tooltip="Next room panels" type="button" aria-label="Next room panels" onClick={() => scrollPanelTabs(1)}><StudioIcon regular={nextIcon} /></button>
             </nav>
 
             {panel === "backstage" && (

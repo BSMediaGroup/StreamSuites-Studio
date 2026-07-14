@@ -11,42 +11,47 @@
 .view-options__menu .view-options__panel-visibility:hover,
 .view-options__menu .view-options__panel-visibility:focus-visible { background: var(--chip-bg); color: var(--text); }
 .view-options__menu select { width: 100%; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-soft); color: var(--text); padding: 0.45rem; }
-.studio-shell--room-workspace,
-.studio-shell--room-workspace.studio-shell--sidebar-expanded,
-.studio-shell--room-workspace.studio-shell--sidebar-collapsed,
-.studio-shell--room-workspace.studio-shell--sidebar-hidden { grid-template-columns: 0 minmax(0, 1fr); }
-.studio-shell--room-workspace .menu-toggle,
-.studio-shell--room-workspace > .studio-sidebar { display: none; }
 .studio-shell--room-workspace .studio-main { min-height: 0; overflow-y: auto; }
 
-.room-workspace { display: block; min-height: 100%; }
+.room-workspace { display: block; max-width: 100%; min-height: 100%; overflow-x: clip; }
 .room-viewport { display: grid; height: 100%; min-height: 540px; grid-template-rows: auto minmax(0, 1fr) auto; gap: 0.65rem; }
 .room-workspace > .backstage-tray { margin-top: 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .production-workspace,
 .production-workspace.is-panel-collapsed,
 .production-workspace.is-panel-expanded,
 .production-workspace.is-panel-hidden { position: relative; display: grid; min-height: 0; align-items: stretch; gap: 0.65rem; }
-.production-workspace.is-panel-expanded { grid-template-columns: 360px minmax(0, 1fr); }
-.production-workspace.is-panel-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
-.production-workspace.is-panel-hidden { grid-template-columns: 0 minmax(0, 1fr); gap: 0; }
+.production-workspace.is-panel-expanded { grid-template-columns: minmax(0, 1fr) 360px; }
+.production-workspace.is-panel-collapsed { grid-template-columns: minmax(0, 1fr) 64px; }
+.production-workspace.is-panel-hidden { grid-template-columns: minmax(0, 1fr) 0; gap: 0; }
 .production-workspace .program-panel,
-.production-workspace.is-panel-hidden .program-panel { grid-column: 2; grid-row: 1; min-height: 0; }
+.production-workspace.is-panel-hidden .program-panel { grid-column: 1; grid-row: 1; min-height: 0; }
 .program-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .program-stage-viewport { container-type: size; display: grid; min-width: 0; min-height: 0; place-items: center; overflow: hidden; background: #090c11; }
 .program-stage-viewport .program-canvas,
 .studio-shell--cinematic .program-stage-viewport .program-canvas { width: min(100cqw, calc(100cqh * 16 / 9)); height: min(100cqh, calc(100cqw * 9 / 16)); min-height: 0; max-width: 100%; max-height: 100%; flex: none; aspect-ratio: 16 / 9; }
 
-.workspace-side-panel { position: static; z-index: 12; grid-column: 1; grid-row: 1; display: flex; width: 360px; height: 100%; min-height: 0; max-height: none; align-self: stretch; flex-direction: column; overflow: hidden; transform: none; }
+.workspace-side-panel { position: static; z-index: 12; grid-column: 2; grid-row: 1; display: flex; width: 360px; height: 100%; min-height: 0; max-height: none; align-self: stretch; flex-direction: column; overflow: hidden; transform: none; }
 .workspace-side-panel.is-hidden { display: none; }
 .workspace-side-panel.is-collapsed { position: static; width: 64px; height: 100%; overflow: visible; }
-.workspace-side-panel.is-collapsed.is-peeking { position: absolute; z-index: 130; top: 0; bottom: 0; left: 0; width: 360px; height: auto; overflow: hidden; box-shadow: var(--shadow-lg); }
-.workspace-side-panel.is-collapsed .workspace-tabs { flex: 1 1 auto; align-items: center; flex-direction: column; border: 0; background: transparent; padding: 0.45rem; }
-.workspace-side-panel.is-collapsed .workspace-tabs button { position: relative; width: 46px; min-height: 46px; flex: 0 0 46px; padding: 0; }
-.workspace-side-panel.is-collapsed .workspace-tabs button > span:not(.studio-icon):not(.workspace-panel-count),
+.workspace-side-panel.is-collapsed.is-peeking { position: absolute; z-index: 130; top: 0; right: 0; bottom: 0; width: 360px; height: auto; overflow: hidden; box-shadow: var(--shadow-lg); }
+.workspace-tabs { display: grid; min-width: 0; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: stretch; gap: 0.2rem; }
+.workspace-tabs__scroll { display: flex; min-width: 0; flex-wrap: nowrap; gap: 0.2rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; scroll-behavior: smooth; touch-action: pan-x; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.workspace-tabs__scroll::-webkit-scrollbar { height: 3px; }
+.workspace-tabs__scroll::-webkit-scrollbar-track { background: transparent; }
+.workspace-tabs__scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--border-strong); }
+.workspace-tabs .workspace-tabs__scroll > button { position: relative; min-width: 88px; flex: 0 0 auto; white-space: nowrap; }
+.workspace-tabs .workspace-tabs__nav { display: grid; width: 30px; min-width: 30px; place-items: center; padding: 0; }
+.workspace-side-panel.is-collapsed .workspace-tabs { flex: 1 1 auto; grid-template-columns: minmax(0, 1fr); align-items: center; border: 0; background: transparent; padding: 0.45rem; }
+.workspace-side-panel.is-collapsed .workspace-tabs__nav { display: none; }
+.workspace-side-panel.is-collapsed .workspace-tabs__scroll { align-items: center; flex-direction: column; overflow: hidden; }
+.workspace-side-panel.is-collapsed .workspace-tabs__scroll > button { position: relative; width: 46px; min-width: 46px; min-height: 46px; flex: 0 0 46px; padding: 0; }
+.workspace-side-panel.is-collapsed .workspace-tabs__scroll > button > span:not(.studio-icon):not(.workspace-panel-count),
 .workspace-side-panel.is-collapsed > :not(.workspace-tabs):not(.workspace-panel-toggle) { display: none; }
-.workspace-side-panel.is-collapsed.is-peeking .workspace-tabs { flex: 0 0 auto; align-items: stretch; flex-direction: row; border: 1px solid rgba(255, 255, 255, 0.11); padding: 0.2rem; }
-.workspace-side-panel.is-collapsed.is-peeking .workspace-tabs button { width: auto; min-height: 32px; flex: 1 1 0; padding: 0.35rem 0.4rem; }
-.workspace-side-panel.is-collapsed.is-peeking .workspace-tabs button > span:not(.studio-icon):not(.workspace-panel-count),
+.workspace-side-panel.is-collapsed.is-peeking .workspace-tabs { flex: 0 0 auto; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: stretch; border: 1px solid rgba(255, 255, 255, 0.11); padding: 0.2rem; }
+.workspace-side-panel.is-collapsed.is-peeking .workspace-tabs__nav { display: grid; }
+.workspace-side-panel.is-collapsed.is-peeking .workspace-tabs__scroll { align-items: stretch; flex-direction: row; overflow-x: auto; }
+.workspace-side-panel.is-collapsed.is-peeking .workspace-tabs__scroll > button { width: auto; min-width: 88px; min-height: 32px; flex: 0 0 auto; padding: 0.35rem 0.4rem; }
+.workspace-side-panel.is-collapsed.is-peeking .workspace-tabs__scroll > button > span:not(.studio-icon):not(.workspace-panel-count),
 .workspace-side-panel.is-collapsed.is-peeking > :not(.workspace-tabs):not(.workspace-panel-toggle) { display: initial; }
 .workspace-side-panel.is-collapsed.is-peeking > .backstage-panel,
 .workspace-side-panel.is-collapsed.is-peeking > .invite-panel,
@@ -73,12 +78,12 @@
 @keyframes contextual-notice-in { from { opacity: 0; transform: translateY(-0.35rem); } }
 
 .studio-shell--cinematic .production-workspace { min-height: 0; }
-.studio-shell--cinematic .workspace-side-panel { position: fixed; z-index: 42; top: 0.65rem; right: auto; bottom: 0.65rem; left: 0.65rem; width: min(440px, calc(100vw - 1.3rem)); height: auto; transform: translateX(-105%); }
+.studio-shell--cinematic .workspace-side-panel { position: fixed; z-index: 42; top: 0.65rem; right: 0.65rem; bottom: 0.65rem; left: auto; width: min(440px, calc(100vw - 1.3rem)); height: auto; transform: translateX(105%); }
 .studio-shell--cinematic .workspace-side-panel.is-cinematic-open { visibility: visible; opacity: 1; transform: translateX(0); }
 
 @media (max-width: 1020px) and (min-width: 681px) {
-  .production-workspace.is-panel-expanded { grid-template-columns: 64px minmax(0, 1fr); }
-  .workspace-side-panel.is-expanded { position: fixed; z-index: 142; top: 0.5rem; right: auto; bottom: 0.5rem; left: 0.5rem; width: min(390px, calc(100vw - 1rem)); height: auto; max-height: none; box-shadow: var(--shadow-lg); }
+  .production-workspace.is-panel-expanded { grid-template-columns: minmax(0, 1fr) 64px; }
+  .workspace-side-panel.is-expanded { position: fixed; z-index: 142; top: 0.5rem; right: 0.5rem; bottom: 0.5rem; left: auto; width: min(390px, calc(100vw - 1rem)); height: auto; max-height: none; box-shadow: var(--shadow-lg); }
 }
 
 @media (max-width: 680px) {
@@ -92,13 +97,15 @@
   .workspace-side-panel,
   .workspace-side-panel.is-collapsed,
   .workspace-side-panel.is-collapsed.is-peeking,
-  .workspace-side-panel.is-expanded { position: fixed; z-index: 142; inset: 0 auto 0 0; display: flex; width: min(390px, 100vw); height: auto; max-height: none; visibility: hidden; opacity: 0; transform: translateX(-105%); box-shadow: var(--shadow-lg); }
+  .workspace-side-panel.is-expanded { position: fixed; z-index: 142; inset: 0 0 0 auto; display: flex; width: min(390px, 100vw); height: auto; max-height: none; visibility: hidden; opacity: 0; transform: translateX(105%); box-shadow: var(--shadow-lg); }
   .workspace-side-panel.is-hidden { display: none; }
   .workspace-side-panel.is-mobile-open,
   .workspace-side-panel.is-cinematic-open { visibility: visible; opacity: 1; transform: translateX(0); }
-  .workspace-side-panel.is-collapsed .workspace-tabs { flex: 0 0 auto; align-items: stretch; flex-direction: row; border: 1px solid rgba(255, 255, 255, 0.11); padding: 0.2rem; }
-  .workspace-side-panel.is-collapsed .workspace-tabs button { width: auto; min-height: 42px; flex: 1 1 0; }
-  .workspace-side-panel.is-collapsed .workspace-tabs button > span:not(.studio-icon):not(.workspace-panel-count),
+  .workspace-side-panel.is-collapsed .workspace-tabs { flex: 0 0 auto; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: stretch; border: 1px solid rgba(255, 255, 255, 0.11); padding: 0.2rem; }
+  .workspace-side-panel.is-collapsed .workspace-tabs__nav { display: grid; }
+  .workspace-side-panel.is-collapsed .workspace-tabs__scroll { align-items: stretch; flex-direction: row; overflow-x: auto; }
+  .workspace-side-panel.is-collapsed .workspace-tabs__scroll > button { width: auto; min-width: 88px; min-height: 42px; flex: 0 0 auto; }
+  .workspace-side-panel.is-collapsed .workspace-tabs__scroll > button > span:not(.studio-icon):not(.workspace-panel-count),
   .workspace-side-panel.is-collapsed > :not(.workspace-tabs):not(.workspace-panel-toggle) { display: initial; }
   .workspace-side-panel.is-collapsed > .backstage-panel,
   .workspace-side-panel.is-collapsed > .invite-panel,

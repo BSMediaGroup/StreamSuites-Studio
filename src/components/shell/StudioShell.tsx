@@ -38,11 +38,12 @@ interface StudioShellProps {
 
 export function StudioShell({ children, roomWorkspace = false, fullscreenSupported, fullscreenActive, onToggleFullscreen }: StudioShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [primarySidebar, setPrimarySidebar] = useState<"expanded" | "collapsed" | "hidden">("expanded");
   const [headerHeldOpen, setHeaderHeldOpen] = useState(false);
   const [headerRevealed, setHeaderRevealed] = useState(true);
   const headerRef = useRef<HTMLElement>(null);
   const hideTimer = useRef(0);
-  const { preferences, toggleSidebar, toggleCinematic } = usePresentationPreferences();
+  const { preferences, toggleCinematic } = usePresentationPreferences();
   const location = useLocation();
   const cinematic = roomWorkspace && preferences.cinematic === "on";
   const autoHide = preferences.header === "auto-hide" && !cinematic;
@@ -72,8 +73,8 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
     return () => { document.removeEventListener("keydown", key); document.removeEventListener("pointerdown", pointer); };
   }, [menuOpen]);
 
-  const effectiveSidebar = cinematic ? "hidden" : preferences.sidebar;
-  const shellClass = `studio-shell studio-shell--sidebar-${effectiveSidebar} studio-shell--header-${cinematic ? "cinematic" : preferences.header}${roomWorkspace ? " studio-shell--room-workspace" : ""}${autoHide && !headerRevealed ? " studio-shell--header-hidden" : ""}${cinematic ? " studio-shell--cinematic" : ""}${menuOpen ? " studio-shell--menu-open" : ""}`;
+  const effectiveSidebar = cinematic ? "hidden" : primarySidebar;
+  const shellClass = `studio-shell studio-shell--sidebar-${effectiveSidebar} studio-shell--header-${cinematic ? "cinematic" : preferences.header}${roomWorkspace ? ` studio-shell--room-workspace studio-shell--context-panel-${preferences.sidebar}` : ""}${autoHide && !headerRevealed ? " studio-shell--header-hidden" : ""}${cinematic ? " studio-shell--cinematic" : ""}${menuOpen ? " studio-shell--menu-open" : ""}`;
 
   return (
     <div className={shellClass}>
@@ -84,14 +85,14 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
           variant="quiet"
           aria-expanded={menuOpen}
           aria-controls="studio-sidebar"
-          aria-label={roomWorkspace ? "Toggle contextual room controls" : "Toggle Studio navigation"}
+          aria-label="Toggle Studio navigation"
           onClick={() => setMenuOpen((open) => !open)}
         >
           <StudioIcon regular={sidebarIcon} />
         </Button>
         <BrandMark />
         <div className="studio-topbar__status">
-          <ViewOptionsMenu roomWorkspace={roomWorkspace} fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={onToggleFullscreen} onOpenChange={setHeaderHeldOpen} />
+          <ViewOptionsMenu roomWorkspace={roomWorkspace} primarySidebar={primarySidebar} onSetPrimarySidebar={setPrimarySidebar} fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={onToggleFullscreen} onOpenChange={setHeaderHeldOpen} />
           <ThemeToggle />
           <StatusChip tone="alpha">ALPHA</StatusChip>
           <StudioAccountMenu onOpenChange={setHeaderHeldOpen} />
@@ -100,15 +101,15 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
       <GlobalLoadingBar />
       <AuthAccessBanner />
 
-      {!roomWorkspace && <aside id="studio-sidebar" className="studio-sidebar" aria-label="Studio workspace">
-        <div className="studio-sidebar__header"><span>Studio workspace</span></div>
+      <aside id="studio-sidebar" className="studio-sidebar" aria-label="Studio workspace">
+        <div className="studio-sidebar__header"><span>{roomWorkspace ? "Room workspace" : "Studio workspace"}</span></div>
         <div className="studio-sidebar__scroll">
           <nav>
-            <Link className="studio-nav-link studio-nav-link--active icon-control studio-tooltip" to="/studio" data-tooltip="Studio" aria-label="Studio">
+            <Link className="studio-nav-link studio-nav-link--active icon-control studio-tooltip" to="/studio" data-tooltip={roomWorkspace ? "Rooms" : "Studio"} aria-label={roomWorkspace ? "Back to Rooms" : "Studio"}>
               <StudioIcon regular={studioIcon} active />
-              <span className="studio-nav-link__label">Studio</span>
+              <span className="studio-nav-link__label">{roomWorkspace ? "Rooms" : "Studio"}</span>
             </Link>
-            {futureNavigation.map(({ label, icon }) => {
+            {!roomWorkspace && futureNavigation.map(({ label, icon }) => {
               return <button key={label} className="studio-nav-link icon-control studio-tooltip" type="button" disabled data-tooltip={`${label} (Later)`} aria-label={`${label}, unavailable, later`}>
                 <StudioIcon regular={icon} />
                 <span className="studio-nav-link__label">{label}</span>
@@ -122,10 +123,11 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
             <strong>Closed ALPHA · OFF AIR</strong>
             <p>Runtime/Auth owns room authority; RealtimeKit carries private room media only.</p>
           </div>
-          <button className="sidebar-mode-cycle icon-control studio-tooltip" data-tooltip={preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"} type="button" onClick={toggleSidebar} aria-label={preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"}><StudioIcon regular={sidebarCloseIcon} filled={sidebarOpenIcon} active={preferences.sidebar === "collapsed"} /> <span>{preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"}</span></button>
+          <button className="sidebar-mode-cycle icon-control studio-tooltip" data-tooltip={primarySidebar === "expanded" ? "Collapse Studio sidebar" : "Expand Studio sidebar"} type="button" onClick={() => setPrimarySidebar((current) => current === "expanded" ? "collapsed" : "expanded")} aria-label={primarySidebar === "expanded" ? "Collapse Studio sidebar" : "Expand Studio sidebar"}><StudioIcon regular={sidebarCloseIcon} filled={sidebarOpenIcon} active={primarySidebar === "collapsed"} /> <span>{primarySidebar === "expanded" ? "Collapse sidebar" : "Expand sidebar"}</span></button>
         </div>
-      </aside>}
+      </aside>
 
+      {effectiveSidebar === "hidden" && !cinematic && <button className="sidebar-restore icon-control studio-tooltip" data-tooltip="Restore Studio sidebar" type="button" onClick={() => setPrimarySidebar("collapsed")} aria-label="Restore Studio sidebar"><StudioIcon regular={sidebarOpenIcon} filled={sidebarOpenIcon} /></button>}
       {cinematic && <button className="cinematic-exit" type="button" onClick={toggleCinematic}>Exit cinematic <kbd>F</kbd></button>}
 
       <main id="main-content" className="studio-main">

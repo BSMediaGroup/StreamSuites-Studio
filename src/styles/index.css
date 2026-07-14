@@ -3014,19 +3014,10 @@ body,
 
 .workspace-side-panel { max-height: min(720px, calc(100vh - 190px)); }
 .workspace-side-panel.is-collapsed { display: block; overflow: visible; }
-.workspace-panel-rail { display: flex; height: 100%; min-height: 300px; align-items: center; flex-direction: column; gap: 0.45rem; padding: 0.45rem; }
-.workspace-panel-rail button { position: relative; display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid transparent; border-radius: 9px; background: transparent; cursor: pointer; }
-.workspace-panel-rail button:hover,
-.workspace-panel-rail button:focus-visible,
-.workspace-panel-rail button.is-active { border-color: var(--border-strong); background: var(--accent-soft); }
-.workspace-panel-expand { margin-bottom: 0.35rem; }
-.workspace-panel-expand .studio-icon { transform: rotate(180deg); }
 .workspace-panel-count { position: absolute; top: -0.2rem; right: -0.2rem; display: grid; min-width: 18px; height: 18px; place-items: center; border-radius: 999px; background: var(--accent); color: var(--accent-contrast); padding-inline: 0.25rem; font-size: 0.54rem; }
 .workspace-tabs { align-items: stretch; }
 .workspace-tabs button { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 0.3rem; padding-inline: 0.4rem; }
 .workspace-tabs .studio-icon { width: 1rem; height: 1rem; }
-.workspace-tabs .workspace-panel-collapse { width: 34px; flex: 0 0 34px; }
-.workspace-panel-collapse .studio-icon { transform: rotate(0deg); }
 .workspace-panel-scrim { display: none; }
 
 .program-canvas {
@@ -3129,7 +3120,6 @@ body,
   .production-workspace.is-panel-collapsed { position: relative; grid-template-columns: minmax(0, 1fr); }
   .workspace-side-panel:not(.is-collapsed) { position: fixed; z-index: 142; top: 0.5rem; right: 0.5rem; bottom: 0.5rem; width: min(390px, calc(100vw - 1rem)); max-height: none; }
   .workspace-side-panel.is-collapsed { position: fixed; z-index: 35; right: 0.5rem; bottom: 5.8rem; width: 54px; max-height: none; background: color-mix(in srgb, var(--bg-panel-raised) 94%, transparent); box-shadow: var(--shadow-lg); backdrop-filter: blur(12px); }
-  .workspace-panel-rail { min-height: 0; }
   .workspace-panel-scrim { position: fixed; z-index: 141; inset: 0; display: block; border: 0; background: rgb(0 0 0 / 0.55); }
   .backstage-panel { grid-template-columns: 1fr; }
 }
@@ -3352,11 +3342,7 @@ body,
 @media (max-width: 520px) {
   .room-asset-grid { grid-template-columns: minmax(0, 1fr); }
   .branding-color-grid { grid-template-columns: minmax(0, 1fr); }
-  .workspace-tabs button span { display: none; }
-  .workspace-tabs button { padding-inline: .25rem; }
   .workspace-side-panel.is-collapsed { position: static; z-index: auto; width: 100%; }
-  .workspace-side-panel.is-collapsed .workspace-panel-rail { width: 100%; height: auto; flex-direction: row; justify-content: center; overflow-x: auto; }
-  .workspace-side-panel.is-collapsed .workspace-panel-expand { margin-right: .35rem; margin-bottom: 0; }
 }
 .linked-account-state > img,
 .linked-account-state > span:first-child { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: 999px; object-fit: cover; background: var(--chip-bg); }
