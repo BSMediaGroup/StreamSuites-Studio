@@ -1,13 +1,14 @@
 import { createContext, useContext } from "react";
-import type { CinematicMode, HeaderMode, PresentationPreferences, SidebarMode } from "./presentationPreferences";
+import type { CinematicMode, HeaderMode, NoticeDuration, PresentationPreferences, SidebarMode } from "./presentationPreferences";
 
 export interface PresentationContextValue {
   readonly preferences: PresentationPreferences;
   readonly setSidebar: (mode: SidebarMode) => void;
-  readonly cycleSidebar: () => void;
+  readonly toggleSidebar: () => void;
   readonly setHeader: (mode: HeaderMode) => void;
   readonly setCinematic: (mode: CinematicMode) => void;
   readonly toggleCinematic: () => void;
+  readonly setNoticeDuration: (duration: NoticeDuration) => void;
 }
 
 export const PresentationContext = createContext<PresentationContextValue | null>(null);

@@ -13,7 +13,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - React + TypeScript + Vite application foundation
 - clean browser routes with a Cloudflare Pages SPA fallback
 - responsive public shell and access-protected Studio workspace shell
-- persisted presentation-only shell preferences with expanded, compact icons-only, or hidden desktop navigation and standard, slim, or inactivity auto-hiding headers; mobile retains the explicit navigation drawer and treats auto-hide as slim
+- persisted presentation-only shell preferences with a collapsed-by-default or pinned-expanded contextual room panel, View-only full hiding, configurable contextual-notice duration, and standard, slim, or inactivity auto-hiding headers; mobile uses the left room-control sheet and treats auto-hide as slim
 - credentialed `GET /auth/session` and `GET /api/studio/access` bridge with typed normalization
 - existing Google, GitHub, Discord, X, Twitch, and email/password Auth entry paths
 - Runtime/Auth-owned Cloudflare Turnstile protection for all five OAuth starts and password login, with ephemeral in-memory tokens only
@@ -25,7 +25,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - the existing `assets/logos/sscmattesilver.webp` header logo in both themes
 - reusable buttons, cards, status chips, empty states, and form fields
 - runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, safe count states, and an Enter-room-first card presentation
-- protected `/studio/rooms/:roomId` production workspace with canonical short-code URLs, a 16:9 Stage/Program canvas, real RealtimeKit media, responsive Backstage/on-stage/cohost panels, invites, room settings, lifecycle controls, and the existing production dock
+- protected `/studio/rooms/:roomId` production workspace with canonical short-code URLs, a viewport-fitted 16:9 Stage/Program canvas, real RealtimeKit media, one left contextual Backstage/on-stage/cohost/invite/room/Branding/Media panel, scrolling Backstage below, lifecycle controls, and the existing production dock
 - route-scoped cinematic room mode with a stage-first canvas, compact truthful production state, waiting/on-stage badges, the existing authoritative Backstage/tools panel as a focus-managed drawer, obvious exit controls, and optional event-confirmed browser fullscreen
 - Runtime-owned requested Auto, Grid, Interview, Spotlight, Presentation, and Custom layouts. Auto derives Presentation for an active share, Spotlight for an explicit spotlight or one participant, Interview for two, and Grid for three through nine while leaving requested mode `auto`; a room may save, name, select, reorder, and delete up to eight stable-ID custom snapshots of resolved built-in modes
 - Runtime-owned `name_and_subtitle`, `name_only`, and `hidden` broadcast-label visibility with management identity preserved, plus a working Room Settings custom-layout manager and an unclipped keyboard/focus-safe Custom selector using the exact existing slot 1–8 icon pairs
@@ -45,7 +45,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - dedicated cohost management for the director, session cohosts, pending/accepted/declined/revoked permanent relationships, authenticated acceptance/decline, revoke actions, and all-current/future versus selected-room scope changes
 - a compact room header with Room ID beside `ROOM DETAILS`, one confirmed Room Actions menu, far-right non-wrapping OFF AIR controls, an icon-over-label Rooms exit, and no duplicate lifecycle row or green-dot Live label
 - one theme-aware CSS-mask/currentColor icon renderer with regular/filled state switching; a Public-shell-parity account chip with the same single allowed role-or-tier badge suppression; and fixed/scrollable/bottom-pinned global sidebar regions
-- one collapsible right room panel stretched to the complete Stage/status/Backstage workspace, a never-wrapping horizontally scrollable production dock with exact previous/next assets, an always-16:9 Stage with equal full-height columns for two participants, and document-level participant-menu and tooltip portals
+- one left contextual room panel with a collapsed icon rail, non-shifting hover/focus overlay, persisted 360px pinned state, two-state bottom toggle, and View-only hide/restore; the desktop right panel and duplicate shortcut rail are removed. Contextual messages stack above the Stage without reflow, while persistent media status remains in the media area
 - confirmed typed boundaries for Runtime/Auth sessions, Studio access, rooms, invites, lobby entries, guest self-state, media direction, and runtime-version view models
 - focused tests for auth/access normalization, safe return paths, no authorized-shell flash, theme and presentation preference validation/persistence, shell modes, auto-hide behavior, cinematic/SSE continuity, fullscreen state/rejection, invite-code safety, and runtime-version parsing
 - architecture and phased ALPHA roadmap documentation
@@ -107,13 +107,13 @@ The challenge uses Cloudflare's supported dark appearance in Studio dark mode an
 
 Studio also consumes the established Runtime gate contract. `GET /auth/access-state` supplies the public-safe mode/message/banner/bypass flags. When development or maintenance mode is active and bypass is enabled, Studio submits `{ "code": "..." }` to `POST /auth/debug/unlock`, preserves the Runtime-issued `ss_auth_access_bypass` HttpOnly cookie through credentialed requests, refreshes the public-safe access state, and keeps only the returned expiry in component memory so the prompt returns when the short-lived unlock expires. `AUTH_ACCESS_MODE`, `AUTH_ACCESS_MESSAGE`, `AUTH_ACCESS_BYPASS_ENABLED`, `ADMIN_DEBUG_BYPASS_CODE`, `AUTH_ACCESS_BYPASS_TTL_MINUTES`, and `SHOW_LOCKOUT_BANNER` remain Runtime environment settings; the bypass code is never a Studio environment value and is never prefilled, logged, echoed, or persisted.
 
-The shell loader is a reference-counted in-memory UI signal derived from auth/access resolution and room, invite, login, bypass, and OAuth-start activity. It occupies a fixed four-pixel row directly under each header—including when auto-hide or cinematic chrome retracts—remains idle when no work is active, and uses a non-animated full-width treatment under reduced-motion preferences. The signed-in header menu uses only the Runtime session display name, avatar, account type, and tier; it provides a local initial fallback and Runtime-owned logout without inventing account routes. The adjacent View menu changes validated local sidebar/header/cinematic preferences. `F` toggles cinematic mode outside editable controls; Escape closes the active menu or cinematic drawer first.
+The shell loader is a reference-counted in-memory UI signal derived from auth/access resolution and room, invite, login, bypass, and OAuth-start activity. It occupies a fixed four-pixel row directly under each header—including when auto-hide or cinematic chrome retracts—remains idle when no work is active, and uses a non-animated full-width treatment under reduced-motion preferences. The signed-in header menu uses only the Runtime session display name, avatar, account type, and tier; it provides a local initial fallback and Runtime-owned logout without inventing account routes. The adjacent View menu changes validated local panel visibility, notice duration, header, and cinematic preferences. `F` toggles cinematic mode outside editable controls; Escape closes the active menu or cinematic drawer first.
 
 ## Authority boundaries
 
 StreamSuites remains the single authority for runtime state, Auth API behavior, accounts, sessions, roles, tiers, permissions, room orchestration, invitations, access control, token minting, alerts, audit state, persistence, exports, and canonical version/build metadata.
 
-Studio is a client/UI surface only. It validates confirmed current-session, access, room, invite, and lobby payloads through the existing typed adapter and never persists canonical account, session, grant, role, tier, room, invite, lobby, permission, SSE, or media state in `localStorage`. The only persisted browser values are presentation preferences: `streamsuites_studio_theme` and the validated `streamsuites_studio_presentation` object containing sidebar, header, and cinematic modes.
+Studio is a client/UI surface only. It validates confirmed current-session, access, room, invite, and lobby payloads through the existing typed adapter and never persists canonical account, session, grant, role, tier, room, invite, lobby, permission, SSE, or media state in `localStorage`. The only persisted browser values are presentation preferences: `streamsuites_studio_theme` and the validated `streamsuites_studio_presentation` object containing contextual-panel, header, cinematic, and notice-duration modes.
 
 Browser fullscreen is never a stored preference or inferred success state. A room-only user action targets the Studio workspace through the standard Fullscreen API, actual state follows `fullscreenchange`, rejection leaves cinematic mode usable, and browser/Escape exit does not silently rewrite the saved sidebar or header choices.
 
@@ -207,10 +207,13 @@ StreamSuites-Studio/
 │   │   │   ├── StudioShell.test.tsx
 │   │   │   └── StudioShell.tsx
 │   │   ├── room/
+│   │   │   ├── ContextualNoticeStack.test.tsx
+│   │   │   ├── ContextualNoticeStack.tsx
 │   │   │   ├── CustomLayoutControls.tsx
 │   │   │   ├── RoomBrandingPanel.tsx
 │   │   │   ├── RoomMediaPanel.tsx
-│   │   │   └── RoomProductionFoundations.test.tsx
+│   │   │   ├── RoomProductionFoundations.test.tsx
+│   │   │   └── RoomWorkspaceShell.test.ts
 │   │   ├── ui/
 │   │   │   ├── Button.tsx
 │   │   │   ├── Card.tsx
@@ -256,6 +259,7 @@ StreamSuites-Studio/
 │   │   └── presentationPreferences.ts
 │   ├── styles/
 │   │   ├── index.css
+│   │   ├── room-workspace.css
 │   │   └── tokens.css
 │   ├── test/
 │   │   └── setup.ts

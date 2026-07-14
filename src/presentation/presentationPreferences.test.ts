@@ -9,13 +9,14 @@ describe("Studio presentation preferences", () => {
   });
 
   it("persists and restores only validated presentation fields", () => {
-    persistPresentationPreferences({ sidebar: "compact", header: "auto-hide", cinematic: "on" });
-    expect(loadPresentationPreferences()).toEqual({ sidebar: "compact", header: "auto-hide", cinematic: "on" });
-    expect(JSON.parse(window.localStorage.getItem(STUDIO_PRESENTATION_STORAGE_KEY)!)).toEqual({ sidebar: "compact", header: "auto-hide", cinematic: "on" });
+    persistPresentationPreferences({ sidebar: "expanded", header: "auto-hide", cinematic: "on", noticeDuration: 12000 });
+    expect(loadPresentationPreferences()).toEqual({ sidebar: "expanded", header: "auto-hide", cinematic: "on", noticeDuration: 12000 });
+    expect(JSON.parse(window.localStorage.getItem(STUDIO_PRESENTATION_STORAGE_KEY)!)).toEqual({ sidebar: "expanded", header: "auto-hide", cinematic: "on", noticeDuration: 12000 });
   });
 
   it("falls back field-by-field for corrupted or unknown values", () => {
     expect(parsePresentationPreferences("not-json")).toEqual(defaultPresentationPreferences);
-    expect(parsePresentationPreferences(JSON.stringify({ sidebar: "wide", header: "slim", cinematic: "maybe", room: { id: "must-not-persist" } }))).toEqual({ sidebar: "expanded", header: "slim", cinematic: "off" });
+    expect(parsePresentationPreferences(JSON.stringify({ sidebar: "wide", header: "slim", cinematic: "maybe", noticeDuration: 7000, room: { id: "must-not-persist" } }))).toEqual({ sidebar: "collapsed", header: "slim", cinematic: "off", noticeDuration: 5000 });
+    expect(parsePresentationPreferences(JSON.stringify({ sidebar: "compact", header: "standard", cinematic: "off", noticeDuration: "manual" }))).toEqual({ sidebar: "collapsed", header: "standard", cinematic: "off", noticeDuration: "manual" });
   });
 });

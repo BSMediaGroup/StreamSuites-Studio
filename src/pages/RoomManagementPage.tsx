@@ -16,6 +16,7 @@ import type { InvitePolicy, RoomBranding, RoomCohosts, RoomConnectionState, Room
 import { CustomLayoutMenu, CustomLayoutsSection } from "../components/room/CustomLayoutControls";
 import { RoomBrandingPanel } from "../components/room/RoomBrandingPanel";
 import { RoomMediaPanel } from "../components/room/RoomMediaPanel";
+import { ContextualNoticeStack, inferContextualNoticeTone, type ContextualNotice, type ContextualNoticeTone } from "../components/room/ContextualNoticeStack";
 import { StageBrandingOverlay, stageBrandingStyle } from "../branding/StageBranding";
 import { usePresentationPreferences } from "../presentation/presentationContext";
 import { GuestRoomWorkspace } from "./GuestRoomWorkspace";
@@ -141,7 +142,8 @@ function HostRoomManagementPage() {
   const [announcement, setAnnouncement] = useState("");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorKind, setErrorKind] = useState<"not-found" | "unavailable">("unavailable");
-  const [message, setMessage] = useState("");
+  const [message, setMessageState] = useState("");
+  const [notices, setNotices] = useState<ContextualNotice[]>([]);
   const [busy, setBusy] = useState("");
   const [guestBusy, setGuestBusy] = useState("");
   const [draggedGuestId, setDraggedGuestId] = useState("");
@@ -153,7 +155,8 @@ function HostRoomManagementPage() {
   const [invitePermanent, setInvitePermanent] = useState(false);
   const [inviteExpiry, setInviteExpiry] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 16));
   const [panel, setPanel] = useState<WorkspacePanel>("backstage");
-  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [panelPeek, setPanelPeek] = useState(false);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [brandingPreview, setBrandingPreview] = useState<RoomBranding | null>(null);
   const [productionRefreshKey, setProductionRefreshKey] = useState(0);
   const [layout, setLayout] = useState<StageLayout>("grid");
@@ -172,11 +175,37 @@ function HostRoomManagementPage() {
   const roomActionsRef = useRef<HTMLDivElement>(null);
   const roomActionsTriggerRef = useRef<HTMLButtonElement>(null);
   const dockScrollRef = useRef<HTMLDivElement>(null);
-  const { preferences, setCinematic, toggleCinematic } = usePresentationPreferences();
+  const noticeId = useRef(0);
+  const panelCloseTimer = useRef(0);
+  const { preferences, setSidebar, toggleSidebar, setCinematic, toggleCinematic } = usePresentationPreferences();
   const media = useStudioMedia(roomId, { location: "on_stage", canScreenShare: true });
   const cinematic = preferences.cinematic === "on";
   const fullscreenSupported = typeof document !== "undefined" && typeof document.documentElement.requestFullscreen === "function";
   useGlobalActivity(status === "loading" || Boolean(busy) || Boolean(guestBusy), "Loading room authority");
+
+  function setMessage(next: string, tone?: ContextualNoticeTone) {
+    setMessageState(next);
+    if (!next) {
+      setNotices([]);
+      return;
+    }
+    setNotices((current) => [...current.slice(-2), { id: ++noticeId.current, message: next, tone: tone ?? inferContextualNoticeTone(next) }]);
+  }
+
+  function revealPanel() {
+    window.clearTimeout(panelCloseTimer.current);
+    if (preferences.sidebar === "collapsed") setPanelPeek(true);
+  }
+
+  function schedulePanelClose() {
+    window.clearTimeout(panelCloseTimer.current);
+    panelCloseTimer.current = window.setTimeout(() => {
+      if (sidePanelRef.current?.contains(document.activeElement) || document.querySelector(".custom-layout-popup, [role='dialog'][aria-modal='true']")) return;
+      setPanelPeek(false);
+    }, 180);
+  }
+
+  useEffect(() => () => window.clearTimeout(panelCloseTimer.current), []);
 
   const refreshAuthority = useCallback(
     async (showLoading = true) => {
@@ -340,9 +369,11 @@ function HostRoomManagementPage() {
 
   function openWorkspacePanel(next: WorkspacePanel, trigger?: HTMLButtonElement | null) {
     setPanel(next);
-    setPanelCollapsed(false);
     if (trigger) panelTriggerRef.current = trigger;
     if (cinematic) setCinematicPanelOpen(true);
+    else if (window.matchMedia("(max-width: 1020px)").matches) setMobilePanelOpen(true);
+    else if (preferences.sidebar === "collapsed") setPanelPeek(true);
+    if (preferences.sidebar === "hidden") setSidebar("collapsed");
   }
 
   function openGoLiveInfo() {
@@ -725,8 +756,9 @@ function HostRoomManagementPage() {
   ];
 
   return (
-    <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()} onOpenRoomTool={(tool) => openWorkspacePanel(tool)}>
+    <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()}>
       <section ref={roomWorkspaceRef} className="room-workspace" aria-label={`${room.title} Studio workspace`}>
+        <div className="room-viewport">
         {cinematic && <div className="cinematic-room-actions" aria-label="Cinematic workspace controls">
           <button type="button" onClick={toggleCinematic}>Exit cinematic <kbd>F</kbd></button>
           {fullscreenSupported && <button type="button" onClick={() => void toggleFullscreen()}>{fullscreenActive ? "Exit fullscreen" : "Fullscreen"}</button>}
@@ -769,16 +801,12 @@ function HostRoomManagementPage() {
           </div>
         </header>
 
-        {message && (
-          <p className="status-banner" role="status" aria-live="polite">
-            {message}
-          </p>
-        )}
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {announcement}
         </p>
 
-        <div className={`production-workspace${panelCollapsed ? " is-panel-collapsed" : ""}`}>
+        <div className={`production-workspace is-panel-${preferences.sidebar}${panelPeek ? " is-panel-peeking" : ""}${mobilePanelOpen ? " is-mobile-panel-open" : ""}`}>
+          <ContextualNoticeStack notices={notices} duration={preferences.noticeDuration} onDismiss={(id) => setNotices((current) => current.filter((notice) => notice.id !== id))} />
           <main className="program-panel">
             <div className="program-panel__toolbar">
               <div>
@@ -795,7 +823,8 @@ function HostRoomManagementPage() {
                 <CustomLayoutMenu layouts={room.presentation.customLayouts} selectedId={layout === "custom" ? room.presentation.selectedCustomLayoutId : null} disabled={!permissions?.updatePresentation} busy={busy === "custom-layout"} onCreate={() => void createCustomLayout()} onSelect={(id) => void selectCustomLayout(id)} onManage={manageCustomLayouts} />
               </div>
             </div>
-            <div className={`program-canvas program-canvas--${effectiveLayout}`} style={stageBrandingStyle(activeBranding)} data-testid="program-canvas" data-layout={layout} data-effective-layout={effectiveLayout} data-participant-count={stageParticipantCount}>
+            <div className="program-stage-viewport" data-testid="program-stage-viewport">
+              <div className={`program-canvas program-canvas--${effectiveLayout}`} style={stageBrandingStyle(activeBranding)} data-testid="program-canvas" data-layout={layout} data-effective-layout={effectiveLayout} data-participant-count={stageParticipantCount}>
               {effectiveLayout === "presentation" && (presentationShare ? <div className="presentation-source"><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
               {activeBranding.safeAreaVisible && <div className="program-safe-area" aria-hidden="true">
                 <span>Safe area</span>
@@ -817,43 +846,22 @@ function HostRoomManagementPage() {
                 <strong>{media.state === "connected" ? "Media connected · OFF AIR" : "Media not connected"}</strong>
                 <span>{media.state === "connected" ? "RealtimeKit transports room media only; no broadcast output is active." : "No camera, microphone, screen share, track, or broadcast output is active."}</span>
               </div>
+              </div>
             </div>
-            <section className="backstage-tray" aria-labelledby="backstage-tray-heading">
-              <div className="backstage-tray__heading"><h2 id="backstage-tray-heading">Backstage</h2><StatusChip tone={waiting.length ? "pending" : "neutral"}>{waiting.length}</StatusChip></div>
-              {waiting.length ? <div className="backstage-tray__scroll">{waiting.map((guest) => <article className="backstage-tile" key={guest.id}>
-                <BackstageMediaPreview guest={guest} media={media} />
-                <div><strong>{guest.displayName}</strong><small>{guest.subtitle || (guest.sessionCohost ? "Session cohost" : "Waiting Backstage")}</small></div>
-                <div className="participant-actions">
-                  <Button className="icon-control" disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}><StudioIcon regular={moveUpIcon} filled={moveUpFilledIcon} /> Move to Stage</Button>
-                  <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "microphone")}>{guest.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button>
-                  <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "camera")}>{guest.cameraHidden ? "Show camera" : "Hide camera"}</Button>
-                </div>
-              </article>)}</div> : <EmptyState title="Backstage is clear"><p>Guests using a valid invite will appear here.</p></EmptyState>}
-            </section>
           </main>
 
           {cinematic && cinematicPanelOpen && <button className="cinematic-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
-          {!cinematic && !panelCollapsed && <button className="workspace-panel-scrim" type="button" aria-label="Collapse room tools" onClick={() => setPanelCollapsed(true)} />}
-          <aside ref={sidePanelRef} className={`workspace-side-panel${panelCollapsed ? " is-collapsed" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Room tools" {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
+          {!cinematic && mobilePanelOpen && <button className="workspace-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setMobilePanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
+          <aside ref={sidePanelRef} className={`workspace-side-panel is-${preferences.sidebar}${panelPeek ? " is-peeking" : ""}${mobilePanelOpen ? " is-mobile-open" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Contextual room controls" onPointerEnter={revealPanel} onPointerLeave={schedulePanelClose} onFocusCapture={revealPanel} onBlurCapture={(event) => { if (!sidePanelRef.current?.contains(event.relatedTarget as Node)) schedulePanelClose(); }} {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
             {cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
-            {panelCollapsed ? <nav className="workspace-panel-rail" aria-label="Collapsed room tools">
-              <button className="workspace-panel-expand icon-control studio-tooltip" type="button" aria-label="Expand room control panel" data-tooltip="Expand panel" onClick={() => setPanelCollapsed(false)}><StudioIcon regular={arrowIcon} /></button>
-              {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => {
-                const count = item === "backstage" ? waiting.length : item === "invites" ? invites.filter((invite) => invite.active).length : null;
-                return <button type="button" key={item} className={`workspace-panel-shortcut icon-control studio-tooltip${panel === item ? " is-active" : ""}`} data-tooltip={item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : item === "brand" ? "Branding" : item === "media" ? "Media" : "Room"} aria-label={`Open ${item} panel${count === null ? "" : `, ${count}`}`} onClick={(event) => openWorkspacePanel(item, event.currentTarget)}>
-                  <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
-                  {count !== null && <span className="workspace-panel-count">{count}</span>}
-                </button>;
-              })}
-            </nav> : <>
             <nav className="workspace-tabs" aria-label="Workspace panels">
               {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => (
                 <button type="button" key={item} className={`icon-control${panel === item ? " is-active" : ""}`} onClick={() => setPanel(item)} aria-pressed={panel === item}>
                   <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
                   <span>{item === "backstage" ? "Backstage" : item === "invites" ? "Invites" : item === "brand" ? "Brand" : item === "media" ? "Media" : "Room"}</span>
+                  {(item === "backstage" || item === "invites") && <span className="workspace-panel-count">{item === "backstage" ? waiting.length : invites.filter((invite) => invite.active).length}</span>}
                 </button>
               ))}
-              {!cinematic && <button className="workspace-panel-collapse icon-control studio-tooltip" type="button" aria-label="Collapse room control panel" data-tooltip="Collapse panel" onClick={() => setPanelCollapsed(true)}><StudioIcon regular={arrowIcon} filled={arrowIcon} /></button>}
             </nav>
 
             {panel === "backstage" && (
@@ -1080,7 +1088,7 @@ function HostRoomManagementPage() {
             )}
             {panel === "brand" && <RoomBrandingPanel roomId={room.id} canonical={room.branding} canEdit={Boolean(permissions?.updateBranding)} refreshKey={productionRefreshKey} onPreview={setBrandingPreview} onCanonical={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} />}
             {panel === "media" && <RoomMediaPanel roomId={room.id} branding={activeBranding} canEdit={Boolean(permissions?.manageAssets)} refreshKey={productionRefreshKey} onBranding={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} onChanged={() => setProductionRefreshKey((value) => value + 1)} />}
-            </>}
+            {!cinematic && preferences.sidebar !== "hidden" && <button className="workspace-panel-toggle icon-control" type="button" aria-label={preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"} onClick={() => { setPanelPeek(false); toggleSidebar(); }}><StudioIcon regular={arrowIcon} filled={arrowIcon} active={preferences.sidebar === "expanded"} /><span>{preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"}</span></button>}
           </aside>
         </div>
 
@@ -1093,13 +1101,26 @@ function HostRoomManagementPage() {
             <ControlButton icon={mediaIcon} filledIcon={mediaFilledIcon} label={media.state === "connected" ? "Disconnect media" : "Connect media"} helper={media.reason} disabled={["provisioning", "connecting"].includes(media.state)} active={media.state === "connected"} onClick={() => void (media.state === "connected" ? media.leave() : media.openPreflight())} />
             {media.audioBlocked && <ControlButton icon={microphoneIcon} filledIcon={microphoneFilledIcon} label="Enable audio" helper="Browser blocked remote audio playback" onClick={() => void media.enableAudio()} />}
             <ControlButton icon={layoutIcons[layout][0]} filledIcon={layoutIcons[layout][1]} label="Layout" helper={`${layoutLabels[layout]} preview`} active onClick={() => { layoutRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); layoutRef.current?.querySelector<HTMLButtonElement>("button")?.focus(); }} />
-            <ControlButton buttonRef={panelTriggerRef} icon={backstageIcon} filledIcon={backstageFilledIcon} label="Backstage" helper={`${waiting.length} waiting, ${admitted.length} on stage`} active={panel === "backstage" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("backstage")} />
-            <ControlButton icon={inviteIcon} filledIcon={inviteFilledIcon} label="Invite" helper="Open secure invites" active={panel === "invites" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("invites")} />
-            <ControlButton icon={roomPrefsIcon} filledIcon={roomPrefsFilledIcon} label="Settings" helper="Open room settings" active={panel === "room" && (!cinematic || cinematicPanelOpen) && !panelCollapsed} onClick={() => openWorkspacePanel("room")} />
+            <ControlButton buttonRef={panelTriggerRef} icon={backstageIcon} filledIcon={backstageFilledIcon} label="Backstage" helper={`${waiting.length} waiting, ${admitted.length} on stage`} active={panel === "backstage" && (!cinematic || cinematicPanelOpen) && preferences.sidebar !== "hidden"} onClick={() => openWorkspacePanel("backstage")} />
+            <ControlButton icon={inviteIcon} filledIcon={inviteFilledIcon} label="Invite" helper="Open secure invites" active={panel === "invites" && (!cinematic || cinematicPanelOpen) && preferences.sidebar !== "hidden"} onClick={() => openWorkspacePanel("invites")} />
+            <ControlButton icon={roomPrefsIcon} filledIcon={roomPrefsFilledIcon} label="Settings" helper="Open room settings" active={panel === "room" && (!cinematic || cinematicPanelOpen) && preferences.sidebar !== "hidden"} onClick={() => openWorkspacePanel("room")} />
             <ControlButton icon={goLiveIcon} label="Go live" helper="Output integration not connected" disabled onClick={openGoLiveInfo} />
           </div>
           <button className="control-dock__nav control-dock__nav--next icon-control studio-tooltip" data-tooltip="Next controls" type="button" aria-label="Next production controls" onClick={() => scrollDock(1)}><StudioIcon regular={nextIcon} /></button>
         </div>
+        </div>
+        <section className="backstage-tray" aria-labelledby="backstage-tray-heading">
+          <div className="backstage-tray__heading"><h2 id="backstage-tray-heading">Backstage</h2><StatusChip tone={waiting.length ? "pending" : "neutral"}>{waiting.length}</StatusChip></div>
+          {waiting.length ? <div className="backstage-tray__scroll">{waiting.map((guest) => <article className="backstage-tile" key={guest.id}>
+            <BackstageMediaPreview guest={guest} media={media} />
+            <div><strong>{guest.displayName}</strong><small>{guest.subtitle || (guest.sessionCohost ? "Session cohost" : "Waiting Backstage")}</small></div>
+            <div className="participant-actions">
+              <Button className="icon-control" disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}><StudioIcon regular={moveUpIcon} filled={moveUpFilledIcon} /> Move to Stage</Button>
+              <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "microphone")}>{guest.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button>
+              <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "camera")}>{guest.cameraHidden ? "Show camera" : "Hide camera"}</Button>
+            </div>
+          </article>)}</div> : <EmptyState title="Backstage is clear"><p>Guests using a valid invite will appear here.</p></EmptyState>}
+        </section>
       </section>
       <DevicePreflightDialog media={media} />
 
