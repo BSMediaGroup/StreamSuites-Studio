@@ -1,6 +1,6 @@
 import { publicStudioConfig } from "../config/env";
 import { DEFAULT_ROOM_BRANDING, STUDIO_ADDITIONAL_STAGE_CAPACITY, STUDIO_DIRECTOR_STAGE_SLOTS, STUDIO_TOTAL_STAGE_CAPACITY } from "../domain/studio";
-import type { BuiltInStageLayout, CustomLayout, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, PresentationSource, RoomAsset, RoomAssetCategory, RoomBranding, RoomInvite, RoomLifecycle, RoomPresentation, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
+import type { BrowserSource, BrowserSourceLocation, BrowserSourceVisibility, BuiltInStageLayout, CustomLayout, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, PresentationSource, RoomAsset, RoomAssetCategory, RoomBranding, RoomInvite, RoomLifecycle, RoomPresentation, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
 
 const ACCOUNT_TYPES = new Set<StreamSuitesAccountType>(["admin", "creator", "developer", "public"]);
@@ -392,6 +392,7 @@ function normalizePermissions(value: unknown): RoomPermissions {
     updatePresentation: item.update_presentation === true,
     updateBranding: item.update_branding === true,
     manageAssets: item.manage_assets === true,
+    manageBrowserSources: item.manage_browser_sources === true,
     manageCustomLayouts: item.manage_custom_layouts === true,
     managePermanentCohosts: item.manage_permanent_cohosts === true,
     endRoom: item.end_room === true,
@@ -673,6 +674,34 @@ export async function loadPresentationSources(roomId: string, signal?: AbortSign
 export async function registerPresentationSource(roomId: string, signal?: AbortSignal): Promise<PresentationSource> { return normalizePresentationSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation-sources`, { method: "POST", signal })).source); }
 export async function movePresentationSource(roomId: string, sourceId: string, location: "backstage" | "on_stage", signal?: AbortSignal): Promise<PresentationSource> { return normalizePresentationSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation-sources/${encodeURIComponent(sourceId)}`, { method: "PATCH", body: body({ location }), signal })).source); }
 export async function stopPresentationSource(roomId: string, sourceId: string, signal?: AbortSignal): Promise<PresentationSource> { return normalizePresentationSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/presentation-sources/${encodeURIComponent(sourceId)}`, { method: "DELETE", signal })).source); }
+
+function finiteNumber(value: unknown, fallback: number): number { return typeof value === "number" && Number.isFinite(value) ? value : fallback; }
+
+function normalizeBrowserSource(value: unknown): BrowserSource {
+  if (!isRecord(value)) throw new StudioApiError(requestError("invalid_browser_source", "Runtime/Auth returned invalid browser source data."));
+  const id = stringOrNull(value.id), roomId = stringOrNull(value.room_id), displayName = stringOrNull(value.display_name), createdAt = stringOrNull(value.created_at), updatedAt = stringOrNull(value.updated_at), scene = isRecord(value.scene) ? value.scene : {};
+  if (!id || !roomId || !displayName || !createdAt || !updatedAt) throw new StudioApiError(requestError("invalid_browser_source", "Runtime/Auth returned incomplete browser source data."));
+  const location: BrowserSourceLocation = value.location === "on_stage" || value.location === "disabled" ? value.location : "backstage";
+  return { id, roomId, displayName, sourceType: "browser", url: stringOrNull(value.url), safeHost: stringOrNull(value.safe_host), location, viewportWidth: finiteNumber(value.viewport_width, 1920), viewportHeight: finiteNumber(value.viewport_height, 1080), refreshOnActivation: value.refresh_on_activation === true, muted: value.muted !== false, interactive: value.interactive === true, visibilityScope: value.visibility_scope === "room" ? "room" : "production_only", scene: { x: finiteNumber(scene.x, .2), y: finiteNumber(scene.y, .2), width: finiteNumber(scene.width, .6), height: finiteNumber(scene.height, .6), zIndex: Math.max(20, Math.min(39, finiteNumber(scene.z_index, 30))) }, opacity: Math.max(.1, Math.min(1, finiteNumber(value.opacity, 1))), refreshRevision: finiteNumber(value.refresh_revision, 0), createdAt, updatedAt };
+}
+
+export function validateBrowserSourceUrl(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    if (!parsed.hostname || !["https:", "http:"].includes(parsed.protocol)) return "Enter a valid HTTPS browser-source URL.";
+    if (parsed.username || parsed.password) return "Enter a URL without embedded credentials.";
+    const local = parsed.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+    return parsed.protocol === "https:" || local ? null : "Use an HTTPS URL. Loopback HTTP is available only during local development.";
+  } catch { return "Enter a valid HTTPS browser-source URL."; }
+}
+
+export async function listStudioBrowserSources(roomId: string, signal?: AbortSignal): Promise<BrowserSource[]> { const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/browser-sources`, { signal }); return Array.isArray(payload.items) ? payload.items.map(normalizeBrowserSource) : []; }
+export async function createStudioBrowserSource(roomId: string, input: { displayName: string; url: string; viewportWidth: number; viewportHeight: number; visibilityScope: BrowserSourceVisibility; refreshOnActivation: boolean; interactive: boolean }, signal?: AbortSignal): Promise<BrowserSource> { return normalizeBrowserSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/browser-sources`, { method: "POST", body: body({ display_name: input.displayName, url: input.url, viewport_width: input.viewportWidth, viewport_height: input.viewportHeight, visibility_scope: input.visibilityScope, refresh_on_activation: input.refreshOnActivation, interactive: input.interactive }), signal })).source); }
+export async function updateStudioBrowserSource(roomId: string, sourceId: string, changes: { displayName?: string; url?: string; viewportWidth?: number; viewportHeight?: number; visibilityScope?: BrowserSourceVisibility; refreshOnActivation?: boolean; interactive?: boolean; muted?: boolean; opacity?: number }, signal?: AbortSignal): Promise<BrowserSource> { return normalizeBrowserSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/browser-sources/${encodeURIComponent(sourceId)}`, { method: "PATCH", body: body({ ...(changes.displayName === undefined ? {} : { display_name: changes.displayName }), ...(changes.url === undefined ? {} : { url: changes.url }), ...(changes.viewportWidth === undefined ? {} : { viewport_width: changes.viewportWidth }), ...(changes.viewportHeight === undefined ? {} : { viewport_height: changes.viewportHeight }), ...(changes.visibilityScope === undefined ? {} : { visibility_scope: changes.visibilityScope }), ...(changes.refreshOnActivation === undefined ? {} : { refresh_on_activation: changes.refreshOnActivation }), ...(changes.interactive === undefined ? {} : { interactive: changes.interactive }), ...(changes.muted === undefined ? {} : { muted: changes.muted }), ...(changes.opacity === undefined ? {} : { opacity: changes.opacity }) }), signal })).source); }
+export async function moveStudioBrowserSource(roomId: string, sourceId: string, location: BrowserSourceLocation, signal?: AbortSignal): Promise<BrowserSource> { return normalizeBrowserSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/browser-sources/${encodeURIComponent(sourceId)}`, { method: "PATCH", body: body({ location }), signal })).source); }
+export async function duplicateStudioBrowserSource(roomId: string, sourceId: string, signal?: AbortSignal): Promise<BrowserSource> { return normalizeBrowserSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/browser-sources/${encodeURIComponent(sourceId)}/duplicate`, { method: "POST", body: body({}), signal })).source); }
+export async function refreshStudioBrowserSource(roomId: string, sourceId: string, signal?: AbortSignal): Promise<BrowserSource> { return normalizeBrowserSource((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/browser-sources/${encodeURIComponent(sourceId)}/refresh`, { method: "POST", body: body({}), signal })).source); }
+export async function deleteStudioBrowserSource(roomId: string, sourceId: string, signal?: AbortSignal): Promise<void> { await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/browser-sources/${encodeURIComponent(sourceId)}`, { method: "DELETE", body: body({}), signal }); }
 
 function serializeBranding(branding: RoomBranding) {
   return {

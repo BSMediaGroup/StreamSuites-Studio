@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { connectStudioEvents, leaveStudioGuestSession, loadPresentationSources, loadStudioGuestRoomView, moveStudioGuestSelf, registerPresentationSource, stopPresentationSource } from "../api/studioAuth";
+import { connectStudioEvents, leaveStudioGuestSession, listStudioBrowserSources, loadPresentationSources, loadStudioGuestRoomView, moveStudioGuestSelf, registerPresentationSource, stopPresentationSource } from "../api/studioAuth";
 import { SiteShell } from "../components/shell/SiteShell";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { StatusChip } from "../components/ui/StatusChip";
 import { StudioIcon } from "../components/ui/StudioIcon";
-import type { GuestRoomView, PresentationSource } from "../domain/studio";
+import type { BrowserSource, GuestRoomView, PresentationSource } from "../domain/studio";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioMedia } from "../media/useStudioMedia";
 import { BackstageMediaPreview, DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, ParticipantFallback, ParticipantLabelOverlay, RemoteMediaVideo, ScreenShareVideo } from "../media/StudioMediaElements";
 import { resolveEffectiveStageLayout, stageGridRows } from "../layout/stageLayout";
 import { StageBrandingOverlay, stageBrandingStyle } from "../branding/StageBranding";
+import { BrowserSourceRenderer } from "../components/room/BrowserSourceRenderer";
 import moveUpIcon from "../../assets/icons/ui/moveselectionup.svg";
 import moveUpFilledIcon from "../../assets/icons/ui/moveselectionup-filled.svg";
 import moveDownIcon from "../../assets/icons/ui/moveselectiondown.svg";
@@ -26,14 +27,15 @@ export function GuestRoomWorkspace() {
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [presentationSources, setPresentationSources] = useState<PresentationSource[]>([]);
+  const [browserSources, setBrowserSources] = useState<BrowserSource[]>([]);
   const media = useStudioMedia(roomId, { location: view?.self.state === "on_stage" ? "on_stage" : "backstage", canScreenShare: view?.self.state === "on_stage" });
   useGlobalActivity(status === "loading" || Boolean(busy), "Loading guest room");
 
   const refresh = useCallback(async () => {
     try {
-      const [next, sources] = await Promise.all([loadStudioGuestRoomView(), loadPresentationSources(roomId)]);
+      const [next, sources, nextBrowserSources] = await Promise.all([loadStudioGuestRoomView(), loadPresentationSources(roomId), listStudioBrowserSources(roomId)]);
       if (next.room.id !== roomId) navigate(`/studio/rooms/${encodeURIComponent(next.room.id)}`, { replace: true });
-      setView(next); setPresentationSources(sources); setStatus("ready");
+      setView(next); setPresentationSources(sources); setBrowserSources(nextBrowserSources); setStatus("ready");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Guest room authority is unavailable.");
       setStatus("error");
@@ -105,6 +107,7 @@ export function GuestRoomWorkspace() {
           <p>{media.state === "connected" ? "Media connected" : media.reason} · OFF AIR</p>
           <div className={`program-canvas program-canvas--${effectiveLayout}${onStageSource ? ` has-presentation presentation-${view.room.presentation.participantMode} edge-${view.room.presentation.participantEdge}` : ""}`} style={stageBrandingStyle(view.room.branding)} data-layout={requestedLayout} data-effective-layout={effectiveLayout} data-participant-count={guestStageCount} data-slot-sizing={view.room.presentation.guestSlotSizing}>
             {effectiveLayout === "presentation" && (presentationShare ? <div className="presentation-source" key={onStageSource?.id}><ScreenShareVideo track={presentationShare.track} /></div> : <div className="presentation-source-placeholder">Presentation source not connected</div>)}
+            <div className="browser-source-layer">{browserSources.filter((source) => source.location === "on_stage" && source.visibilityScope === "room" && source.url).map((source) => <BrowserSourceRenderer key={source.id} source={source} mode="stage" />)}</div>
             <StageBrandingOverlay branding={view.room.branding} />
             <div className="program-stage-grid">
               {stageRows.map((row) => <div className="program-stage-row" key={row.map((item) => item.id).join(":")} style={{ "--stage-row-size": row.length } as CSSProperties}>{row.map(renderStageItem)}</div>)}

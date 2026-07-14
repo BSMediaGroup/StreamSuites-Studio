@@ -62,7 +62,7 @@ No camera, microphone, screen sharing, media tracks, WebRTC, Cloudflare Realtime
 ## 5. Cloudflare RealtimeKit Core media — complete for private room media
 
 - completed Backstage-first presentation-source staging for the current single active screen share, including Runtime-owned Fill/Fit and overlay/outside edge settings, exact centered 1–9 camera rows, director/cohost Stage placement, presenter-only capture start/stop, and stable existing media elements
-- next: custom browser sources and granular freeform placement; recording, destinations/output, webhooks, LiveKit, and Egress remain later milestones
+- next after the completed browser-source foundation: granular freeform placement; recording, destinations/output, webhooks, LiveKit, and Egress remain later milestones
 
 - connect through Runtime/Auth-issued and refreshed participant tokens held only in memory
 - provide explicit device preflight, local preview, SDK device selection, device-off join, and permission/device error states
@@ -84,6 +84,16 @@ Mocked SDK lifecycle, registration, intent-order, screen-share, Runtime provider
 - preserve stable RealtimeKit participant keys and registrations while label, branding, background, and built-in/custom layout presentation changes reflow around them
 
 Custom geometry drag/resize, account-wide brand kits, director-visible Backstage preview transport, recording, destinations, broadcasting, and server-side egress were not delivered by this phase. Studio remains OFF AIR.
+
+## 7. Runtime-owned custom browser sources — complete foundation
+
+- added permission-gated Runtime/Auth browser-source records and APIs with Backstage/on-Stage/disabled lifecycle, duplication, manual/activation refresh revisions, room-end disable, safe SSE summaries, and no participant-capacity impact
+- added HTTPS/private-network/userinfo/scheme validation without server-side fetch/proxy; `production_only` hides full URLs from ordinary guests while `room` intentionally shares them with a visible credential warning
+- added a separate Browser Sources section to Media, lazy limited Backstage previews, stable-ID cards, canonical save/error behavior, and Stage rendering at a persisted centered normalized 60%-width 16:9 rectangle
+- added a strict scripts-only iframe sandbox with no forms, same-origin, popups, downloads, top navigation, referrer, autoplay audio, device/geolocation/clipboard/payment/display permissions, plus authorized local interaction mode with Escape exit
+- preserved the exact Fill/Fit participant grid, presentation sources, Branding, labels, custom snapshots, one left contextual panel, cinematic/fullscreen, existing RealtimeKit lifecycle, disabled Go Live, and OFF AIR
+
+Freeform drag/resize, snapping guides, z-order editing UI, crop, rotation, animation, custom HTML/script input, public output, recording, destinations, webhooks, LiveKit, and Egress remain separate later milestones.
 
 ## 7. OBS-capturable program output — planned
 

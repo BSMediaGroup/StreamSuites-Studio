@@ -82,6 +82,30 @@ export interface PresentationSource {
   readonly createdAt: string; readonly updatedAt: string; readonly startedAt: string; readonly stoppedAt: string | null;
 }
 
+export type BrowserSourceLocation = "backstage" | "on_stage" | "disabled";
+export type BrowserSourceVisibility = "production_only" | "room";
+
+export interface BrowserSource {
+  readonly id: string;
+  readonly roomId: string;
+  readonly displayName: string;
+  readonly sourceType: "browser";
+  readonly url: string | null;
+  readonly safeHost: string | null;
+  readonly location: BrowserSourceLocation;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly refreshOnActivation: boolean;
+  readonly muted: boolean;
+  readonly interactive: boolean;
+  readonly visibilityScope: BrowserSourceVisibility;
+  readonly scene: { readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly zIndex: number };
+  readonly opacity: number;
+  readonly refreshRevision: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 export type ParticipantLabelMode = "name_and_subtitle" | "name_only" | "hidden";
 export type BuiltInStageLayout = "grid" | "interview" | "spotlight" | "presentation";
 export type StageLayout = "auto" | "custom" | BuiltInStageLayout;
@@ -175,6 +199,7 @@ export interface RoomPermissions {
   readonly updatePresentation: boolean;
   readonly updateBranding: boolean;
   readonly manageAssets: boolean;
+  readonly manageBrowserSources: boolean;
   readonly manageCustomLayouts: boolean;
   readonly managePermanentCohosts: boolean;
   readonly endRoom: boolean;

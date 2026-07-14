@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { deleteStudioRoomAsset, listStudioRoomAssets, loadStudioBranding, updateStudioBranding, updateStudioRoomAsset, uploadStudioRoomAsset } from "../../api/studioAuth";
-import type { RoomAsset, RoomAssetCategory, RoomBranding } from "../../domain/studio";
+import type { BrowserSource, RoomAsset, RoomAssetCategory, RoomBranding } from "../../domain/studio";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
+import { BrowserSourcesPanel } from "./BrowserSourcesPanel";
 
 const categories: readonly RoomAssetCategory[] = ["logo", "stage_background", "overlay", "holding", "presentation_placeholder"];
 const labels: Record<RoomAssetCategory, string> = { logo: "Logo / bug", stage_background: "Stage background", overlay: "Overlay image", holding: "Holding / waiting", presentation_placeholder: "Presentation placeholder" };
 
-export function RoomMediaPanel({ roomId, branding, canEdit, refreshKey, onBranding, onChanged }: { readonly roomId: string; readonly branding: RoomBranding; readonly canEdit: boolean; readonly refreshKey: number; readonly onBranding: (branding: RoomBranding) => void; readonly onChanged: () => void }) {
+export function RoomMediaPanel({ roomId, branding, browserSources, canEdit, refreshKey, onBranding, onChanged, onNotice }: { readonly roomId: string; readonly branding: RoomBranding; readonly browserSources: readonly BrowserSource[]; readonly canEdit: boolean; readonly refreshKey: number; readonly onBranding: (branding: RoomBranding) => void; readonly onChanged: () => Promise<void> | void; readonly onNotice: (message: string) => void }) {
   const [assets, setAssets] = useState<RoomAsset[]>([]), [filter, setFilter] = useState<RoomAssetCategory | "all">("all"), [uploadCategory, setUploadCategory] = useState<RoomAssetCategory>("logo"), [selected, setSelected] = useState(""), [status, setStatus] = useState<"loading" | "ready" | "uploading" | "error">("loading"), [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const load = useCallback(() => { setStatus("loading"); setError(""); return listStudioRoomAssets(roomId).then((items) => { setAssets(items); setStatus("ready"); }).catch((cause) => { setError(cause instanceof Error ? cause.message : "Room media could not be loaded."); setStatus("error"); }); }, [roomId]);
@@ -47,5 +48,6 @@ export function RoomMediaPanel({ roomId, branding, canEdit, refreshKey, onBrandi
     <label>Category filter<select value={filter} onChange={(event) => setFilter(event.target.value as RoomAssetCategory | "all")}><option value="all">All categories</option>{categories.map((category) => <option key={category} value={category}>{labels[category]}</option>)}</select></label>
     {status === "loading" ? <p>Loading room assets…</p> : visible.length === 0 ? <EmptyState title="No room images yet"><p>Upload a PNG, JPEG, or WebP. Video and audio are not supported in this milestone.</p></EmptyState> : <div className="room-asset-grid">{visible.map((asset) => <article key={asset.id} className={selected === asset.id ? "is-selected" : ""}><button type="button" className="room-asset-grid__select" onClick={() => setSelected(asset.id)} aria-pressed={selected === asset.id}><img src={asset.url} alt="" /><span><strong>{asset.displayName}</strong><small>{asset.width} × {asset.height}</small><em>{labels[asset.category]}</em></span></button><div>{(asset.category === "logo" || asset.category === "stage_background") && <Button variant="quiet" disabled={!canEdit} onClick={() => void assign(asset)}>Assign</Button>}<Button variant="quiet" disabled={!canEdit} onClick={() => void rename(asset)}>Rename</Button><Button className="button--destructive" variant="quiet" disabled={!canEdit} onClick={() => void remove(asset)}>Delete</Button></div></article>)}</div>}
     <p className="fine-print">Runtime/Auth serializes only secure <code>https://cdn.streamsuites.app/…</code> URLs; files remain available when the room ends.</p>
+    <BrowserSourcesPanel roomId={roomId} sources={browserSources} canEdit={canEdit} onChanged={onChanged} onNotice={onNotice} />
   </div>;
 }

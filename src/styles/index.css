@@ -3419,3 +3419,49 @@ body,
 .program-canvas--presentation.presentation-outside:is(.edge-bottom,.edge-right) .program-stage-grid { order: 1; }
 .program-canvas--presentation.presentation-outside:is(.edge-top,.edge-bottom) .program-stage-grid { width: 100%; flex-direction: row; }
 .program-canvas--presentation.presentation-outside:is(.edge-left,.edge-right) .program-stage-grid { height: 100%; flex-direction: column; }
+
+/* Runtime-owned browser sources: bounded Stage layers, strict iframe containment, and separate Media tools. */
+.program-canvas { isolation: isolate; }
+.browser-source-layer { position: absolute; z-index: 20; inset: 0; pointer-events: none; }
+.browser-source--stage { position: absolute; z-index: var(--browser-layer); top: calc(var(--browser-y) * 100%); left: calc(var(--browser-x) * 100%); width: calc(var(--browser-width) * 100%); height: calc(var(--browser-height) * 100%); overflow: hidden; border: 1px solid rgb(255 255 255 / .16); border-radius: .45rem; background: #05070a; box-shadow: 0 .45rem 1.3rem rgb(0 0 0 / .32); pointer-events: none; }
+.browser-source iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; pointer-events: none; }
+.browser-source--stage.is-interacting { outline: 2px solid var(--accent); pointer-events: auto; }
+.browser-source--stage.is-interacting iframe { pointer-events: auto; }
+.browser-source__exit { position: absolute; z-index: 2; top: .35rem; right: .35rem; border: 1px solid rgb(255 255 255 / .25); border-radius: .4rem; background: rgb(5 8 12 / .9); color: #fff; padding: .35rem .55rem; cursor: pointer; }
+.browser-source-stage-toolbar { position: absolute; z-index: 60; top: .4rem; left: 50%; display: flex; max-width: calc(100% - 1rem); transform: translateX(-50%); gap: .35rem; overflow-x: auto; border: 1px solid rgb(255 255 255 / .14); border-radius: .55rem; background: rgb(5 8 12 / .78); padding: .3rem; backdrop-filter: blur(5px); }
+.browser-source-stage-toolbar:empty { display: none; }
+.browser-source-stage-toolbar > div { display: flex; flex: 0 0 auto; align-items: center; gap: .25rem; }
+.browser-source-stage-toolbar span { max-width: 9rem; overflow: hidden; color: #fff; font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
+.browser-source-stage-toolbar .button { min-height: 28px; padding: .25rem .4rem; font-size: .58rem; }
+.stage-brand-logo { z-index: 45; }
+.program-safe-area { z-index: 44; }
+.program-canvas__notice { z-index: 55; }
+
+.browser-source-library { display: grid; gap: .75rem; margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+.browser-source-form { border: 1px solid var(--border); border-radius: .65rem; background: var(--bg-panel-raised); padding: .7rem; }
+.browser-source-form > label:not(.check-row),
+.browser-source-form__dimensions label { display: grid; gap: .3rem; color: var(--text-secondary); font-size: .68rem; }
+.browser-source-form__dimensions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.browser-source-form__actions,
+.browser-source-list__actions { display: flex; flex-wrap: wrap; gap: .35rem; }
+.browser-source-warning { margin: 0; border-left: 3px solid var(--warning); color: var(--text-secondary); padding: .4rem .55rem; font-size: .67rem; }
+.browser-source-list { display: grid; gap: .55rem; }
+.browser-source-list > article { display: grid; gap: .4rem; border: 1px solid var(--border); border-radius: .65rem; background: var(--bg-panel-raised); padding: .65rem; }
+.browser-source-list > article.is-disabled { opacity: .66; }
+.browser-source-list strong,
+.browser-source-list small,
+.browser-source-list span { display: block; }
+.browser-source-list small,
+.browser-source-list span,
+.browser-source-list p { color: var(--text-muted); font-size: .64rem; }
+.browser-source-list p { margin: 0; }
+.browser-source-card { border-style: dashed; }
+.browser-source-preview { position: relative; display: grid; width: 9rem; max-width: 100%; aspect-ratio: 16 / 9; place-items: center; overflow: hidden; border-radius: .55rem; background: #05070a; }
+.browser-source--preview { width: 100%; height: 100%; }
+.field-error { color: var(--danger-text); }
+
+@media (max-width: 680px) {
+  .browser-source-form__dimensions { grid-template-columns: 1fr; }
+  .browser-source-stage-toolbar span { display: none; }
+  .browser-source-stage-toolbar { top: .2rem; }
+}

@@ -30,7 +30,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - Runtime-owned requested Auto, Grid, Interview, Spotlight, Presentation, and Custom layouts. Auto derives Presentation for an active share, Spotlight for an explicit spotlight or one participant, Interview for two, and Grid for three through nine while leaving requested mode `auto`; a room may save, name, select, reorder, and delete up to eight stable-ID custom snapshots of resolved built-in modes
 - Runtime-owned `name_and_subtitle`, `name_only`, and `hidden` broadcast-label visibility with management identity preserved, plus a working Room Settings custom-layout manager and an unclipped keyboard/focus-safe Custom selector using the exact existing slot 1–8 icon pairs
 - a working room Branding panel for solid/gradient/CDN-image Stage backgrounds, logo/bug placement/size/opacity, badge/subtitle styling, editor-only safe area, live Stage preview, canonical save/reset, and pending/error recovery
-- a working room Media panel for PNG/JPEG/WebP production assets with category filter, upload progress, responsive CDN-only thumbnails, select/assign, rename, and confirmed deletion; video/audio uploads and arbitrary remote URLs are not supported
+- a working room Media panel with separate PNG/JPEG/WebP asset tools and Runtime-owned Browser Sources tools for HTTPS create/edit/duplicate/refresh/disable/delete, visibility warnings, compatibility help, and Backstage-first placement
 - explicit device preflight with SDK device selectors, local camera preview, microphone activity, device-off choices, join-without-devices, secure-context/support checks, and permission/device error states
 - compact 16:9 Backstage camera thumbnails that reuse each connected participant's existing main-room RealtimeKit video track, with camera-off/reconnecting avatar fallback and no separate preview session
 - SDK-registered local and remote video, SDK-managed remote audio with autoplay recovery, actual microphone/camera state, active-speaker indication, and stable guest-keyed tiles across Stage reordering
@@ -69,7 +69,7 @@ The following are explicitly not shipped:
 - LiveKit, Egress, recording, RTMP, SRT, HLS, Cloudflare Stream, webhooks, public broadcasting, or provider destinations
 - chat, alerts, clips, polls, games, automation, or analytics integration
 - an OBS program-output route or server-side broadcast output
-- freeform drag/resize custom-layout geometry or a complete brand-kit system
+- freeform browser-source/custom-layout drag/resize, snapping, z-order editing, crop, rotation, or a complete brand-kit system
 - an isolated or director-only Backstage camera transport separate from the existing private room meeting
 - deployment, DNS, Pages project, or account-specific Cloudflare configuration
 
@@ -115,7 +115,7 @@ StreamSuites remains the single authority for runtime state, Auth API behavior, 
 
 Studio is a client/UI surface only. It validates confirmed current-session, access, room, invite, and lobby payloads through the existing typed adapter and never persists canonical account, session, grant, role, tier, room, invite, lobby, permission, SSE, or media state in `localStorage`. The only persisted browser values are presentation preferences: `streamsuites_studio_theme` and the validated `streamsuites_studio_presentation` object containing contextual-panel, header, cinematic, and notice-duration modes.
 
-Runtime-owned Stage settings now select Fill (adaptive media-card regions) or Fit (equal 16:9 camera slots). The centered one-through-nine rows are `1`, `2`, `2+1`, `2+2`, `3+2`, `3+3`, `3+3+1`, `3+3+2`, and `3+3+3`. A RealtimeKit screen share registers as a stable presentation source in Backstage first; authorized directors/cohosts may place it on Stage as an overlay or outside the presentation at any edge without stopping capture or remounting camera components. One active provider share is supported, source records do not consume the nine participant slots, media never crosses Python, and Studio remains OFF AIR. Custom browser sources and freeform placement remain deferred.
+Runtime-owned Stage settings now select Fill (adaptive media-card regions) or Fit (equal 16:9 camera slots). The centered one-through-nine rows are `1`, `2`, `2+1`, `2+2`, `3+2`, `3+3`, `3+3+1`, `3+3+2`, and `3+3+3`. RealtimeKit screen shares and custom browser sources both begin Backstage under separate lifecycles. Authorized directors/cohosts may place browser sources at their persisted centered normalized rectangle without stopping/remounting participant media. Browser sources do not consume participant slots, carry audio through RealtimeKit/Python, or bypass provider embedding restrictions. Freeform geometry remains deferred and Studio remains OFF AIR.
 
 Browser fullscreen is never a stored preference or inferred success state. A room-only user action targets the Studio workspace through the standard Fullscreen API, actual state follows `fullscreenchange`, rejection leaves cinematic mode usable, and browser/Escape exit does not silently rewrite the saved sidebar or header choices.
 
@@ -143,10 +143,11 @@ The roadmap is phased and describes planned work, not current capability:
 4. polished pre-media stage, Backstage, guest identity, and production-control interactions — **current milestone complete**
 5. Cloudflare RealtimeKit Core private-room media lifecycle — **current milestone complete**
 6. room settings, Branding, Media, and eight-slot custom-layout foundations — **current milestone complete**
-7. OBS-capturable program output
-8. provider destinations and recording foundations
-9. later self-hosted LiveKit and Egress migration
-10. integration of existing StreamSuites chat, alerts, clips, polls, games, and automation
+7. Runtime-owned sandboxed browser sources with default Stage placement — **current milestone complete**
+8. OBS-capturable program output
+9. provider destinations and recording foundations
+10. later self-hosted LiveKit and Egress migration
+11. integration of existing StreamSuites chat, alerts, clips, polls, games, and automation
 
 See [ALPHA roadmap](docs/alpha-roadmap.md) for acceptance boundaries per phase.
 
@@ -209,6 +210,9 @@ StreamSuites-Studio/
 │   │   │   ├── StudioShell.test.tsx
 │   │   │   └── StudioShell.tsx
 │   │   ├── room/
+│   │   │   ├── BrowserSourceRenderer.tsx
+│   │   │   ├── BrowserSources.test.tsx
+│   │   │   ├── BrowserSourcesPanel.tsx
 │   │   │   ├── ContextualNoticeStack.test.tsx
 │   │   │   ├── ContextualNoticeStack.tsx
 │   │   │   ├── CustomLayoutControls.tsx

@@ -75,7 +75,7 @@ describe("room production foundations", () => {
   it("lists CDN-only assets, filters, selects, assigns, uploads, renames, and deletes", async () => {
     api.listAssets.mockResolvedValue([asset]); api.updateBranding.mockResolvedValue({ ...DEFAULT_ROOM_BRANDING, logo: { ...DEFAULT_ROOM_BRANDING.logo, assetId: asset.id, url: asset.url } }); api.uploadAsset.mockResolvedValue({ ...asset, id: "asset-2", displayName: "New logo" }); api.updateAsset.mockResolvedValue({ ...asset, displayName: "Renamed" }); api.deleteAsset.mockResolvedValue({ brandingAssignmentCleared: false });
     vi.spyOn(window, "prompt").mockReturnValue("Renamed"); vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(<RoomMediaPanel roomId="room-1" branding={DEFAULT_ROOM_BRANDING} canEdit refreshKey={0} onBranding={vi.fn()} onChanged={vi.fn()} />);
+    render(<RoomMediaPanel roomId="room-1" branding={DEFAULT_ROOM_BRANDING} browserSources={[]} canEdit refreshKey={0} onBranding={vi.fn()} onChanged={vi.fn()} onNotice={vi.fn()} />);
     await screen.findByText("Show logo"); const image = document.querySelector<HTMLImageElement>(".room-asset-grid img")!; expect(image).toHaveAttribute("src", asset.url); expect(image.getAttribute("src")).not.toMatch(/^data:/);
     fireEvent.click(screen.getByRole("button", { name: "Assign" })); await waitFor(() => expect(api.updateBranding).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: "Rename" })); await waitFor(() => expect(api.updateAsset).toHaveBeenCalledWith("room-1", asset.id, { displayName: "Renamed" }));

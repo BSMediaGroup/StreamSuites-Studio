@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type React from "react";
 import { Navigate, useParams } from "react-router-dom";
-import { createStudioCustomLayout, createStudioInvite, connectStudioEvents, deleteStudioCustomLayout, invitePermanentCohost, listStudioInvites, listStudioLobby, loadPresentationSources, loadRoomCohosts, loadStudioRoomContext, movePresentationSource, moveStudioParticipant, registerPresentationSource, reorderStudioCustomLayouts, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, stopPresentationSource, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioCustomLayout, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
+import { createStudioCustomLayout, createStudioInvite, connectStudioEvents, deleteStudioBrowserSource, deleteStudioCustomLayout, invitePermanentCohost, listStudioBrowserSources, listStudioInvites, listStudioLobby, loadPresentationSources, loadRoomCohosts, loadStudioRoomContext, movePresentationSource, moveStudioBrowserSource, moveStudioParticipant, refreshStudioBrowserSource, registerPresentationSource, reorderStudioCustomLayouts, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, stopPresentationSource, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioCustomLayout, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioAuth } from "../auth/studioAuthContext";
 import { SiteShell } from "../components/shell/SiteShell";
@@ -13,10 +13,11 @@ import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
 import { ParticipantMenuPortal, type ParticipantMenuItem } from "../components/ui/ParticipantMenuPortal";
 import { StudioIcon } from "../components/ui/StudioIcon";
-import type { InvitePolicy, PresentationSource, RoomBranding, RoomCohosts, RoomConnectionState, RoomInvite, RoomPermissions, RoomSummary, StageLayout, StudioGuest } from "../domain/studio";
+import type { BrowserSource, InvitePolicy, PresentationSource, RoomBranding, RoomCohosts, RoomConnectionState, RoomInvite, RoomPermissions, RoomSummary, StageLayout, StudioGuest } from "../domain/studio";
 import { CustomLayoutMenu, CustomLayoutsSection } from "../components/room/CustomLayoutControls";
 import { RoomBrandingPanel } from "../components/room/RoomBrandingPanel";
 import { RoomMediaPanel } from "../components/room/RoomMediaPanel";
+import { BrowserSourceRenderer } from "../components/room/BrowserSourceRenderer";
 import { ContextualNoticeStack, inferContextualNoticeTone, type ContextualNotice, type ContextualNoticeTone } from "../components/room/ContextualNoticeStack";
 import { StageBrandingOverlay, stageBrandingStyle } from "../branding/StageBranding";
 import { usePresentationPreferences } from "../presentation/presentationContext";
@@ -161,6 +162,8 @@ function HostRoomManagementPage() {
   const [brandingPreview, setBrandingPreview] = useState<RoomBranding | null>(null);
   const [productionRefreshKey, setProductionRefreshKey] = useState(0);
   const [presentationSources, setPresentationSources] = useState<PresentationSource[]>([]);
+  const [browserSources, setBrowserSources] = useState<BrowserSource[]>([]);
+  const [interactingBrowserSourceId, setInteractingBrowserSourceId] = useState("");
   const [layout, setLayout] = useState<StageLayout>("grid");
   const [selectedParticipant, setSelectedParticipant] = useState("host");
   const [spotlightSelectionExplicit, setSpotlightSelectionExplicit] = useState(false);
@@ -214,7 +217,7 @@ function HostRoomManagementPage() {
       if (showLoading) setStatus("loading");
       setMessage("");
       try {
-        const [roomContext, nextInvites, nextGuests, nextCohosts, nextSources] = await Promise.all([loadStudioRoomContext(roomId), listStudioInvites(roomId), listStudioLobby(roomId), loadRoomCohosts(roomId), loadPresentationSources(roomId)]);
+        const [roomContext, nextInvites, nextGuests, nextCohosts, nextSources, nextBrowserSources] = await Promise.all([loadStudioRoomContext(roomId), listStudioInvites(roomId), listStudioLobby(roomId), loadRoomCohosts(roomId), loadPresentationSources(roomId), listStudioBrowserSources(roomId)]);
         const nextRoom = roomContext.room;
         setRoom(nextRoom);
         setPermissions(roomContext.permissions);
@@ -222,6 +225,7 @@ function HostRoomManagementPage() {
         setGuests(nextGuests);
         setCohosts(nextCohosts);
         setPresentationSources(nextSources);
+        setBrowserSources(nextBrowserSources);
         setTitle(nextRoom.title);
         setDescription(nextRoom.description ?? "");
         setLayout(nextRoom.presentation.layoutMode);
@@ -593,6 +597,38 @@ function HostRoomManagementPage() {
     finally { setBusy(""); }
   }
 
+  async function changeBrowserSourceLocation(source: BrowserSource, location: "backstage" | "on_stage") {
+    if (!room || busy || !permissions?.manageBrowserSources) return;
+    setBusy(source.id);
+    try { const updated = await moveStudioBrowserSource(room.id, source.id, location); setBrowserSources((current) => current.map((item) => item.id === updated.id ? updated : item)); if (location === "backstage" && interactingBrowserSourceId === source.id) setInteractingBrowserSourceId(""); setMessage(`${source.displayName} moved ${location === "on_stage" ? "to Stage" : "Backstage"}.`); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Browser source could not be moved."); }
+    finally { setBusy(""); }
+  }
+
+  async function refreshBrowserSource(source: BrowserSource) {
+    if (!room || busy || !permissions?.manageBrowserSources) return;
+    setBusy(source.id);
+    try { const updated = await refreshStudioBrowserSource(room.id, source.id); setBrowserSources((current) => current.map((item) => item.id === updated.id ? updated : item)); setMessage(`${source.displayName} refreshed without reconnecting room media.`); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Browser source could not be refreshed."); }
+    finally { setBusy(""); }
+  }
+
+  async function disableBrowserSource(source: BrowserSource) {
+    if (!room || busy || !permissions?.manageBrowserSources) return;
+    setBusy(source.id);
+    try { const updated = await moveStudioBrowserSource(room.id, source.id, "disabled"); setBrowserSources((current) => current.map((item) => item.id === updated.id ? updated : item)); setMessage(`${source.displayName} disabled and deactivated.`); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Browser source could not be disabled."); }
+    finally { setBusy(""); }
+  }
+
+  async function removeBrowserSource(source: BrowserSource) {
+    if (!room || busy || !permissions?.manageBrowserSources || !window.confirm(`Delete ${source.displayName}? This removes it from Stage and Backstage.`)) return;
+    setBusy(source.id);
+    try { await deleteStudioBrowserSource(room.id, source.id); setBrowserSources((current) => current.filter((item) => item.id !== source.id)); setMessage(`${source.displayName} deleted.`); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Browser source could not be deleted."); }
+    finally { setBusy(""); }
+  }
+
   async function createCustomLayout() {
     if (!room || busy || room.presentation.customLayouts.length >= 8) return;
     setBusy("custom-layout");
@@ -757,6 +793,8 @@ function HostRoomManagementPage() {
   const hostName = access.account?.displayName || "Host / Director";
   const onStageSource = presentationSources.find((source) => source.location === "on_stage");
   const backstageSources = presentationSources.filter((source) => source.location === "backstage");
+  const backstageBrowserSources = browserSources.filter((source) => source.location === "backstage");
+  const onStageBrowserSources = browserSources.filter((source) => source.location === "on_stage" && source.url);
   const presentationShare = onStageSource ? media.activeShares.find((share) => share.runtimeParticipantId === onStageSource.ownerParticipantId) : undefined;
   const stageParticipantCount = room.reservedDirectorStageSlots + admitted.length;
   const selectedParticipantOnStage = selectedParticipant === "host" || admitted.some((guest) => guest.id === selectedParticipant);
@@ -859,6 +897,8 @@ function HostRoomManagementPage() {
             <div className="program-stage-viewport" data-testid="program-stage-viewport">
               <div className={`program-canvas program-canvas--${effectiveLayout}${onStageSource ? ` has-presentation presentation-${room.presentation.participantMode} edge-${room.presentation.participantEdge}` : ""}`} style={stageBrandingStyle(activeBranding)} data-testid="program-canvas" data-layout={layout} data-effective-layout={effectiveLayout} data-participant-count={stageParticipantCount} data-slot-sizing={room.presentation.guestSlotSizing}>
               {effectiveLayout === "presentation" && (presentationShare ? <div className="presentation-source" key={onStageSource?.id}><ScreenShareVideo track={presentationShare.track} />{onStageSource && permissions?.updatePresentation && <Button className="presentation-source__backstage" onClick={() => void changeSourceLocation(onStageSource, "backstage")}>Move Backstage</Button>}</div> : <div className="presentation-source-placeholder">{onStageSource ? "Presentation track not connected" : "Presentation source not connected"}</div>)}
+              <div className="browser-source-layer">{onStageBrowserSources.map((source) => <BrowserSourceRenderer key={source.id} source={source} mode="stage" interactionActive={interactingBrowserSourceId === source.id} onExitInteraction={() => setInteractingBrowserSourceId("")} />)}</div>
+              <div className="browser-source-stage-toolbar">{permissions?.manageBrowserSources ? onStageBrowserSources.map((source) => <div key={`controls:${source.id}`}><span>{source.displayName}</span><Button variant="quiet" onClick={() => void changeBrowserSourceLocation(source, "backstage")}>Move Backstage</Button><Button variant="quiet" onClick={() => void refreshBrowserSource(source)}>Refresh</Button>{source.interactive && <Button variant="quiet" aria-pressed={interactingBrowserSourceId === source.id} onClick={() => setInteractingBrowserSourceId(interactingBrowserSourceId === source.id ? "" : source.id)}>{interactingBrowserSourceId === source.id ? "Exit interaction" : "Interact"}</Button>}</div>) : null}</div>
               {activeBranding.safeAreaVisible && <div className="program-safe-area" aria-hidden="true">
                 <span>Safe area</span>
               </div>}
@@ -898,7 +938,7 @@ function HostRoomManagementPage() {
                     </div>
                     <StatusChip tone={waiting.length ? "pending" : "neutral"}>{waiting.length}</StatusChip>
                   </div>
-                  {waiting.length === 0 && backstageSources.length === 0 ? (
+                  {waiting.length === 0 && backstageSources.length === 0 && backstageBrowserSources.length === 0 ? (
                     <EmptyState title="Backstage is clear">
                       <p>Guests using a valid invite will appear here immediately.</p>
                     </EmptyState>
@@ -942,6 +982,11 @@ function HostRoomManagementPage() {
                     <div className="presentation-source-preview">{sourceShare(source) ? <ScreenShareVideo track={sourceShare(source)!.track} label={source.displayName} /> : <StudioIcon regular={shareIcon} />}</div>
                     <div className="guest-card__identity"><strong>{source.displayName}</strong><small>Screen share</small><StatusChip tone="pending">Backstage</StatusChip></div>
                     <div className="guest-card__actions">{permissions?.updatePresentation && <Button disabled={Boolean(busy)} onClick={() => void changeSourceLocation(source, "on_stage")}>Move to Stage</Button>}{source.ownerParticipantId === media.selfRuntimeParticipantId && <Button variant="quiet" onClick={() => void media.toggleScreen()}>Stop sharing</Button>}</div>
+                  </article>)}
+                  {backstageBrowserSources.map((source, index) => <article className="guest-card browser-source-card" key={source.id}>
+                    <div className="browser-source-preview">{index < 2 && preferences.sidebar !== "hidden" && (preferences.sidebar === "expanded" || panelPeek || mobilePanelOpen || cinematicPanelOpen) ? <BrowserSourceRenderer source={source} mode="preview" /> : <StudioIcon regular={mediaIcon} filled={mediaFilledIcon} />}</div>
+                    <div className="guest-card__identity"><strong>{source.displayName}</strong><small>Browser source · {source.safeHost ?? "Restricted URL"}</small><StatusChip tone="pending">Backstage · {source.visibilityScope === "room" ? "Room" : "Production only"}</StatusChip></div>
+                    <div className="guest-card__actions">{permissions?.manageBrowserSources && <><Button disabled={Boolean(busy)} onClick={() => void changeBrowserSourceLocation(source, "on_stage")}>Move to Stage</Button><Button variant="quiet" disabled={Boolean(busy)} onClick={() => { setPanel("media"); revealPanel(); }}>Edit</Button><Button variant="quiet" disabled={Boolean(busy)} onClick={() => void disableBrowserSource(source)}>Disable</Button><Button className="button--destructive" variant="quiet" disabled={Boolean(busy)} onClick={() => void removeBrowserSource(source)}>Delete</Button></>}</div>
                   </article>)}
                   {admitted.length >= room.maxAdditionalStageParticipants && waiting.length > 0 && (
                     <p className="stage-full-note" role="note">
@@ -1125,7 +1170,7 @@ function HostRoomManagementPage() {
               </div>
             )}
             {panel === "brand" && <RoomBrandingPanel roomId={room.id} canonical={room.branding} canEdit={Boolean(permissions?.updateBranding)} refreshKey={productionRefreshKey} onPreview={setBrandingPreview} onCanonical={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} />}
-            {panel === "media" && <RoomMediaPanel roomId={room.id} branding={activeBranding} canEdit={Boolean(permissions?.manageAssets)} refreshKey={productionRefreshKey} onBranding={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} onChanged={() => setProductionRefreshKey((value) => value + 1)} />}
+            {panel === "media" && <RoomMediaPanel roomId={room.id} branding={activeBranding} browserSources={browserSources} canEdit={Boolean(permissions?.manageAssets && permissions?.manageBrowserSources)} refreshKey={productionRefreshKey} onBranding={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} onChanged={() => refreshAuthority(false)} onNotice={setMessage} />}
             {!cinematic && preferences.sidebar !== "hidden" && <button className="workspace-panel-toggle icon-control" type="button" aria-label={preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"} onClick={() => { setPanelPeek(false); toggleSidebar(); }}><StudioIcon regular={arrowIcon} filled={arrowIcon} active={preferences.sidebar === "expanded"} /><span>{preferences.sidebar === "expanded" ? "Collapse panel" : "Expand panel"}</span></button>}
           </aside>
         </div>
@@ -1148,8 +1193,8 @@ function HostRoomManagementPage() {
         </div>
         </div>
         <section className="backstage-tray" aria-labelledby="backstage-tray-heading">
-          <div className="backstage-tray__heading"><h2 id="backstage-tray-heading">Backstage</h2><StatusChip tone={waiting.length || backstageSources.length ? "pending" : "neutral"}>{waiting.length + backstageSources.length}</StatusChip></div>
-          {waiting.length || backstageSources.length ? <div className="backstage-tray__scroll">{waiting.map((guest) => <article className="backstage-tile" key={guest.id}>
+          <div className="backstage-tray__heading"><h2 id="backstage-tray-heading">Backstage</h2><StatusChip tone={waiting.length || backstageSources.length || backstageBrowserSources.length ? "pending" : "neutral"}>{waiting.length + backstageSources.length + backstageBrowserSources.length}</StatusChip></div>
+          {waiting.length || backstageSources.length || backstageBrowserSources.length ? <div className="backstage-tray__scroll">{waiting.map((guest) => <article className="backstage-tile" key={guest.id}>
             <BackstageMediaPreview guest={guest} media={media} />
             <div><strong>{guest.displayName}</strong><small>{guest.subtitle || (guest.sessionCohost ? "Session cohost" : "Waiting Backstage")}</small></div>
             <div className="participant-actions">
@@ -1157,7 +1202,7 @@ function HostRoomManagementPage() {
               <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "microphone")}>{guest.microphoneMuted ? "Unmute intent" : "Mute intent"}</Button>
               <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void mediaIntent(guest, "camera")}>{guest.cameraHidden ? "Show camera" : "Hide camera"}</Button>
             </div>
-          </article>)}{presentationSources.filter((source) => source.location === "backstage").map((source) => <article className="backstage-tile presentation-source-card" key={source.id}><div className="presentation-source-preview">{sourceShare(source) ? <ScreenShareVideo track={sourceShare(source)!.track} label={source.displayName} /> : <StudioIcon regular={shareIcon} />}</div><div><strong>{source.displayName}</strong><small>Screen share · Backstage</small></div>{permissions?.updatePresentation && <Button disabled={Boolean(busy)} onClick={() => void changeSourceLocation(source, "on_stage")}>Move to Stage</Button>}</article>)}</div> : <EmptyState title="Backstage is clear"><p>Guests and presentation sources appear here.</p></EmptyState>}
+          </article>)}{presentationSources.filter((source) => source.location === "backstage").map((source) => <article className="backstage-tile presentation-source-card" key={source.id}><div className="presentation-source-preview">{sourceShare(source) ? <ScreenShareVideo track={sourceShare(source)!.track} label={source.displayName} /> : <StudioIcon regular={shareIcon} />}</div><div><strong>{source.displayName}</strong><small>Screen share · Backstage</small></div>{permissions?.updatePresentation && <Button disabled={Boolean(busy)} onClick={() => void changeSourceLocation(source, "on_stage")}>Move to Stage</Button>}</article>)}{backstageBrowserSources.map((source) => <article className="backstage-tile browser-source-card" key={source.id}><div className="presentation-source-preview"><StudioIcon regular={mediaIcon} filled={mediaFilledIcon} /></div><div><strong>{source.displayName}</strong><small>Browser source · {source.safeHost ?? "Restricted URL"} · Backstage</small></div>{permissions?.manageBrowserSources && <Button disabled={Boolean(busy)} onClick={() => void changeBrowserSourceLocation(source, "on_stage")}>Move to Stage</Button>}</article>)}</div> : <EmptyState title="Backstage is clear"><p>Guests, presentation sources, and browser sources appear here.</p></EmptyState>}
         </section>
       </section>
       <DevicePreflightDialog media={media} />
