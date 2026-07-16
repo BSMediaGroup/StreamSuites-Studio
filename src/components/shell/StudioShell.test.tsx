@@ -16,9 +16,9 @@ it("defaults the primary sidebar to collapsed and its bottom toggle only pins or
   render(<ThemeProvider><PresentationProvider><MemoryRouter><StudioShell><p>Workspace</p></StudioShell></MemoryRouter></PresentationProvider></ThemeProvider>);
   const shell = screen.getByText("Workspace").closest(".studio-shell")!;
   expect(shell).toHaveClass("studio-shell--sidebar-collapsed");
-  fireEvent.click(screen.getByRole("button", { name: "Pin Studio sidebar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Expand left sidebar" }));
   expect(shell).toHaveClass("studio-shell--sidebar-expanded");
-  fireEvent.click(screen.getByRole("button", { name: "Collapse Studio sidebar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Collapse left sidebar" }));
   expect(shell).toHaveClass("studio-shell--sidebar-collapsed");
   expect(shell).not.toHaveClass("studio-shell--sidebar-hidden");
 });

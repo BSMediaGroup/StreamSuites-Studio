@@ -6,6 +6,7 @@ import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioAuth } from "../auth/studioAuthContext";
 import { SiteShell } from "../components/shell/SiteShell";
 import { StudioShell } from "../components/shell/StudioShell";
+import { StudioEdgeSidebar, StudioEdgeSidebarPortal } from "../components/shell/StudioEdgeSidebar";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -54,7 +55,6 @@ import customIcon from "../../assets/icons/ui/layoutcustom.svg";
 import customFilledIcon from "../../assets/icons/ui/layoutcustom-filled.svg";
 import goLiveIcon from "../../assets/icons/ui/cast.svg";
 import optionsIcon from "../../assets/icons/ui/options.svg";
-import arrowIcon from "../../assets/icons/ui/mobilearrow.svg";
 import refreshIcon from "../../assets/icons/ui/refresh.svg";
 import moveUpIcon from "../../assets/icons/ui/moveselectionup.svg";
 import moveUpFilledIcon from "../../assets/icons/ui/moveselectionup-filled.svg";
@@ -237,8 +237,7 @@ function HostRoomManagementPage() {
   const roomActionsTriggerRef = useRef<HTMLButtonElement>(null);
   const dockScrollRef = useRef<HTMLDivElement>(null);
   const noticeId = useRef(0);
-  const panelCloseTimer = useRef(0);
-  const { preferences, setSidebar, toggleSidebar, setCinematic, toggleCinematic } = usePresentationPreferences();
+  const { preferences, setSidebar, setCinematic, toggleCinematic } = usePresentationPreferences();
   const media = useStudioMedia(roomId, { location: "on_stage", canScreenShare: true });
   const cinematic = preferences.cinematic === "on";
   const fullscreenSupported = typeof document !== "undefined" && typeof document.documentElement.requestFullscreen === "function";
@@ -254,19 +253,8 @@ function HostRoomManagementPage() {
   }
 
   function revealPanel() {
-    window.clearTimeout(panelCloseTimer.current);
     if (preferences.sidebar === "collapsed") setPanelPeek(true);
   }
-
-  function schedulePanelClose() {
-    window.clearTimeout(panelCloseTimer.current);
-    panelCloseTimer.current = window.setTimeout(() => {
-      if (sidePanelRef.current?.contains(document.activeElement) || document.querySelector(".custom-layout-popup, [role='dialog'][aria-modal='true']")) return;
-      setPanelPeek(false);
-    }, 180);
-  }
-
-  useEffect(() => () => window.clearTimeout(panelCloseTimer.current), []);
 
   const refreshAuthority = useCallback(
     async (showLoading = true) => {
@@ -444,16 +432,6 @@ function HostRoomManagementPage() {
     else if (window.matchMedia("(max-width: 1020px)").matches) setMobilePanelOpen(true);
     else if (preferences.sidebar === "collapsed") setPanelPeek(true);
     if (preferences.sidebar === "hidden") setSidebar("collapsed");
-  }
-
-  function navigatePanelRail(event: React.KeyboardEvent<HTMLElement>) {
-    if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
-    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(".workspace-panel-rail__items > button"));
-    if (!buttons.length) return;
-    event.preventDefault();
-    const current = Math.max(0, buttons.indexOf(document.activeElement as HTMLButtonElement));
-    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
-    buttons[next]?.focus();
   }
 
   function openGoLiveInfo() {
@@ -994,22 +972,25 @@ function HostRoomManagementPage() {
 
           {cinematic && cinematicPanelOpen && <button className="cinematic-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
           {!cinematic && mobilePanelOpen && <button className="workspace-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setMobilePanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
-          <aside ref={sidePanelRef} className={`workspace-side-panel is-${preferences.sidebar}${panelPeek ? " is-peeking" : ""}${mobilePanelOpen ? " is-mobile-open" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Room production sidebar" onPointerEnter={revealPanel} onPointerLeave={schedulePanelClose} onFocusCapture={revealPanel} onBlurCapture={(event) => { if (!sidePanelRef.current?.contains(event.relatedTarget as Node)) schedulePanelClose(); }} {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
-            {cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
-            <nav className="workspace-panel-rail" aria-label="Room production panels" onKeyDown={navigatePanelRail}>
-              <div className="workspace-panel-rail__items">
-                {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => (
-                  <button type="button" key={item} className={`icon-control studio-tooltip${panel === item ? " is-active" : ""}`} data-tooltip={panelLabels[item]} onClick={() => { setPanel(item); if (preferences.sidebar === "collapsed") setPanelPeek(true); }} aria-label={`Open ${panelLabels[item]} panel`} aria-pressed={panel === item}>
-                    <StudioIcon regular={panelIcons[item][0]} filled={panelIcons[item][1]} active={panel === item} />
-                    {(item === "backstage" || item === "invites") && <span className="workspace-panel-count">{item === "backstage" ? waiting.length : invites.filter((invite) => invite.active).length}</span>}
-                  </button>
-                ))}
-              </div>
-              {!cinematic && preferences.sidebar !== "hidden" && <button className="workspace-panel-toggle icon-control studio-tooltip" data-tooltip={preferences.sidebar === "expanded" ? "Collapse room production sidebar" : "Pin room production sidebar"} type="button" aria-label={preferences.sidebar === "expanded" ? "Collapse room production sidebar" : "Pin room production sidebar"} onClick={() => { setPanelPeek(false); toggleSidebar(); }}><StudioIcon regular={arrowIcon} filled={arrowIcon} active={preferences.sidebar === "expanded"} /><span className="sr-only">{preferences.sidebar === "expanded" ? "Collapse" : "Pin"}</span></button>}
-            </nav>
-            <div className="workspace-panel-content" aria-label={`${panelLabels[panel]} panel`}>
-              <header className="workspace-panel-content__heading"><p className="eyebrow">{panelLabels[panel].toUpperCase()}</p></header>
-
+          <StudioEdgeSidebarPortal>
+            <StudioEdgeSidebar
+              ref={sidePanelRef}
+              edge="right"
+              ariaLabel="Room production sidebar"
+              navigationLabel="Room production panels"
+              mode={preferences.sidebar}
+              items={(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => ({ id: item, label: panelLabels[item], icon: panelIcons[item][0], filledIcon: panelIcons[item][1], ...((item === "backstage" || item === "invites") ? { count: item === "backstage" ? waiting.length : invites.filter((invite) => invite.active).length } : {}) }))}
+              selectedSection={panel}
+              panelHeading={panelLabels[panel]}
+              temporaryExpanded={panelPeek}
+              onTemporaryExpandedChange={setPanelPeek}
+              onSelectedSectionChange={(section) => setPanel(section as WorkspacePanel)}
+              onModeChange={setSidebar}
+              className={`${mobilePanelOpen ? "is-mobile-open" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`}
+              toggleHidden={cinematic}
+              dialogOpen={cinematic && cinematicPanelOpen}
+              panelHeadingControl={cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
+              panelBody={<>
             {panel === "backstage" && (
               <div className="backstage-panel">
                 <section aria-labelledby="waiting-backstage-heading">
@@ -1255,8 +1236,9 @@ function HostRoomManagementPage() {
             )}
             {panel === "brand" && <RoomBrandingPanel roomId={room.id} canonical={room.branding} canEdit={Boolean(permissions?.updateBranding)} refreshKey={productionRefreshKey} onPreview={setBrandingPreview} onCanonical={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} />}
             {panel === "media" && <RoomMediaPanel roomId={room.id} branding={activeBranding} browserSources={browserSources} canEdit={Boolean(permissions?.manageAssets && permissions?.manageBrowserSources)} refreshKey={productionRefreshKey} onBranding={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} onChanged={() => refreshAuthority(false)} onNotice={setMessage} />}
-            </div>
-          </aside>
+              </>}
+            />
+          </StudioEdgeSidebarPortal>
         </div>
 
         <div className="control-dock" aria-label="Production control dock">
@@ -1275,6 +1257,7 @@ function HostRoomManagementPage() {
           </div>
           <button className="control-dock__nav control-dock__nav--next icon-control studio-tooltip" data-tooltip="Next controls" type="button" aria-label="Next production controls" onClick={() => scrollDock(1)}><StudioIcon regular={nextIcon} /></button>
         </div>
+        </div>
         <section className="backstage-tray" aria-labelledby="backstage-tray-heading">
           <div className="backstage-tray__heading"><h2 id="backstage-tray-heading">Backstage</h2><StatusChip tone={waiting.length || backstageSources.length || backstageBrowserSources.length ? "pending" : "neutral"}>{waiting.length + backstageSources.length + backstageBrowserSources.length}</StatusChip></div>
           {waiting.length || backstageSources.length || backstageBrowserSources.length ? <div className="backstage-tray__scroll">{waiting.map((guest) => <article className="backstage-tile" key={guest.id}>
@@ -1287,7 +1270,6 @@ function HostRoomManagementPage() {
             </div>
           </article>)}{presentationSources.filter((source) => source.location === "backstage").map((source) => <article className="backstage-tile presentation-source-card" key={source.id}><div className="presentation-source-preview">{sourceShare(source) ? <ScreenShareVideo track={sourceShare(source)!.track} label={source.displayName} /> : <StudioIcon regular={shareIcon} />}</div><div><strong>{source.displayName}</strong><small>Screen share · Backstage</small></div>{permissions?.updatePresentation && <Button disabled={Boolean(busy)} onClick={() => void changeSourceLocation(source, "on_stage")}>Move to Stage</Button>}</article>)}{backstageBrowserSources.map((source) => <article className="backstage-tile browser-source-card" key={source.id}><div className="presentation-source-preview"><StudioIcon regular={mediaIcon} filled={mediaFilledIcon} /></div><div><strong>{source.displayName}</strong><small>Browser source · {source.safeHost ?? "Restricted URL"} · Backstage</small></div>{permissions?.manageBrowserSources && <Button disabled={Boolean(busy)} onClick={() => void changeBrowserSourceLocation(source, "on_stage")}>Move to Stage</Button>}</article>)}</div> : <EmptyState title="Backstage is clear"><p>Guests, presentation sources, and browser sources appear here.</p></EmptyState>}
         </section>
-        </div>
       </section>
       <DevicePreflightDialog media={media} />
 

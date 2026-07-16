@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveEffectiveStageLayout, stageGridRows } from "./stageLayout";
 import studioStyles from "../styles/index.css?raw";
+import roomStyles from "../styles/room-workspace.css?raw";
 
 describe("resolveEffectiveStageLayout", () => {
   it("provides the exact centered 1-9 row contract", () => {
@@ -60,7 +61,7 @@ describe("Stage workspace CSS contract", () => {
 
   it("pins sidebar chrome, stretches the room panel, portals tooltips, and doubles only exit", () => {
     expect(studioStyles).toMatch(/\.studio-shell\s*\{[^}]*height:\s*100dvh/);
-    expect(studioStyles).toMatch(/\.workspace-side-panel\s*\{[^}]*height:\s*100%[^}]*max-height:\s*none/);
+    expect(roomStyles).toMatch(/\.studio-edge-sidebar\s*\{[\s\S]*height:\s*100%[\s\S]*min-height:\s*0/);
     expect(studioStyles).toMatch(/\.studio-tooltip-portal\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*1000/);
     expect(studioStyles).toMatch(/\.room-exit-button\s*>\s*\.studio-icon\s*\{[^}]*width:\s*3\.4rem[^}]*height:\s*3\.4rem/);
   });

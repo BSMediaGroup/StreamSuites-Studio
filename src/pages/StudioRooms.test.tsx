@@ -171,12 +171,12 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   expect(rendered.container.querySelector(".production-rail")).not.toBeInTheDocument();
   expect(rendered.container.querySelector(".room-lifecycle-bar")).not.toBeInTheDocument();
   expect(screen.getByTitle("Room ID").parentElement).toHaveTextContent("ROOM DETAILS");
-  fireEvent.click(screen.getByRole("button", { name: "Pin room production sidebar" }));
-  expect(screen.getByRole("button", { name: "Collapse room production sidebar" })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Collapse room production sidebar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Expand right sidebar" }));
+  expect(screen.getByRole("button", { name: "Collapse right sidebar" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Collapse right sidebar" }));
   expect(screen.getByRole("button", { name: "Open Backstage panel" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Open Backstage panel" }));
-  expect(screen.getByRole("button", { name: "Pin room production sidebar" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Expand right sidebar" })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "View options" }));
   fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Enter cinematic/i }));
