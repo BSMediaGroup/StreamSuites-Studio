@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PresentationProvider } from "../../presentation/PresentationProvider";
@@ -25,10 +25,15 @@ it("defaults the primary sidebar to collapsed and its bottom toggle only pins or
 
 it("keeps lobby product sections in dedicated left panels and restores Destinations", () => {
   render(<ThemeProvider><PresentationProvider><MemoryRouter><StudioShell><p>Workspace</p></StudioShell></MemoryRouter></PresentationProvider></ThemeProvider>);
-  for (const section of ["Studio", "Brand", "Media", "Destinations", "Settings"]) expect(screen.getByRole("button", { name: `Open ${section} panel` })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Open Destinations panel" }));
-  expect(screen.getByRole("region", { name: "Destinations panel" })).toHaveTextContent("No destinations connected");
-  expect(screen.getByRole("region", { name: "Destinations panel" })).toHaveTextContent("Studio remains OFF AIR");
+  const expectations = { Studio: "Room lobby", Brand: "Brand library foundation", Media: "Media library foundation", Destinations: "No destinations connected", Settings: "Studio display settings" } as const;
+  for (const [section, content] of Object.entries(expectations)) {
+    fireEvent.click(screen.getByRole("button", { name: `Open ${section} panel` }));
+    const panel = screen.getByRole("region", { name: `${section} panel` });
+    expect(panel).toHaveTextContent(content);
+    expect(within(panel).queryByRole("heading", { level: 2, name: section })).not.toBeInTheDocument();
+    if (section === "Destinations") expect(panel).toHaveTextContent("Studio remains OFF AIR");
+  }
+  expect(screen.getByRole("complementary", { name: "Primary Studio sidebar" })).not.toHaveTextContent(/use the right|open the production panel|manage this elsewhere/i);
   expect(screen.queryByText("Later")).not.toBeInTheDocument();
 });
 

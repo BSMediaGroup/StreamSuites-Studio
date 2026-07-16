@@ -36,6 +36,7 @@
   --danger: #f07178;
   --danger-soft: rgba(240, 113, 120, 0.08);
   --danger-text: #f59ba0;
+  --danger-contrast: #180205;
   --focus: #c7f77f;
   --chip-bg: rgba(255, 255, 255, 0.03);
   --button-secondary-bg: rgba(255, 255, 255, 0.035);
@@ -83,6 +84,7 @@
   --danger: #b43f48;
   --danger-soft: rgba(180, 63, 72, 0.09);
   --danger-text: #9b3039;
+  --danger-contrast: #ffffff;
   --focus: #426f10;
   --chip-bg: rgba(20, 31, 43, 0.035);
   --button-secondary-bg: rgba(255, 255, 255, 0.78);

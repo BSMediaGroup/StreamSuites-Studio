@@ -7,7 +7,7 @@
 .studio-sidebar__rail-items { display: grid; gap: 0.35rem; }
 .studio-sidebar .studio-nav-link { position: relative; display: grid; width: 46px; min-height: 46px; grid-template-columns: 1fr; place-items: center; padding: 0; cursor: pointer; }
 .studio-sidebar .studio-nav-link .studio-icon { width: 1.15rem; height: 1.15rem; }
-.studio-sidebar .sidebar-mode-cycle { width: 46px; min-height: 46px; margin: 0; padding: 0; }
+.studio-sidebar .sidebar-mode-cycle { width: 46px; height: 46px; min-height: 46px; margin: 0; padding: 0; }
 .studio-sidebar__panel { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; background: var(--sidebar-bg); box-shadow: 8px 0 20px rgb(0 0 0 / 0.08); }
 .studio-sidebar__panel .studio-sidebar__header { display: grid; min-height: 70px; gap: 0.25rem; padding: 0.8rem 1rem; }
 .studio-sidebar__panel .studio-sidebar__header h2 { margin: 0; color: var(--text); font-size: 1.05rem; letter-spacing: normal; text-transform: none; }
@@ -26,24 +26,27 @@
 .view-options__menu select { width: 100%; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-soft); color: var(--text); padding: 0.45rem; }
 .studio-shell--room-workspace .studio-main { min-height: 0; overflow-y: auto; }
 
-.room-workspace { display: block; max-width: 100%; min-height: 100%; overflow-x: clip; }
-.room-viewport { display: grid; height: 100%; min-height: 540px; grid-template-rows: auto minmax(0, 1fr) auto; gap: 0.65rem; }
-.room-workspace > .backstage-tray { margin-top: 0.65rem; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.room-workspace { display: block; width: 100%; max-width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+.room-viewport { position: relative; display: grid; width: 100%; height: 100%; min-height: 540px; grid-template-columns: minmax(0, 1fr) 64px; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 0.65rem; overflow: hidden; }
+.room-workspace.is-panel-expanded .room-viewport { grid-template-columns: minmax(0, 1fr) 424px; }
+.room-workspace.is-panel-hidden .room-viewport { grid-template-columns: minmax(0, 1fr) 0; column-gap: 0; }
+.room-viewport > .room-status-strip { grid-column: 1; grid-row: 1; }
+.room-viewport > .control-dock { grid-column: 1; grid-row: 3; }
+.room-viewport > .backstage-tray { grid-column: 1; grid-row: 4; min-height: 0; max-height: min(25vh, 240px); overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .production-workspace,
 .production-workspace.is-panel-collapsed,
 .production-workspace.is-panel-expanded,
-.production-workspace.is-panel-hidden { position: relative; display: grid; min-height: 0; align-items: stretch; gap: 0.65rem; }
-.production-workspace.is-panel-expanded { grid-template-columns: minmax(0, 1fr) 424px; }
-.production-workspace.is-panel-collapsed { grid-template-columns: minmax(0, 1fr) 64px; }
-.production-workspace.is-panel-hidden { grid-template-columns: minmax(0, 1fr) 0; gap: 0; }
+.production-workspace.is-panel-hidden { display: contents; }
 .production-workspace .program-panel,
-.production-workspace.is-panel-hidden .program-panel { grid-column: 1; grid-row: 1; min-height: 0; }
+.production-workspace.is-panel-hidden .program-panel { grid-column: 1; grid-row: 2; min-height: 0; }
 .program-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.program-panel__toolbar,
+.program-stage-viewport { width: 100%; min-width: 0; }
 .program-stage-viewport { container-type: size; display: grid; min-width: 0; min-height: 0; place-items: center; overflow: hidden; background: #090c11; }
 .program-stage-viewport .program-canvas,
 .studio-shell--cinematic .program-stage-viewport .program-canvas { width: min(100cqw, calc(100cqh * 16 / 9)); height: min(100cqh, calc(100cqw * 9 / 16)); min-height: 0; max-width: 100%; max-height: 100%; flex: none; aspect-ratio: 16 / 9; }
 
-.workspace-side-panel { position: static; z-index: 12; grid-column: 2; grid-row: 1; display: grid; width: 424px; height: 100%; min-height: 0; max-height: none; align-self: stretch; grid-template-columns: minmax(0, 360px) 64px; overflow: visible; transform: none; }
+.workspace-side-panel { position: static; z-index: 12; grid-column: 2; grid-row: 1 / -1; display: grid; width: 424px; height: 100%; min-height: 0; max-height: none; align-self: stretch; grid-template-columns: minmax(0, 360px) 64px; overflow: visible; transform: none; }
 .workspace-side-panel.is-hidden { display: none; }
 .workspace-side-panel.is-collapsed { position: static; width: 64px; height: 100%; grid-template-columns: 64px; overflow: visible; }
 .workspace-side-panel.is-collapsed .workspace-panel-content { display: none; }
@@ -60,15 +63,13 @@
 .workspace-panel-count { position: absolute; top: -0.2rem; right: -0.2rem; display: grid; min-width: 18px; min-height: 18px; place-items: center; border-radius: 999px; background: var(--accent); color: #0b0e0a; font-size: 0.58rem; font-weight: 800; }
 .workspace-panel-content { grid-column: 1; grid-row: 1; display: grid; min-width: 0; min-height: 0; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; background: var(--bg-panel-raised); }
 .workspace-panel-content__heading { border-bottom: 1px solid var(--border); padding: 0.8rem 1rem; }
-.workspace-panel-content__heading p,
-.workspace-panel-content__heading h2 { margin: 0; }
-.workspace-panel-content__heading h2 { margin-top: 0.2rem; font-size: 1.05rem; }
+.workspace-panel-content__heading p { margin: 0; }
 .workspace-panel-content > .backstage-panel,
 .workspace-panel-content > .invite-panel,
 .workspace-panel-content > .room-settings-panel,
 .workspace-panel-content > .branding-panel,
 .workspace-panel-content > .media-panel { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
-.workspace-panel-toggle { margin: 0; }
+.workspace-panel-toggle { width: 46px; height: 46px; min-height: 46px; margin: 0; }
 .workspace-panel-toggle .studio-icon { transform: rotate(180deg); }
 .workspace-side-panel.is-expanded .workspace-panel-toggle .studio-icon { transform: none; }
 
@@ -87,7 +88,7 @@
 .studio-shell--cinematic .workspace-side-panel.is-cinematic-open { visibility: visible; opacity: 1; transform: translateX(0); }
 
 @media (max-width: 1020px) and (min-width: 681px) {
-  .production-workspace.is-panel-expanded { grid-template-columns: minmax(0, 1fr) 64px; }
+  .room-workspace.is-panel-expanded .room-viewport { grid-template-columns: minmax(0, 1fr) 64px; }
   .workspace-side-panel.is-expanded { position: fixed; z-index: 142; top: 0.5rem; right: 0.5rem; bottom: 0.5rem; left: auto; width: min(424px, calc(100vw - 1rem)); height: auto; max-height: none; grid-template-columns: minmax(0, 1fr) 64px; box-shadow: var(--shadow-lg); }
 }
 
@@ -106,13 +107,11 @@
 }
 
 @media (max-width: 680px) {
-  .room-viewport { height: auto; min-height: 0; grid-template-rows: auto auto auto; }
-  .production-workspace,
-  .production-workspace.is-panel-expanded,
-  .production-workspace.is-panel-collapsed,
-  .production-workspace.is-panel-hidden { grid-template-columns: minmax(0, 1fr); }
+  .room-viewport,
+  .room-workspace.is-panel-expanded .room-viewport,
+  .room-workspace.is-panel-hidden .room-viewport { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); column-gap: 0; overflow-y: auto; }
   .production-workspace .program-panel,
-  .production-workspace.is-panel-hidden .program-panel { grid-column: 1; }
+  .production-workspace.is-panel-hidden .program-panel { grid-column: 1; grid-row: 2; min-height: auto; }
   .workspace-side-panel,
   .workspace-side-panel.is-collapsed,
   .workspace-side-panel.is-collapsed.is-peeking,
@@ -124,6 +123,8 @@
   .workspace-side-panel.is-cinematic-open .workspace-panel-content { display: grid; }
   .program-stage-viewport { min-height: 0; aspect-ratio: 16 / 9; }
   .program-stage-viewport .program-canvas { width: 100%; height: 100%; }
+  .room-viewport > .control-dock { grid-row: 3; }
+  .room-viewport > .backstage-tray { grid-row: 4; max-height: none; }
   .contextual-notice-stack { top: 52px; width: calc(100% - 1rem); }
 }
 

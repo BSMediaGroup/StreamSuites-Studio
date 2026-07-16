@@ -391,6 +391,16 @@ function HostRoomManagementPage() {
     if (preferences.sidebar === "hidden") setSidebar("collapsed");
   }
 
+  function navigatePanelRail(event: React.KeyboardEvent<HTMLElement>) {
+    if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(".workspace-panel-rail__items > button"));
+    if (!buttons.length) return;
+    event.preventDefault();
+    const current = Math.max(0, buttons.indexOf(document.activeElement as HTMLButtonElement));
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next]?.focus();
+  }
+
   function openGoLiveInfo() {
     goLiveTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setShowGoLiveInfo(true);
@@ -829,7 +839,7 @@ function HostRoomManagementPage() {
 
   return (
     <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()}>
-      <section ref={roomWorkspaceRef} className="room-workspace" aria-label={`${room.title} Studio workspace`}>
+      <section ref={roomWorkspaceRef} className={`room-workspace is-panel-${preferences.sidebar}${panelPeek ? " is-panel-peeking" : ""}`} aria-label={`${room.title} Studio workspace`}>
         <div className="room-viewport">
         {cinematic && <div className="cinematic-room-actions" aria-label="Cinematic workspace controls">
           <button type="button" onClick={toggleCinematic}>Exit cinematic <kbd>F</kbd></button>
@@ -919,7 +929,7 @@ function HostRoomManagementPage() {
           {!cinematic && mobilePanelOpen && <button className="workspace-panel-scrim" type="button" aria-label="Close room tools" onClick={() => { setMobilePanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }} />}
           <aside ref={sidePanelRef} className={`workspace-side-panel is-${preferences.sidebar}${panelPeek ? " is-peeking" : ""}${mobilePanelOpen ? " is-mobile-open" : ""}${cinematicPanelOpen ? " is-cinematic-open" : ""}`} aria-label="Room production sidebar" onPointerEnter={revealPanel} onPointerLeave={schedulePanelClose} onFocusCapture={revealPanel} onBlurCapture={(event) => { if (!sidePanelRef.current?.contains(event.relatedTarget as Node)) schedulePanelClose(); }} {...(cinematic ? (cinematicPanelOpen ? { role: "dialog", "aria-modal": true } : { "aria-hidden": true }) : {})}>
             {cinematic && <button className="cinematic-panel-close" type="button" onClick={() => { setCinematicPanelOpen(false); window.setTimeout(() => panelTriggerRef.current?.focus(), 0); }}>Close room tools</button>}
-            <nav className="workspace-panel-rail" aria-label="Room production panels">
+            <nav className="workspace-panel-rail" aria-label="Room production panels" onKeyDown={navigatePanelRail}>
               <div className="workspace-panel-rail__items">
                 {(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => (
                   <button type="button" key={item} className={`icon-control studio-tooltip${panel === item ? " is-active" : ""}`} data-tooltip={panelLabels[item]} onClick={() => { setPanel(item); if (preferences.sidebar === "collapsed") setPanelPeek(true); }} aria-label={`Open ${panelLabels[item]} panel`} aria-pressed={panel === item}>
@@ -931,7 +941,7 @@ function HostRoomManagementPage() {
               {!cinematic && preferences.sidebar !== "hidden" && <button className="workspace-panel-toggle icon-control studio-tooltip" data-tooltip={preferences.sidebar === "expanded" ? "Collapse room production sidebar" : "Pin room production sidebar"} type="button" aria-label={preferences.sidebar === "expanded" ? "Collapse room production sidebar" : "Pin room production sidebar"} onClick={() => { setPanelPeek(false); toggleSidebar(); }}><StudioIcon regular={arrowIcon} filled={arrowIcon} active={preferences.sidebar === "expanded"} /><span className="sr-only">{preferences.sidebar === "expanded" ? "Collapse" : "Pin"}</span></button>}
             </nav>
             <div className="workspace-panel-content" aria-label={`${panelLabels[panel]} panel`}>
-              <header className="workspace-panel-content__heading"><p className="eyebrow">ROOM PRODUCTION</p><h2>{panelLabels[panel]}</h2></header>
+              <header className="workspace-panel-content__heading"><p className="eyebrow">{panelLabels[panel].toUpperCase()}</p></header>
 
             {panel === "backstage" && (
               <div className="backstage-panel">
@@ -964,7 +974,7 @@ function HostRoomManagementPage() {
                             <Button className="icon-control" disabled={Boolean(guestBusy) || admitted.length >= room.maxAdditionalStageParticipants} onClick={() => void moveParticipant(guest, "stage")}>
                               <StudioIcon regular={moveUpIcon} filled={moveUpFilledIcon} /> {guestBusy === guest.id ? "Working…" : "Move to Stage"}
                             </Button>
-                            <Button variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void guestAction(guest, "deny")}>
+                            <Button className="button--destructive" variant="quiet" disabled={Boolean(guestBusy)} onClick={() => void guestAction(guest, "deny")}>
                               Deny
                             </Button>
                             {permissions?.endRoom && (
@@ -1161,7 +1171,7 @@ function HostRoomManagementPage() {
                   {([['name_and_subtitle', 'Show names and subtitles'], ['name_only', 'Show names only'], ['hidden', 'Hide participant labels']] as const).map(([value, label]) => <label key={value} className="check-row"><input type="radio" name="participant-label-mode" value={value} checked={room.presentation.participantLabelMode === value} onChange={() => { const previous = room; setRoom({ ...room, presentation: { ...room.presentation, participantLabelMode: value } }); void updateStudioPresentation(room.id, { participantLabelMode: value }).then(setRoom).catch((error) => { setRoom(previous); setMessage(error instanceof Error ? error.message : "Participant label setting could not be changed."); }); }} /><span>{label}</span></label>)}
                 </fieldset>
                 <fieldset className="participant-label-settings" disabled={!permissions?.updatePresentation || Boolean(busy)}><legend>Guest slot sizing</legend>
-                  {([['fill', 'Fill', 'Fill each allocated grid region.'], ['fit', 'Fit', 'Keep every guest slot exactly 16:9.']] as const).map(([value, label, helper]) => <label key={value} className="check-row"><input type="radio" name="guest-slot-sizing" checked={room.presentation.guestSlotSizing === value} onChange={() => void changePresentationSetting({ guestSlotSizing: value })} /><span><strong>{label}</strong><small>{helper}</small></span></label>)}
+                  {([['fill', 'Fill guest media slots', 'Fill each allocated grid region.'], ['fit', 'Fit guest media slots', 'Keep every guest slot exactly 16:9.']] as const).map(([value, label, helper]) => <label key={value} className="check-row"><input type="radio" name="guest-slot-sizing" checked={room.presentation.guestSlotSizing === value} onChange={() => void changePresentationSetting({ guestSlotSizing: value })} /><span><strong>{label}</strong><small>{helper}</small></span></label>)}
                 </fieldset>
                 <fieldset className="participant-label-settings" disabled={!permissions?.updatePresentation || Boolean(busy)}><legend>Presentation participant layout</legend>
                   {([['overlay', 'Overlay presentation'], ['outside', 'Outside presentation']] as const).map(([value, label]) => <label key={value} className="check-row"><input type="radio" name="presentation-participant-mode" checked={room.presentation.participantMode === value} onChange={() => void changePresentationSetting({ participantMode: value })} /><span>{label}</span></label>)}
@@ -1196,7 +1206,6 @@ function HostRoomManagementPage() {
           </div>
           <button className="control-dock__nav control-dock__nav--next icon-control studio-tooltip" data-tooltip="Next controls" type="button" aria-label="Next production controls" onClick={() => scrollDock(1)}><StudioIcon regular={nextIcon} /></button>
         </div>
-        </div>
         <section className="backstage-tray" aria-labelledby="backstage-tray-heading">
           <div className="backstage-tray__heading"><h2 id="backstage-tray-heading">Backstage</h2><StatusChip tone={waiting.length || backstageSources.length || backstageBrowserSources.length ? "pending" : "neutral"}>{waiting.length + backstageSources.length + backstageBrowserSources.length}</StatusChip></div>
           {waiting.length || backstageSources.length || backstageBrowserSources.length ? <div className="backstage-tray__scroll">{waiting.map((guest) => <article className="backstage-tile" key={guest.id}>
@@ -1209,6 +1218,7 @@ function HostRoomManagementPage() {
             </div>
           </article>)}{presentationSources.filter((source) => source.location === "backstage").map((source) => <article className="backstage-tile presentation-source-card" key={source.id}><div className="presentation-source-preview">{sourceShare(source) ? <ScreenShareVideo track={sourceShare(source)!.track} label={source.displayName} /> : <StudioIcon regular={shareIcon} />}</div><div><strong>{source.displayName}</strong><small>Screen share · Backstage</small></div>{permissions?.updatePresentation && <Button disabled={Boolean(busy)} onClick={() => void changeSourceLocation(source, "on_stage")}>Move to Stage</Button>}</article>)}{backstageBrowserSources.map((source) => <article className="backstage-tile browser-source-card" key={source.id}><div className="presentation-source-preview"><StudioIcon regular={mediaIcon} filled={mediaFilledIcon} /></div><div><strong>{source.displayName}</strong><small>Browser source · {source.safeHost ?? "Restricted URL"} · Backstage</small></div>{permissions?.manageBrowserSources && <Button disabled={Boolean(busy)} onClick={() => void changeBrowserSourceLocation(source, "on_stage")}>Move to Stage</Button>}</article>)}</div> : <EmptyState title="Backstage is clear"><p>Guests, presentation sources, and browser sources appear here.</p></EmptyState>}
         </section>
+        </div>
       </section>
       <DevicePreflightDialog media={media} />
 
