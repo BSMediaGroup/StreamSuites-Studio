@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { connectStudioEvents, leaveStudioGuestSession, listStudioBrowserSources, loadPresentationSources, loadStudioGuestRoomView, moveStudioGuestSelf, registerPresentationSource, stopPresentationSource } from "../api/studioAuth";
 import { SiteShell } from "../components/shell/SiteShell";
+import { StudioShell } from "../components/shell/StudioShell";
+import { StudioEdgeSidebar, StudioEdgeSidebarPortal } from "../components/shell/StudioEdgeSidebar";
+import { RoomChatPanel } from "../components/room/RoomChatPanel";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -18,6 +21,9 @@ import moveUpIcon from "../../assets/icons/ui/moveselectionup.svg";
 import moveUpFilledIcon from "../../assets/icons/ui/moveselectionup-filled.svg";
 import moveDownIcon from "../../assets/icons/ui/moveselectiondown.svg";
 import moveDownFilledIcon from "../../assets/icons/ui/moveselectiondown-filled.svg";
+import chatIcon from "../../assets/icons/ui/chat.svg";
+import chatFilledIcon from "../../assets/icons/ui/chatfill.svg";
+import { usePresentationPreferences } from "../presentation/presentationContext";
 
 export function GuestRoomWorkspace() {
   const { roomId = "" } = useParams<{ roomId: string }>();
@@ -28,6 +34,10 @@ export function GuestRoomWorkspace() {
   const [message, setMessage] = useState("");
   const [presentationSources, setPresentationSources] = useState<PresentationSource[]>([]);
   const [browserSources, setBrowserSources] = useState<BrowserSource[]>([]);
+  const [chatUnread, setChatUnread] = useState(0);
+  const [chatRefreshKey, setChatRefreshKey] = useState(0);
+  const [chatPeek, setChatPeek] = useState(false);
+  const { preferences, setSidebar } = usePresentationPreferences();
   const media = useStudioMedia(roomId, { location: view?.self.state === "on_stage" ? "on_stage" : "backstage", canScreenShare: view?.self.state === "on_stage" });
   useGlobalActivity(status === "loading" || Boolean(busy), "Loading guest room");
 
@@ -48,7 +58,7 @@ export function GuestRoomWorkspace() {
   const refreshMediaMappings = media.refreshMappings;
   useEffect(() => {
     if (!liveGuestId) return;
-    const connection = connectStudioEvents({ guest: true, onState: () => undefined, onEvent: () => void refresh() });
+    const connection = connectStudioEvents({ guest: true, onState: () => undefined, onEvent: (event) => event.type.startsWith("room.chat_") ? setChatRefreshKey((value) => value + 1) : void refresh() });
     return () => connection.close();
   }, [liveGuestId, refresh]);
   useEffect(() => { if (mediaState === "connected") void refreshMediaMappings(); }, [view?.stage, mediaState, refreshMediaMappings]);
@@ -94,8 +104,9 @@ export function GuestRoomWorkspace() {
   let rowOffset = 0;
   const stageRows = stageGridRows(stageItems.length).map((size) => { const row = stageItems.slice(rowOffset, rowOffset + size); rowOffset += size; return row; });
   const renderStageItem = ({ participant }: (typeof stageItems)[number]) => !participant ? <article className="participant-tile stage-participant" key="director" data-stage-slot="director">{directorParticipant?.videoEnabled && directorParticipant.videoTrack?.readyState === "live" ? <RemoteMediaVideo participant={directorParticipant} label="Director" /> : <ParticipantFallback guest={{ displayName: "Director", avatarColor: "green", avatarUrl: null }} status={directorParticipant ? `${directorParticipant.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off` : "Reserved Stage slot"} />}<ParticipantLabelOverlay name="Director" mode={view.room.presentation.participantLabelMode} branding={view.room.branding} /></article> : participant.id === view.self.id ? <article className={`participant-tile stage-participant${media.activeRuntimeParticipantId === "self" ? " is-active-speaker" : ""}`} key={participant.id}>{media.videoEnabled && media.meeting?.self.videoTrack?.readyState === "live" ? <LocalMediaVideo media={media} /> : <ParticipantFallback guest={participant} status={`${media.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off`} />}<ParticipantLabelOverlay name={participant.displayName} subtitle={participant.subtitle} mode={view.room.presentation.participantLabelMode} branding={view.room.branding} /></article> : <MediaParticipantTile className="participant-tile stage-participant" guest={participant} media={media} labelMode={view.room.presentation.participantLabelMode} branding={view.room.branding} key={participant.id} />;
+  const openChat = () => { if (preferences.sidebar === "hidden") setSidebar("collapsed"); if (preferences.sidebar !== "expanded") setChatPeek(true); };
   return (
-    <SiteShell>
+    <StudioShell roomWorkspace chatUnreadCount={chatUnread} chatOpen={preferences.sidebar === "expanded" || chatPeek} onOpenChat={openChat}>
       <section className="guest-room page-width">
         <header className="guest-room__header">
           <div><p className="eyebrow">ROOM DETAILS</p><h1>{view.room.title}</h1><p><code className="room-id-chip" title="Room ID">{view.room.id}</code> · OFF AIR</p></div>
@@ -123,7 +134,8 @@ export function GuestRoomWorkspace() {
         {message && <p role="status">{message}</p>}
         <p className="fine-print">RealtimeKit transports private room media. Runtime/Auth remains authoritative and the room remains OFF AIR.</p>
       </section>
+      <StudioEdgeSidebarPortal><StudioEdgeSidebar edge="right" ariaLabel="Room production sidebar" navigationLabel="Room production panels" mode={preferences.sidebar} items={[{ id: "chat", label: "Chat", icon: chatIcon, filledIcon: chatFilledIcon, count: chatUnread }]} selectedSection="chat" panelHeading="Chat" temporaryExpanded={chatPeek} onTemporaryExpandedChange={setChatPeek} onSelectedSectionChange={() => openChat()} onModeChange={setSidebar} panelBody={<RoomChatPanel roomId={view.room.id} visible={preferences.sidebar === "expanded" || chatPeek} refreshKey={chatRefreshKey} onUnreadChange={setChatUnread} />} /></StudioEdgeSidebarPortal>
       <DevicePreflightDialog media={media} />
-    </SiteShell>
+    </StudioShell>
   );
 }

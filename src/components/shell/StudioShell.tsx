@@ -21,6 +21,8 @@ import destinationsIcon from "../../../assets/icons/ui/sharelinks.svg";
 import settingsIcon from "../../../assets/icons/ui/settingsquare.svg";
 import sidebarIcon from "../../../assets/icons/ui/sidebar.svg";
 import sidebarOpenIcon from "../../../assets/icons/ui/sidebaropen.svg";
+import chatIcon from "../../../assets/icons/ui/chat.svg";
+import chatFilledIcon from "../../../assets/icons/ui/chatfill.svg";
 
 type PrimarySidebarSection = "studio" | "brand" | "media" | "destinations" | "settings";
 type PrimarySidebarMode = "expanded" | "collapsed" | "hidden";
@@ -56,9 +58,12 @@ interface StudioShellProps {
   readonly fullscreenSupported?: boolean;
   readonly fullscreenActive?: boolean;
   readonly onToggleFullscreen?: () => void;
+  readonly chatUnreadCount?: number;
+  readonly chatOpen?: boolean;
+  readonly onOpenChat?: () => void;
 }
 
-export function StudioShell({ children, roomWorkspace = false, fullscreenSupported, fullscreenActive, onToggleFullscreen }: StudioShellProps) {
+export function StudioShell({ children, roomWorkspace = false, fullscreenSupported, fullscreenActive, onToggleFullscreen, chatUnreadCount = 0, chatOpen = false, onOpenChat }: StudioShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [primarySidebar, setPrimarySidebar] = useState<PrimarySidebarMode>(loadPrimarySidebarMode);
   const [primarySection, setPrimarySection] = useState<PrimarySidebarSection>("studio");
@@ -127,6 +132,9 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
         <BrandMark />
         <div className="studio-topbar__status">
           <CohostRequests onOpenChange={setHeaderHeldOpen} />
+          {roomWorkspace && onOpenChat && <Button className="cohost-requests__trigger" variant="quiet" aria-label="Open room chat" aria-pressed={chatOpen} title="Room chat" onClick={onOpenChat}>
+            <StudioIcon regular={chatIcon} filled={chatFilledIcon} active={chatOpen} /> <span>Chat</span>{chatUnreadCount > 0 && <span className="request-count" aria-label={`${chatUnreadCount} unread private messages`}>{chatUnreadCount > 99 ? "99+" : chatUnreadCount}</span>}
+          </Button>}
           <ViewOptionsMenu roomWorkspace={roomWorkspace} primarySidebar={primarySidebar} onSetPrimarySidebar={setPrimarySidebar} fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={onToggleFullscreen} onOpenChange={setHeaderHeldOpen} />
           <ThemeToggle />
           <StatusChip tone="alpha">ALPHA</StatusChip>

@@ -6,6 +6,8 @@
 
 StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. It consumes Runtime/Auth-owned access, rooms, guest/cohost/Stage decisions, participant-label settings, branding, room image assets, custom-layout snapshots, RealtimeKit mappings, and participant tokens, then renders private local/remote media through RealtimeKit. It stores no canonical room configuration, does not broadcast or record, and remains OFF AIR.
 
+Current rooms also consume Runtime/Auth-owned private text history and unread cursors. Chat opens inside the existing right production sidebar from a Requests-matched header shortcut and provides Private/Public tabs. Private chat is functional for directors, cohosts, and current Backstage/on-Stage guests; Public is a truthful provider connection/capability foundation with outbound delivery disabled.
+
 Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. Admins may own/manage any room; creator/developer-capable accounts with active Studio access may own their rooms. Public accounts may participate through valid invitations without becoming creators or owners. Runtime/Auth transactionally enforces nine total visible Stage slots: the host/director reserves one and at most eight additional guests or cohosts may be on Stage. Backstage does not count toward that limit.
 
 ## Current implementation
@@ -177,6 +179,7 @@ StreamSuites-Studio/
 ├── docs/
 │   ├── alpha-roadmap.md
 │   ├── cloudflare-realtimekit-media.md
+│   ├── room-chat.md
 │   └── system-architecture.md
 ├── public/
 │   └── _redirects

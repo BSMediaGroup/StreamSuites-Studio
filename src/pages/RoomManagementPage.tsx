@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type React from "react";
 import { Navigate, useParams } from "react-router-dom";
-import { createStudioCustomLayout, createStudioInvite, connectStudioEvents, deleteStudioBrowserSource, deleteStudioCustomLayout, deleteStudioInvite, invitePermanentCohost, listStudioBrowserSources, listStudioInvites, listStudioLobby, loadPresentationSources, loadRoomCohosts, loadStudioGuestSession, loadStudioRoomContext, movePresentationSource, moveStudioBrowserSource, moveStudioParticipant, refreshStudioBrowserSource, registerPresentationSource, reorderStudioCustomLayouts, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, stopPresentationSource, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioCustomLayout, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
+import { createStudioCustomLayout, createStudioInvite, connectStudioEvents, deleteStudioBrowserSource, deleteStudioCustomLayout, deleteStudioInvite, invitePermanentCohost, listRoomChatMessages, listStudioBrowserSources, listStudioInvites, listStudioLobby, loadPresentationSources, loadRoomCohosts, loadStudioGuestSession, loadStudioRoomContext, movePresentationSource, moveStudioBrowserSource, moveStudioParticipant, refreshStudioBrowserSource, registerPresentationSource, reorderStudioCustomLayouts, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, stopPresentationSource, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioCustomLayout, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioAuth } from "../auth/studioAuthContext";
 import { SiteShell } from "../components/shell/SiteShell";
@@ -20,6 +20,7 @@ import { RoomBrandingPanel } from "../components/room/RoomBrandingPanel";
 import { RoomMediaPanel } from "../components/room/RoomMediaPanel";
 import { BrowserSourceRenderer } from "../components/room/BrowserSourceRenderer";
 import { ContextualNoticeStack, inferContextualNoticeTone, type ContextualNotice, type ContextualNoticeTone } from "../components/room/ContextualNoticeStack";
+import { RoomChatPanel } from "../components/room/RoomChatPanel";
 import { StageBrandingOverlay, stageBrandingStyle } from "../branding/StageBranding";
 import { usePresentationPreferences } from "../presentation/presentationContext";
 import { GuestRoomWorkspace } from "./GuestRoomWorkspace";
@@ -62,11 +63,13 @@ import moveDownIcon from "../../assets/icons/ui/moveselectiondown.svg";
 import moveDownFilledIcon from "../../assets/icons/ui/moveselectiondown-filled.svg";
 import previousIcon from "../../assets/icons/ui/previous.svg";
 import nextIcon from "../../assets/icons/ui/next.svg";
+import chatIcon from "../../assets/icons/ui/chat.svg";
+import chatFilledIcon from "../../assets/icons/ui/chatfill.svg";
 import { useStudioMedia } from "../media/useStudioMedia";
 import { BackstageMediaPreview, DevicePreflightDialog, LocalMediaVideo, MediaParticipantTile, ParticipantFallback, ParticipantLabelOverlay, ScreenShareVideo } from "../media/StudioMediaElements";
 import { resolveEffectiveStageLayout, stageGridRows } from "../layout/stageLayout";
 
-type WorkspacePanel = "backstage" | "invites" | "room" | "brand" | "media";
+type WorkspacePanel = "backstage" | "invites" | "room" | "brand" | "media" | "chat";
 const layoutLabels: Record<StageLayout, string> = {
   auto: "Auto",
   grid: "Grid",
@@ -91,8 +94,9 @@ const panelIcons: Record<WorkspacePanel, readonly [string, string]> = {
   room: [roomPrefsIcon, roomPrefsFilledIcon],
   brand: [brandIcon, brandIcon],
   media: [mediaIcon, mediaFilledIcon],
+  chat: [chatIcon, chatFilledIcon],
 };
-const panelLabels: Record<WorkspacePanel, string> = { backstage: "Backstage", invites: "Invites", room: "Room", brand: "Branding", media: "Media" };
+const panelLabels: Record<WorkspacePanel, string> = { backstage: "Backstage", invites: "Invites", room: "Room", brand: "Branding", media: "Media", chat: "Chat" };
 
 function date(value: string | null) {
   return value
@@ -227,6 +231,8 @@ function HostRoomManagementPage() {
   const [showGoLiveInfo, setShowGoLiveInfo] = useState(false);
   const [cinematicPanelOpen, setCinematicPanelOpen] = useState(false);
   const [fullscreenActive, setFullscreenActive] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const [chatRefreshKey, setChatRefreshKey] = useState(0);
   const backstageHeadingRef = useRef<HTMLHeadingElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
   const roomWorkspaceRef = useRef<HTMLElement>(null);
@@ -303,6 +309,7 @@ function HostRoomManagementPage() {
         window.clearTimeout(refreshTimer);
         const eventName = event.type.replaceAll("_", " ");
         setAnnouncement(`Room update: ${eventName}.`);
+        if (event.type.startsWith("room.chat_")) { setChatRefreshKey((value) => value + 1); return; }
         if (["room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated"].includes(event.type)) setProductionRefreshKey((value) => value + 1);
         refreshTimer = window.setTimeout(() => void refreshAuthority(false), 80);
       },
@@ -318,6 +325,13 @@ function HostRoomManagementPage() {
     const timer = window.setInterval(() => void refreshAuthority(false), 10000);
     return () => window.clearInterval(timer);
   }, [connection, refreshAuthority]);
+
+  useEffect(() => {
+    if (!liveRoomId || panel === "chat") return;
+    const controller = new AbortController();
+    void listRoomChatMessages(liveRoomId, null, controller.signal).then((page) => setChatUnread(page.unreadCount)).catch(() => undefined);
+    return () => controller.abort();
+  }, [chatRefreshKey, liveRoomId, panel]);
 
   useEffect(() => {
     if (!room?.id || media.state !== "connected" || !media.selfRuntimeParticipantId) return;
@@ -883,7 +897,7 @@ function HostRoomManagementPage() {
   const renderGridParticipant = ({ guest }: (typeof gridParticipants)[number]) => guest ? <MediaParticipantTile className={`participant-tile${selectedParticipant === guest.id ? " is-selected" : ""}${stageTileClass(guest.id)}`} guest={guest} media={media} labelMode={room.presentation.participantLabelMode} branding={activeBranding} key={guest.id} draggable={permissions?.reorderStage} onDragStart={() => setDraggedGuestId(guest.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void dropStageOrder(guest.id)} onClick={() => selectStageParticipant(guest.id)}>{permissions?.manageParticipants && <ParticipantMenuPortal participantName={guest.displayName} items={participantMenuItems(guest)} />}</MediaParticipantTile> : <button type="button" key="host" className={`participant-tile participant-tile--host${selectedParticipant === "host" ? " is-selected" : ""}${stageTileClass("host")}`} onClick={() => selectStageParticipant("host")} aria-pressed={selectedParticipant === "host"} data-participant-id="host">{media.videoEnabled && media.meeting?.self.videoTrack?.readyState === "live" ? <LocalMediaVideo media={media} /> : <ParticipantFallback guest={{ displayName: hostName, avatarColor: "green", avatarUrl: access.account?.avatarUrl ?? null }} status={media.state === "connected" ? `${media.audioEnabled ? "Microphone on" : "Microphone muted"} · Camera off` : media.reason} />}<ParticipantLabelOverlay name={hostName} subtitle="Host / Director" mode={room.presentation.participantLabelMode} branding={activeBranding} /></button>;
 
   return (
-    <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()}>
+    <StudioShell roomWorkspace fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={() => void toggleFullscreen()} chatUnreadCount={chatUnread} chatOpen={panel === "chat" && preferences.sidebar !== "hidden"} onOpenChat={() => openWorkspacePanel("chat")}>
       <section ref={roomWorkspaceRef} className={`room-workspace is-panel-${preferences.sidebar}${panelPeek ? " is-panel-peeking" : ""}`} aria-label={`${room.title} Studio workspace`}>
         <div className="room-viewport">
         {cinematic && <div className="cinematic-room-actions" aria-label="Cinematic workspace controls">
@@ -979,7 +993,7 @@ function HostRoomManagementPage() {
               ariaLabel="Room production sidebar"
               navigationLabel="Room production panels"
               mode={preferences.sidebar}
-              items={(["backstage", "invites", "room", "brand", "media"] as WorkspacePanel[]).map((item) => ({ id: item, label: panelLabels[item], icon: panelIcons[item][0], filledIcon: panelIcons[item][1], ...((item === "backstage" || item === "invites") ? { count: item === "backstage" ? waiting.length : invites.filter((invite) => invite.active).length } : {}) }))}
+              items={(["backstage", "invites", "room", "brand", "media", "chat"] as WorkspacePanel[]).map((item) => ({ id: item, label: panelLabels[item], icon: panelIcons[item][0], filledIcon: panelIcons[item][1], ...((item === "backstage" || item === "invites" || item === "chat") ? { count: item === "backstage" ? waiting.length : item === "invites" ? invites.filter((invite) => invite.active).length : chatUnread } : {}) }))}
               selectedSection={panel}
               panelHeading={panelLabels[panel]}
               temporaryExpanded={panelPeek}
@@ -1236,6 +1250,7 @@ function HostRoomManagementPage() {
             )}
             {panel === "brand" && <RoomBrandingPanel roomId={room.id} canonical={room.branding} canEdit={Boolean(permissions?.updateBranding)} refreshKey={productionRefreshKey} onPreview={setBrandingPreview} onCanonical={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} />}
             {panel === "media" && <RoomMediaPanel roomId={room.id} branding={activeBranding} browserSources={browserSources} canEdit={Boolean(permissions?.manageAssets && permissions?.manageBrowserSources)} refreshKey={productionRefreshKey} onBranding={(branding) => { setBrandingPreview(branding); setRoom((current) => current ? { ...current, branding } : current); }} onChanged={() => refreshAuthority(false)} onNotice={setMessage} />}
+            {panel === "chat" && <RoomChatPanel roomId={room.id} visible={(preferences.sidebar === "expanded" || panelPeek || mobilePanelOpen || cinematicPanelOpen) && panel === "chat"} refreshKey={chatRefreshKey} canModerate={Boolean(permissions?.manageParticipants)} onUnreadChange={setChatUnread} />}
               </>}
             />
           </StudioEdgeSidebarPortal>

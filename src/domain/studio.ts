@@ -62,6 +62,52 @@ export interface RoomSummary {
   readonly endedAt: string | null;
 }
 
+export interface RoomChatMessage {
+  readonly id: string;
+  readonly roomId: string;
+  readonly sender: { readonly participantId: string; readonly accountLinked: boolean; readonly displayName: string; readonly avatarUrl: string | null };
+  readonly body: string | null;
+  readonly createdAt: string;
+  readonly deleted: boolean;
+  readonly deletedAt: string | null;
+  readonly moderationReasonCode: string | null;
+}
+
+export interface RoomChatPage {
+  readonly items: readonly RoomChatMessage[];
+  readonly hasMore: boolean;
+  readonly beforeId: string | null;
+  readonly unreadCount: number;
+  readonly participantId: string;
+  readonly maxLength: number;
+}
+
+export interface PublicChatCapability {
+  readonly platform: string;
+  readonly displayName: string;
+  readonly configured: boolean;
+  readonly connected: boolean;
+  readonly actorIdentityConnected: boolean;
+  readonly oauthSupported: boolean;
+  readonly chatReadSupported: boolean;
+  readonly chatWriteSupported: boolean;
+  readonly currentlyImplemented: boolean;
+  readonly requiredScopes: readonly string[];
+  readonly connectionLabel: string;
+  readonly actor: { readonly displayName: string | null; readonly avatarUrl: string | null } | null;
+  readonly reasonCode: string;
+  readonly reconnectRequired: boolean;
+  readonly selectedRoomDestination: string | null;
+  readonly authorizationUrl: string | null;
+}
+
+export interface PublicChatFoundation {
+  readonly items: readonly PublicChatCapability[];
+  readonly publicUnreadCount: 0;
+  readonly sendingEnabled: false;
+  readonly sendingReason: string;
+}
+
 export interface RoomPresentation {
   readonly participantLabelMode: ParticipantLabelMode;
   readonly layoutMode: StageLayout;

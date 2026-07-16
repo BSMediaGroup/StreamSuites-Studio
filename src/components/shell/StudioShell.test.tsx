@@ -8,6 +8,7 @@ import { STUDIO_PRIMARY_SIDEBAR_STORAGE_KEY, StudioShell, parsePrimarySidebarMod
 
 vi.mock("../StudioAccountMenu", () => ({ StudioAccountMenu: () => <button type="button">Account</button> }));
 vi.mock("../AuthAccessBanner", () => ({ AuthAccessBanner: () => null }));
+vi.mock("../CohostRequests", () => ({ CohostRequests: () => <button type="button">Requests</button> }));
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => { cleanup(); vi.useRealTimers(); window.localStorage.clear(); });
@@ -51,6 +52,18 @@ it("uses in-room left content without moving contextual room tools into it", () 
   fireEvent.click(screen.getByRole("menuitem", { name: "Hide room production sidebar" }));
   expect(shell).toHaveClass("studio-shell--context-panel-hidden");
   expect(shell).toHaveClass("studio-shell--sidebar-collapsed");
+});
+
+it("places the room Chat shortcut directly beside Requests with a capped private unread badge", () => {
+  const openChat = vi.fn();
+  render(<ThemeProvider><PresentationProvider><MemoryRouter><StudioShell roomWorkspace chatUnreadCount={104} onOpenChat={openChat}><p>Room Stage</p></StudioShell></MemoryRouter></PresentationProvider></ThemeProvider>);
+  const requests = screen.getByRole("button", { name: "Requests" });
+  const chat = screen.getByRole("button", { name: "Open room chat" });
+  expect(requests.nextElementSibling).toBe(chat);
+  expect(chat).toHaveClass("cohost-requests__trigger");
+  expect(chat).toHaveTextContent("99+");
+  fireEvent.click(chat);
+  expect(openChat).toHaveBeenCalledOnce();
 });
 
 it("temporarily expands the left panel without changing its persisted collapsed state", () => {

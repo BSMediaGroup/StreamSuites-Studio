@@ -1,6 +1,6 @@
 import { publicStudioConfig } from "../config/env";
 import { DEFAULT_ROOM_BRANDING, STUDIO_ADDITIONAL_STAGE_CAPACITY, STUDIO_DIRECTOR_STAGE_SLOTS, STUDIO_TOTAL_STAGE_CAPACITY } from "../domain/studio";
-import type { BrowserSource, BrowserSourceLocation, BrowserSourceVisibility, BuiltInStageLayout, CustomLayout, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, PresentationSource, RoomAsset, RoomAssetCategory, RoomBranding, RoomInvite, RoomLifecycle, RoomPresentation, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
+import type { BrowserSource, BrowserSourceLocation, BrowserSourceVisibility, BuiltInStageLayout, CustomLayout, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, PresentationSource, PublicChatCapability, PublicChatFoundation, RoomAsset, RoomAssetCategory, RoomBranding, RoomChatMessage, RoomChatPage, RoomInvite, RoomLifecycle, RoomPresentation, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
 
 const ACCOUNT_TYPES = new Set<StreamSuitesAccountType>(["admin", "creator", "developer", "public"]);
@@ -421,6 +421,50 @@ function normalizeRelationship(value: unknown): CohostRelationship {
 
 function body(value: object): string {
   return JSON.stringify(value);
+}
+
+function normalizeChatMessage(value: unknown): RoomChatMessage {
+  const row = isRecord(value) ? value : {};
+  const sender = isRecord(row.sender) ? row.sender : {};
+  return {
+    id: stringOrNull(row.id) ?? "",
+    roomId: stringOrNull(row.room_id) ?? "",
+    sender: { participantId: stringOrNull(sender.participant_id) ?? "", accountLinked: sender.account_linked === true, displayName: stringOrNull(sender.display_name) ?? "Participant", avatarUrl: safeCdnAvatarUrl(sender.avatar_url) },
+    body: row.deleted === true ? null : stringOrNull(row.body),
+    createdAt: stringOrNull(row.created_at) ?? new Date(0).toISOString(),
+    deleted: row.deleted === true,
+    deletedAt: stringOrNull(row.deleted_at),
+    moderationReasonCode: stringOrNull(row.moderation_reason_code),
+  };
+}
+
+export async function listRoomChatMessages(roomId: string, beforeId?: string | null, signal?: AbortSignal): Promise<RoomChatPage> {
+  const query = beforeId ? `?before=${encodeURIComponent(beforeId)}` : "";
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/chat/messages${query}`, { signal });
+  return { items: Array.isArray(payload.items) ? payload.items.map(normalizeChatMessage) : [], hasMore: payload.has_more === true, beforeId: stringOrNull(payload.before_id), unreadCount: Number(payload.unread_count) || 0, participantId: stringOrNull(payload.participant_id) ?? "", maxLength: Number(payload.max_length) || 1000 };
+}
+
+export async function sendRoomChatMessage(roomId: string, messageBody: string, idempotencyKey: string, signal?: AbortSignal): Promise<RoomChatMessage> {
+  return normalizeChatMessage((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/chat/messages`, { method: "POST", body: body({ body: messageBody, idempotency_key: idempotencyKey }), signal })).message);
+}
+
+export async function markRoomChatRead(roomId: string, messageId?: string | null, signal?: AbortSignal): Promise<void> {
+  await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/chat/read`, { method: "PATCH", body: body(messageId ? { message_id: messageId } : {}), signal });
+}
+
+export async function deleteRoomChatMessage(roomId: string, messageId: string, signal?: AbortSignal): Promise<RoomChatMessage> {
+  return normalizeChatMessage((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/chat/messages/${encodeURIComponent(messageId)}`, { method: "DELETE", signal })).message);
+}
+
+function normalizePublicChatCapability(value: unknown): PublicChatCapability {
+  const row = isRecord(value) ? value : {};
+  const actor = isRecord(row.actor) ? row.actor : null;
+  return { platform: stringOrNull(row.platform) ?? "unknown", displayName: stringOrNull(row.display_name) ?? "Platform", configured: row.configured === true, connected: row.connected === true, actorIdentityConnected: row.actor_identity_connected === true, oauthSupported: row.oauth_supported === true, chatReadSupported: row.chat_read_supported === true, chatWriteSupported: row.chat_write_supported === true, currentlyImplemented: row.currently_implemented === true, requiredScopes: Array.isArray(row.required_scopes) ? row.required_scopes.filter((scope): scope is string => typeof scope === "string") : [], connectionLabel: stringOrNull(row.connection_label) ?? "Not connected", actor: actor ? { displayName: stringOrNull(actor.display_name), avatarUrl: safeCdnAvatarUrl(actor.avatar_url) } : null, reasonCode: stringOrNull(row.reason_code) ?? "unavailable", reconnectRequired: row.reconnect_required === true, selectedRoomDestination: stringOrNull(row.selected_room_destination), authorizationUrl: stringOrNull(row.authorization_url) };
+}
+
+export async function loadPublicChatFoundation(roomId: string, signal?: AbortSignal): Promise<PublicChatFoundation> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/chat/public`, { signal });
+  return { items: Array.isArray(payload.items) ? payload.items.map(normalizePublicChatCapability) : [], publicUnreadCount: 0, sendingEnabled: false, sendingReason: stringOrNull(payload.sending_reason) ?? "provider_transport_deferred" };
 }
 
 export async function listStudioRooms(signal?: AbortSignal): Promise<RoomSummary[]> {
@@ -866,7 +910,7 @@ export function connectStudioEvents(options: { roomId?: string; guest?: boolean;
   let source: EventSource | null = null;
   let reconnects = 0;
   let timer = 0;
-  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "room.deleted", "room.invite_deleted", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "participant.avatar_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
+  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "room.deleted", "room.invite_deleted", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "room.chat_message_created", "room.chat_message_deleted", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "participant.avatar_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
   const open = () => {
     if (closed) return;
     options.onState(reconnects ? "reconnecting" : "unavailable");
