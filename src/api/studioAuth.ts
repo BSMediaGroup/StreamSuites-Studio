@@ -297,6 +297,7 @@ function normalizeInvite(value: unknown): RoomInvite {
     successfulUseCount: numberOr(value.successful_use_count),
     permanent: value.permanent === true,
     exhausted: value.exhausted === true,
+    expired: value.expired === true,
     expiresAt: stringOrNull(value.expires_at),
     createdAt,
     updatedAt,
@@ -403,7 +404,7 @@ function normalizeRelationship(value: unknown): CohostRelationship {
   if (!isRecord(value)) throw new StudioApiError(requestError("invalid_cohost_response", "Runtime/Auth returned invalid cohost data."));
   const id = stringOrNull(value.id);
   if (!id) throw new StudioApiError(requestError("invalid_cohost_response", "Runtime/Auth returned incomplete cohost data."));
-  const status = value.status === "accepted" || value.status === "declined" || value.status === "revoked" ? value.status : "pending";
+  const status = value.status === "accepted" || value.status === "declined" || value.status === "revoked" || value.status === "expired" ? value.status : "pending";
   return {
     id,
     director: normalizeAccount(value.director),
@@ -411,8 +412,10 @@ function normalizeRelationship(value: unknown): CohostRelationship {
     status,
     scopeType: value.scope_type === "all_rooms" ? "all_rooms" : "selected_rooms",
     roomIds: Array.isArray(value.room_ids) ? value.room_ids.filter((item): item is string => typeof item === "string") : [],
+    room: isRecord(value.room) && typeof value.room.id === "string" && typeof value.room.title === "string" ? { id: value.room.id, title: value.room.title } : null,
     createdAt: stringOrNull(value.created_at) ?? "",
     updatedAt: stringOrNull(value.updated_at) ?? "",
+    expiresAt: stringOrNull(value.expires_at),
   };
 }
 
@@ -467,6 +470,10 @@ export async function updateStudioRoom(roomId: string, input: { title?: string; 
   );
 }
 
+export async function deleteStudioRoom(roomId: string, signal?: AbortSignal): Promise<void> {
+  await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}`, { method: "DELETE", signal });
+}
+
 export async function transitionStudioRoom(roomId: string, action: "open" | "close" | "end", signal?: AbortSignal): Promise<RoomSummary> {
   return normalizeRoom((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/${action}`, { method: "POST", signal })).room);
 }
@@ -494,7 +501,11 @@ export async function createStudioInvite(
 }
 
 export async function revokeStudioInvite(roomId: string, inviteId: string, signal?: AbortSignal): Promise<RoomInvite> {
-  return normalizeInvite((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/invites/${encodeURIComponent(inviteId)}`, { method: "DELETE", signal })).invite);
+  return normalizeInvite((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/invites/${encodeURIComponent(inviteId)}/revoke`, { method: "POST", signal })).invite);
+}
+
+export async function deleteStudioInvite(roomId: string, inviteId: string, signal?: AbortSignal): Promise<void> {
+  await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/invites/${encodeURIComponent(inviteId)}`, { method: "DELETE", signal });
 }
 
 export async function validateStudioInvite(inviteCode: string, signal?: AbortSignal): Promise<InviteValidation> {
@@ -855,7 +866,7 @@ export function connectStudioEvents(options: { roomId?: string; guest?: boolean;
   let source: EventSource | null = null;
   let reconnects = 0;
   let timer = 0;
-  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
+  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "room.deleted", "room.invite_deleted", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "participant.avatar_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
   const open = () => {
     if (closed) return;
     options.onState(reconnects ? "reconnecting" : "unavailable");

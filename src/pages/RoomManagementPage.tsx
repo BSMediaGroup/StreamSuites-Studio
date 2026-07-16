@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type React from "react";
 import { Navigate, useParams } from "react-router-dom";
-import { createStudioCustomLayout, createStudioInvite, connectStudioEvents, deleteStudioBrowserSource, deleteStudioCustomLayout, invitePermanentCohost, listStudioBrowserSources, listStudioInvites, listStudioLobby, loadPresentationSources, loadRoomCohosts, loadStudioRoomContext, movePresentationSource, moveStudioBrowserSource, moveStudioParticipant, refreshStudioBrowserSource, registerPresentationSource, reorderStudioCustomLayouts, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, stopPresentationSource, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioCustomLayout, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
+import { createStudioCustomLayout, createStudioInvite, connectStudioEvents, deleteStudioBrowserSource, deleteStudioCustomLayout, deleteStudioInvite, invitePermanentCohost, listStudioBrowserSources, listStudioInvites, listStudioLobby, loadPresentationSources, loadRoomCohosts, loadStudioGuestSession, loadStudioRoomContext, movePresentationSource, moveStudioBrowserSource, moveStudioParticipant, refreshStudioBrowserSource, registerPresentationSource, reorderStudioCustomLayouts, reorderStudioStage, revokeCohostRelationship, revokeStudioInvite, setSessionCohost, stopPresentationSource, StudioApiError, transitionStudioGuest, transitionStudioRoom, updateCohostScope, updateStudioCustomLayout, updateStudioMediaIntent, updateStudioRoom, updateStudioPresentation } from "../api/studioAuth";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
 import { useStudioAuth } from "../auth/studioAuthContext";
 import { SiteShell } from "../components/shell/SiteShell";
@@ -108,8 +108,10 @@ function initial(value: string) {
 }
 
 function GuestAvatar({ guest }: { readonly guest: StudioGuest }) {
-  return guest.avatarUrl ? (
-    <img className="guest-avatar" src={guest.avatarUrl} alt="" crossOrigin="use-credentials" />
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [guest.avatarUrl]);
+  return guest.avatarUrl && !failed ? (
+    <img className="guest-avatar" src={guest.avatarUrl} alt="" crossOrigin="use-credentials" onError={() => setFailed(true)} />
   ) : (
     <span className={`guest-avatar guest-avatar--${guest.avatarColor}`} aria-hidden="true">
       {initial(guest.displayName)}
@@ -130,7 +132,60 @@ function ControlButton({ label, helper, icon, filledIcon, disabled = false, acti
 
 export function RoomManagementPage() {
   const { access } = useStudioAuth();
-  return access.status === "allowed" ? <HostRoomManagementPage /> : <GuestRoomWorkspace />;
+  return access.status === "allowed" ? <AuthorizedRoomWorkspace /> : <GuestRoomWorkspace />;
+}
+
+function AuthorizedRoomWorkspace() {
+  const { roomId = "" } = useParams<{ roomId: string }>();
+  const [mode, setMode] = useState<"checking" | "host" | "guest" | "not-found" | "unavailable">("checking");
+  const [authorityMessage, setAuthorityMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setMode("checking");
+    setAuthorityMessage("");
+    void listStudioLobby(roomId).then(() => {
+      if (!cancelled) setMode("host");
+    }).catch(async (error) => {
+      if (error instanceof StudioApiError && error.status === 404) {
+        if (!cancelled) {
+          setAuthorityMessage(error.message);
+          setMode("not-found");
+        }
+        return;
+      }
+      if (!(error instanceof StudioApiError) || error.code !== "forbidden") {
+        if (!cancelled) {
+          setAuthorityMessage(error instanceof Error ? error.message : "Room authority could not be resolved.");
+          setMode("unavailable");
+        }
+        return;
+      }
+      try {
+        const guest = await loadStudioGuestSession();
+        if (!cancelled) {
+          if (guest.roomId === roomId) setMode("guest");
+          else {
+            setAuthorityMessage("The current identity is not authorized for this room.");
+            setMode("unavailable");
+          }
+        }
+      } catch (guestError) {
+        if (!cancelled) {
+          setAuthorityMessage(guestError instanceof Error ? guestError.message : "The current identity is not authorized for this room.");
+          setMode("unavailable");
+        }
+      }
+    });
+    return () => { cancelled = true; };
+  }, [roomId]);
+
+  if (mode === "guest") return <GuestRoomWorkspace />;
+  if (mode === "host") return <HostRoomManagementPage />;
+  if (mode === "not-found" || mode === "unavailable") return (
+    <SiteShell><section className="centered-page page-width"><Card><EmptyState title={mode === "not-found" ? "Room not found" : "Room unavailable"}><p>{authorityMessage}</p><div className="access-actions"><ButtonLink to="/studio" variant="quiet">Back to rooms</ButtonLink></div></EmptyState></Card></section></SiteShell>
+  );
+  return <SiteShell><section className="centered-page page-width"><Card role="status"><h1>Checking room authority…</h1></Card></section></SiteShell>;
 }
 
 function HostRoomManagementPage() {
@@ -495,6 +550,7 @@ function HostRoomManagementPage() {
   }
 
   async function copyInvite(invite: RoomInvite) {
+    if (!invite.active || invite.expired || invite.exhausted || !invite.inviteCode) { setMessage("This invite is no longer usable, so no link was copied."); return; }
     const link = `${window.location.origin}/join/${encodeURIComponent(invite.inviteCode)}`;
     try {
       await navigator.clipboard.writeText(link);
@@ -517,6 +573,17 @@ function HostRoomManagementPage() {
     } finally {
       setBusy("");
     }
+  }
+
+  async function removeInvite(invite: RoomInvite) {
+    if (!room || busy || !window.confirm(`Permanently delete ${invite.label || "this invite"}? It can never be validated or used again.`)) return;
+    setBusy(`invite-delete-${invite.id}`); setMessage("");
+    try {
+      await deleteStudioInvite(room.id, invite.id);
+      setInvites((items) => items.filter((item) => item.id !== invite.id));
+      setMessage("Invite permanently deleted by Runtime/Auth.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Invite could not be deleted."); }
+    finally { setBusy(""); }
   }
 
   async function guestAction(guest: StudioGuest, action: "admit" | "deny" | "remove") {
@@ -1125,16 +1192,18 @@ function HostRoomManagementPage() {
                         <div>
                           <strong>{invite.label || "Unlabelled invite"}</strong>
                           <p>
-                            {invite.exhausted ? "Exhausted" : invite.active ? "Active" : "Revoked"} · {invite.policyType.replace("_", " ")} · {invite.successfulUseCount}
+                            {invite.exhausted ? "Exhausted" : invite.expired ? "Expired" : invite.active ? "Active" : "Revoked"} · {invite.policyType.replace("_", " ")} · {invite.successfulUseCount}
                             {invite.maxUses === null ? " uses" : ` / ${invite.maxUses} uses`} · {invite.permanent ? "No expiry" : `Expires ${date(invite.expiresAt)}`}
                           </p>
                         </div>
+                        {invite.inviteCode && <code className="room-id-chip invite-code-chip" aria-label="Invite code">{invite.inviteCode}</code>}
                         <div className="guest-card__actions">
-                          {invite.inviteCode && (
+                          {invite.active && !invite.expired && !invite.exhausted && invite.inviteCode && (
                             <Button variant="secondary" onClick={() => void copyInvite(invite)}>
                               Copy link
                             </Button>
                           )}
+                          <Button className="button--destructive" variant="quiet" disabled={Boolean(busy)} onClick={() => void removeInvite(invite)}>{busy === `invite-delete-${invite.id}` ? "Deleting…" : "Delete"}</Button>
                           {invite.active && room.lifecycleState !== "ended" && (
                             <Button className="button--destructive" variant="quiet" disabled={Boolean(busy)} onClick={() => void revoke(invite)}>
                               <StudioIcon regular={revokeIcon} /> {busy === `invite-${invite.id}` ? "Revoking…" : "Revoke"}

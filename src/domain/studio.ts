@@ -218,6 +218,7 @@ export interface RoomInvite {
   readonly successfulUseCount: number;
   readonly permanent: boolean;
   readonly exhausted: boolean;
+  readonly expired: boolean;
   readonly expiresAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -284,7 +285,7 @@ export interface GuestRoomView {
 
 export type RoomConnectionState = "live" | "reconnecting" | "fallback polling" | "unavailable";
 export type CohostScope = "all_rooms" | "selected_rooms";
-export type CohostRelationshipStatus = "pending" | "accepted" | "declined" | "revoked";
+export type CohostRelationshipStatus = "pending" | "accepted" | "declined" | "revoked" | "expired";
 
 export interface SafeAccountSummary {
   readonly id: string;
@@ -300,8 +301,10 @@ export interface CohostRelationship {
   readonly status: CohostRelationshipStatus;
   readonly scopeType: CohostScope;
   readonly roomIds: readonly string[];
+  readonly room: { readonly id: string; readonly title: string } | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly expiresAt: string | null;
 }
 
 export interface RoomCohosts {

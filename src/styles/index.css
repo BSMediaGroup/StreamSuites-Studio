@@ -955,6 +955,15 @@ p {
   margin-left: auto;
 }
 
+.cohost-requests { position: relative; }
+.cohost-requests__trigger { position: relative; gap: .4rem; }
+.request-count { display: inline-grid; min-width: 1.15rem; height: 1.15rem; place-items: center; border-radius: 999px; background: var(--accent); color: var(--accent-contrast); padding-inline: .25rem; font-size: .65rem; font-weight: 800; }
+.cohost-requests__panel { position: absolute; z-index: 40; top: calc(100% + .65rem); right: 0; width: min(390px, calc(100vw - 2rem)); max-height: min(70vh, 560px); overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); background: var(--surface-raised); padding: 1rem; }
+.cohost-requests__panel article { display: grid; gap: .45rem; border-top: 1px solid var(--border); padding-block: .85rem; }
+.cohost-requests__panel article p { margin: 0; color: var(--text-secondary); font-size: .82rem; }
+.cohost-requests__panel article small { color: var(--text-muted); }
+.cohost-requests__actions { display: flex; gap: .5rem; padding-top: .25rem; }
+
 .studio-account-name {
   max-width: 14rem;
   overflow: hidden;
@@ -2235,9 +2244,16 @@ button.participant-tile {
 }
 
 .invite-panel .invite-list article {
-  align-items: flex-start;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .45rem .65rem;
+  padding-block: .65rem;
 }
+
+.invite-panel .invite-list article p { margin: .15rem 0 0; font-size: .72rem; line-height: 1.35; }
+.invite-panel .invite-list .guest-card__actions { grid-column: 1 / -1; justify-content: flex-end; }
+.invite-code-chip { max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .invite-panel .invite-list .button {
   min-height: 34px;

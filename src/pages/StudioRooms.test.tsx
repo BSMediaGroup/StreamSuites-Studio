@@ -56,6 +56,41 @@ it("loads creator room summaries without inventing media state", async () => {
   expect(screen.queryByText(/viewer count/i)).not.toBeInTheDocument();
 });
 
+it("edits and deletes lobby rooms and accepts signed-in cohost requests from the header", async () => {
+  const payload = authPayload("creator");
+  let rooms = [{ id: "room-edit", owner_account_id: "creator-1", title: "Editable room", description: "Before", lifecycle_state: "draft", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, waiting_guest_count: 0, admitted_guest_count: 0, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", opened_at: null, ended_at: null }];
+  let requests = [{ id: "request-1", director: { id: "director-2", display_name: "Requesting director", avatar_url: null }, cohost: { id: "creator-1", display_name: "creator", avatar_url: null }, status: "pending", scope_type: "selected_rooms", room_ids: ["safe-code"], room: { id: "safe-code", title: "Requested room" }, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", expires_at: "2026-07-18T00:00:00Z" }];
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/auth/session")) return response(payload.session);
+    if (url.includes("/api/studio/access")) return response(payload.access);
+    if (url.endsWith("/api/studio/cohosts/invitations") && !init?.method) return response({ success: true, items: requests });
+    if (url.endsWith("/api/studio/cohosts/invitations/request-1/accept")) { requests = []; return response({ success: true, relationship: { ...requests[0], id: "request-1", status: "accepted", room_ids: [], created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:01:00Z" } }); }
+    if (url.endsWith("/api/studio/rooms/room-edit") && init?.method === "PATCH") { rooms = [{ ...rooms[0], title: JSON.parse(String(init.body)).title, updated_at: "2026-07-11T00:02:00Z" }]; return response({ success: true, room: rooms[0] }); }
+    if (url.endsWith("/api/studio/rooms/room-edit") && init?.method === "DELETE") { rooms = []; return response({ success: true, deleted: true, room_id: "room-edit" }); }
+    if (url.endsWith("/api/studio/rooms")) return response({ success: true, items: rooms });
+    return response({}, 404);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><StudioPage /></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
+  expect(await screen.findByText("Editable room")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Requests/ })).toHaveTextContent("1");
+  fireEvent.click(screen.getByRole("button", { name: /Requests/ }));
+  expect(screen.getByText("Requested room")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+  await waitFor(() => expect(screen.getByText(/request accepted/i)).toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: "Edit room" }));
+  const editDialog = screen.getByRole("dialog", { name: "Edit Editable room" });
+  fireEvent.change(within(editDialog).getByLabelText("Room title"), { target: { value: "Edited room" } });
+  fireEvent.click(within(editDialog).getByRole("button", { name: "Save room" }));
+  expect(await screen.findByText("Edited room")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Delete room" }));
+  const deleteDialog = screen.getByRole("alertdialog", { name: "Delete Edited room?" });
+  fireEvent.change(within(deleteDialog).getByLabelText("Type Edited room to confirm"), { target: { value: "Edited room" } });
+  fireEvent.click(within(deleteDialog).getByRole("button", { name: "Delete room permanently" }));
+  await waitFor(() => expect(screen.queryByText("Edited room")).not.toBeInTheDocument());
+});
+
 it("keeps ended rooms visible without presenting an active Enter room action", async () => {
   const payload = authPayload("creator");
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
@@ -71,6 +106,8 @@ it("keeps ended rooms visible without presenting an active Enter room action", a
 });
 
 it("renders the pre-media Stage and Backstage, changes local layout, and preserves Runtime lobby and invite actions", async () => {
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   let eventSourceCount = 0;
   class EventSourceStub { onerror: (() => void) | null = null; constructor() { eventSourceCount += 1; } addEventListener() {} close() {} }
   vi.stubGlobal("EventSource", EventSourceStub);
@@ -95,6 +132,7 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
     const url = String(input);
     if (url.includes("/auth/session")) return response(payload.session);
     if (url.includes("/api/studio/access")) return response(payload.access);
+    if (url.endsWith("/api/studio/cohosts/invitations")) return response({ success: true, items: [] });
     if (url.endsWith("/api/studio/rooms/room-1/participants/guest-wait/stage")) {
       lobby = lobby.map((guest) => guest.id === "guest-wait" ? { ...guest, state: "on_stage", stage_position: 1, admitted_at: "2026-07-11T00:31:00Z" } : guest);
       return response({ success: true, guest: lobby[0] });
@@ -104,8 +142,11 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
       invites = [{ id: "invite-1", room_id: "room-1", label: "Panel", active: true, invite_code: "Abc234Xyz", policy_type: "open", max_uses: null, successful_use_count: 0, permanent: false, exhausted: false, expires_at: "2026-07-12T00:32:00Z", created_at: "2026-07-11T00:32:00Z", updated_at: "2026-07-11T00:32:00Z", revoked_at: null }];
       return response({ success: true, invite: invites[0], invite_code: "Abc234Xyz" }, 201);
     }
+    if (url.endsWith("/api/studio/rooms/room-1/invites/invite-1/revoke") && init?.method === "POST") { invites = [{ ...(invites[0] as object), active: false, invite_code: undefined, revoked_at: "2026-07-11T00:33:00Z" }]; return response({ success: true, invite: invites[0] }); }
+    if (url.endsWith("/api/studio/rooms/room-1/invites/invite-1") && init?.method === "DELETE") { invites = []; return response({ success: true, id: "invite-1", deleted: true }); }
     if (url.endsWith("/api/studio/rooms/room-1/lobby")) return response({ success: true, items: lobby });
     if (url.endsWith("/api/studio/rooms/room-1/invites")) return response({ success: true, items: invites });
+    if (url.endsWith("/api/studio/rooms/room-1/presentation-sources") || url.endsWith("/api/studio/rooms/room-1/browser-sources")) return response({ success: true, items: [] });
     if (url.endsWith("/api/studio/rooms/room-1/cohosts")) return response({ success: true, director: { id: "creator-1", display_name: "creator", avatar_url: null }, session: [], permanent: [], permissions: { owner: true, manage_backstage: true, manage_invites: true, update_room: true, update_presentation: true, manage_permanent_cohosts: true, end_room: true } });
     if (url.endsWith("/api/studio/rooms/room-1")) return response({ success: true, room: room(), permissions: { owner: true, manage_backstage: true, manage_invites: true, update_room: true, update_presentation: true, manage_permanent_cohosts: true, end_room: true } });
     return response({}, 404);
@@ -130,20 +171,18 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   expect(rendered.container.querySelector(".production-rail")).not.toBeInTheDocument();
   expect(rendered.container.querySelector(".room-lifecycle-bar")).not.toBeInTheDocument();
   expect(screen.getByTitle("Room ID").parentElement).toHaveTextContent("ROOM DETAILS");
-  fireEvent.click(screen.getByRole("button", { name: "Collapse room control panel" }));
-  expect(screen.getByRole("button", { name: "Open backstage panel, 1" })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Open backstage panel, 1" }));
-  expect(screen.getByRole("button", { name: "Collapse room control panel" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Pin room production sidebar" }));
+  expect(screen.getByRole("button", { name: "Collapse room production sidebar" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Collapse room production sidebar" }));
+  expect(screen.getByRole("button", { name: "Open Backstage panel" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Open Backstage panel" }));
+  expect(screen.getByRole("button", { name: "Pin room production sidebar" })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "View options" }));
   fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Enter cinematic/i }));
   expect(screen.getByText("Production room").closest(".studio-shell")).toHaveClass("studio-shell--cinematic");
   expect(eventSourceCount).toBe(1);
-  fireEvent.click(screen.getByRole("button", { name: "Backstage. 1 waiting, 1 on stage" }));
-  expect(screen.getByRole("dialog", { name: "Room tools" })).toBeInTheDocument();
-  expect(screen.getAllByText("Waiting Guest").length).toBeGreaterThanOrEqual(2);
-  fireEvent.keyDown(document, { key: "Escape" });
-  expect(screen.queryByRole("dialog", { name: "Room tools" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "View options" }));
   fireEvent.click(screen.getByRole("button", { name: "Fullscreen" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Exit fullscreen" })).toBeInTheDocument());
   expect(requestFullscreen).toHaveBeenCalledTimes(1);
@@ -172,6 +211,11 @@ it("renders the pre-media Stage and Backstage, changes local layout, and preserv
   fireEvent.change(screen.getByLabelText("Invite label (optional)"), { target: { value: "Panel" } });
   fireEvent.click(screen.getByRole("button", { name: "Create invite" }));
   expect(await screen.findByRole("button", { name: "Copy link" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Invite code")).toHaveTextContent("Abc234Xyz");
+  fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Copy link" })).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+  await waitFor(() => expect(screen.getByText("No invites yet")).toBeInTheDocument());
   expect(window.localStorage.getItem("Abc234Xyz")).toBeNull();
 
   expect(screen.getByRole("button", { name: "Go live" })).toBeDisabled();
@@ -192,6 +236,7 @@ it("enforces nine total Stage slots across layouts and recovers after a capacity
     const url = String(input);
     if (url.includes("/auth/session")) return response(payload.session);
     if (url.includes("/api/studio/access")) return response(payload.access);
+    if (url.endsWith("/api/studio/cohosts/invitations")) return response({ success: true, items: [] });
     if (url.endsWith("/participants/stage-0/backstage")) {
       lobby = lobby.map((guest) => guest.id === "stage-0" ? { ...guest, state: "backstage", stage_position: null } : guest);
       return response({ success: true, guest: lobby.find((guest) => guest.id === "stage-0") });
@@ -200,6 +245,7 @@ it("enforces nine total Stage slots across layouts and recovers after a capacity
     if (url.endsWith("/presentation") && init?.method === "PATCH") { layout = String(JSON.parse(String(init.body)).layout_mode); return response({ success: true, room: room() }); }
     if (url.endsWith("/lobby")) return response({ success: true, items: lobby });
     if (url.endsWith("/invites")) return response({ success: true, items: [] });
+    if (url.endsWith("/presentation-sources") || url.endsWith("/browser-sources")) return response({ success: true, items: [] });
     if (url.endsWith("/cohosts")) return response({ success: true, director: { id: "creator-1", display_name: "creator", avatar_url: null }, session: [lobby[0]], permanent: [], permissions: { owner: true, manage_backstage: true, manage_participants: true, update_presentation: true, end_room: true } });
     if (url.endsWith("/api/studio/rooms/room-capacity")) return response({ success: true, room: room(), permissions: { owner: true, manage_backstage: true, manage_participants: true, update_presentation: true, end_room: true } });
     return response({}, 404);
@@ -226,8 +272,9 @@ it("enforces nine total Stage slots across layouts and recovers after a capacity
   fireEvent.click(stageZeroMenu.querySelector<HTMLButtonElement>('button[role="menuitem"]') as HTMLButtonElement);
   await waitFor(() => screen.getAllByRole("button", { name: "Move to Stage" }).forEach((button) => expect(button).toBeEnabled()));
   expect(lobby.filter((guest) => guest.state === "on_stage")).toHaveLength(7);
-  const waitingTile = screen.getAllByText("Waiting")[0].closest(".backstage-tile");
-  fireEvent.click(waitingTile?.querySelector<HTMLButtonElement>("button") as HTMLButtonElement);
+  const waitingTile = Array.from(rendered.container.querySelectorAll(".backstage-tile")).find((tile) => within(tile as HTMLElement).queryAllByText("Waiting").length > 0);
+  expect(waitingTile).toBeTruthy();
+  fireEvent.click(within(waitingTile as HTMLElement).getByRole("button", { name: "Move to Stage" }));
   expect(await screen.findByText("Stage full — 9 participants including the director. Move someone Backstage before admitting another participant.")).toBeInTheDocument();
   expect(lobby.filter((guest) => guest.state === "on_stage")).toHaveLength(7);
 });

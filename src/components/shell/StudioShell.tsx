@@ -12,6 +12,7 @@ import { usePresentationPreferences } from "../../presentation/presentationConte
 import { StudioFooter } from "../StudioFooter";
 import { StudioIcon } from "../ui/StudioIcon";
 import { TooltipPortal } from "../ui/TooltipPortal";
+import { CohostRequests } from "../CohostRequests";
 import studioIcon from "../../../assets/icons/ui/tvlive.svg";
 import brandIcon from "../../../assets/icons/ui/starform.svg";
 import mediaIcon from "../../../assets/icons/ui/media.svg";
@@ -139,6 +140,7 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
         </Button>
         <BrandMark />
         <div className="studio-topbar__status">
+          <CohostRequests onOpenChange={setHeaderHeldOpen} />
           <ViewOptionsMenu roomWorkspace={roomWorkspace} primarySidebar={primarySidebar} onSetPrimarySidebar={setPrimarySidebar} fullscreenSupported={fullscreenSupported} fullscreenActive={fullscreenActive} onToggleFullscreen={onToggleFullscreen} onOpenChange={setHeaderHeldOpen} />
           <ThemeToggle />
           <StatusChip tone="alpha">ALPHA</StatusChip>

@@ -39,6 +39,7 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - truthful `OFF AIR` orientation with an inactive `00:00:00` timer and disabled output integration; media connection does not imply broadcast
 - credentialed room and guest SSE with live/reconnecting/fallback-polling/unavailable status, burst-coalesced authoritative refetch, bounded polling only while disconnected, and manual refresh as secondary recovery
 - real `/join/:inviteCode` validation with an in-page reusable login sheet, bounded safe OAuth draft restoration, account-optional joining, visual keyboard-accessible initials colors, validated CDN-backed fallback avatar, and canonical Backstage/On Stage states
+- canonical room-avatar hydration shared by Stage and Backstage, a signed-in header Requests inbox for permanent-cohost accept/decline, compact invite cards with usable-only copy plus separate revoke/delete actions, and lobby room edit/typed-confirmation delete controls
 - authenticated invite hydration that merges Runtime account display/CDN-avatar details into untouched fields, preserves explicit room edits across password/OAuth, visibly identifies the linked public account, and sends no client-claimed account ID
 - guest room workspace using the same media lifecycle: Backstage receives Stage audio/video plus private preview without self-admission; on-stage guests publish permitted local choices, may self-Backstage, and cohosts retain only Runtime-granted authority
 - single-use, capped, and open invite controls with 24-hour default expiry or no-expiry, use/status summaries, and securely regenerable canonical copy links; no invite code, guest credential, avatar binary, or cohost authority is stored in browser storage
@@ -200,6 +201,7 @@ StreamSuites-Studio/
 │   │   └── StageBranding.tsx
 │   ├── components/
 │   │   ├── AuthAccessBanner.tsx
+│   │   ├── CohostRequests.tsx
 │   │   ├── StudioAccountMenu.test.tsx
 │   │   ├── StudioAccountMenu.tsx
 │   │   ├── InitialsColorPicker.tsx

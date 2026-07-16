@@ -39,6 +39,7 @@ No self-service application, room, guest invite, or media behavior was delivered
 - persist monotonic safe room events and expose credentialed host/cohost and guest-isolated SSE with replay, heartbeat, reconnect, and disconnected-only fallback polling
 - support normalized guest display names, optional subtitles, visual initials colors, CDN-backed room-only WebP fallback avatars, intended microphone/camera state, persistent Stage order, and Runtime-owned Grid/Interview/Spotlight/Presentation state
 - support room-session cohosts plus authenticated permanent cohost invitation/acceptance/decline/revoke with all-room and selected-room scope
+- expose pending permanent-cohost requests in the signed-in header with recipient accept/decline and pending count; keep permanent authority inactive until acceptance
 
 No camera, microphone, screen sharing, media track, broadcast output, or recording was delivered by this phase.
 
@@ -48,6 +49,7 @@ No camera, microphone, screen sharing, media track, broadcast output, or recordi
 - render a responsive Stage output with confirmed host/on-stage identities, a Presentation placeholder, meaningful empty positions, safe-area guides, and explicit awaiting-media treatment
 - show a horizontal Backstage tray below Stage plus the original primary left Studio navigation and a separate right contextual management panel, with Runtime-backed Stage/Backstage moves, deny/kick distinction, intended mic/camera controls, capacity conflicts, and pending states
 - integrate policy-controlled reusable invite links, revocation/exhaustion, confirmed room/presentation settings, scoped cohost controls, and lifecycle controls into the room workspace
+- distinguish retained invite revocation from permanent deletion, and expose canonical lobby room edit plus owner-only typed-confirmation room deletion
 - surface live connection state, immediate Backstage arrivals/profile/status updates, accessible announcements, waiting/on-stage/cohost sections, and account-optional guest identity editing
 - synchronize requested Auto, Grid, Interview, Spotlight, and Presentation layouts plus drag/keyboard Stage order; derive Auto locally from real screen share, explicit spotlight, or the current 1–9 count without claiming broadcast output
 - orient future production work with a control dock, truthful `OFF AIR` state, inactive timer, unavailable media controls, and explanatory Go live dialog

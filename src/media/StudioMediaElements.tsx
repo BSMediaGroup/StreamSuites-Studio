@@ -61,8 +61,10 @@ export function ParticipantLabelOverlay({ name, subtitle, mode = "name_and_subti
 }
 
 export function ParticipantFallback({ guest, status }: { guest: Pick<StudioGuest, "displayName" | "avatarUrl" | "avatarColor">; status: string }) {
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  useEffect(() => setAvatarFailed(false), [guest.avatarUrl]);
   return <span className="participant-fallback" data-testid="participant-fallback">
-    {guest.avatarUrl ? <img className="participant-avatar" src={guest.avatarUrl} alt="" crossOrigin="use-credentials" /> : <span className={`participant-avatar guest-avatar--${guest.avatarColor}`} aria-hidden="true">{guest.displayName.trim().charAt(0).toUpperCase() || "?"}</span>}
+    {guest.avatarUrl && !avatarFailed ? <img className="participant-avatar" src={guest.avatarUrl} alt="" crossOrigin="use-credentials" onError={() => setAvatarFailed(true)} /> : <span className={`participant-avatar guest-avatar--${guest.avatarColor}`} aria-hidden="true">{guest.displayName.trim().charAt(0).toUpperCase() || "?"}</span>}
     <span className="participant-fallback__identity"><strong>{guest.displayName}</strong><small>{status}</small></span>
   </span>;
 }
