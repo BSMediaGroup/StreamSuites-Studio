@@ -4,7 +4,7 @@
 > **Flagship surface:** <https://studio.streamsuites.app>
 > **Deployment target:** Cloudflare Pages
 
-StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. It consumes Runtime/Auth-owned access, rooms, guest/cohost/Stage decisions, participant-label settings, branding, room image assets, custom-layout snapshots, RealtimeKit mappings, and participant tokens, then renders private local/remote media through RealtimeKit. It stores no canonical room configuration, does not broadcast or record, and remains OFF AIR.
+StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. It consumes Runtime/Auth-owned access, rooms, separate broadcast details/schedules/visibility, versioned thumbnails, safe destination readiness, guest/cohost/Stage decisions, branding, RealtimeKit mappings, and participant tokens. It stores no canonical room configuration, does not broadcast or record, and remains OFF AIR.
 
 Current rooms also consume Runtime/Auth-owned private text history and unread cursors. Chat opens inside the existing right production sidebar from a Requests-matched header shortcut and provides Private/Public tabs. Private chat is functional for directors, cohosts, and current Backstage/on-Stage guests; Public is a truthful provider connection/capability foundation with outbound delivery disabled.
 
@@ -26,7 +26,8 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - dark/light token system with dark as the first-visit default and theme-only local persistence
 - the existing `assets/logos/sscmattesilver.webp` header logo in both themes
 - reusable buttons, cards, status chips, empty states, and form fields
-- runtime-backed room dashboard with create, loading, empty, error, public-participant, lifecycle, safe count states, and an Enter-room-first card presentation
+- complete Runtime-backed lobby Create/Edit forms for internal room identity, entry state, broadcast title/description, browser-timezone schedule, visibility, thumbnail upload/existing-asset selection/preview/replacement/removal, and secret-free destination readiness
+- compact responsive room cards with 16:9 CDN/fallback thumbnail, room and broadcast identity, description, code, lifecycle, schedule, visibility, Stage/Backstage counts, destination readiness, timestamp, and preserved Open/Edit/Delete actions
 - protected `/studio/rooms/:roomId` production workspace with canonical short-code URLs, the original full-height primary Studio sidebar on the far left, a viewport-fitted 16:9 Stage/Program canvas, real RealtimeKit media, an independent full-height right contextual Backstage/on-stage/cohost/invite/room/Branding/Media system, scrolling Backstage below the Stage, lifecycle controls, and the existing production dock
 - route-scoped cinematic room mode with a stage-first canvas, compact truthful production state, waiting/on-stage badges, the existing authoritative Backstage/tools panel as a focus-managed drawer, obvious exit controls, and optional event-confirmed browser fullscreen
 - Runtime-owned requested Auto, Grid, Interview, Spotlight, Presentation, and Custom layouts. Auto derives Presentation for an active share, Spotlight for an explicit spotlight or one participant, Interview for two, and Grid for three through nine while leaving requested mode `auto`; a room may save, name, select, reorder, and delete up to eight stable-ID custom snapshots of resolved built-in modes

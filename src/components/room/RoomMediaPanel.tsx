@@ -5,8 +5,8 @@ import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { BrowserSourcesPanel } from "./BrowserSourcesPanel";
 
-const categories: readonly RoomAssetCategory[] = ["logo", "stage_background", "overlay", "holding", "presentation_placeholder"];
-const labels: Record<RoomAssetCategory, string> = { logo: "Logo / bug", stage_background: "Stage background", overlay: "Overlay image", holding: "Holding / waiting", presentation_placeholder: "Presentation placeholder" };
+const categories: readonly RoomAssetCategory[] = ["logo", "stage_background", "overlay", "holding", "presentation_placeholder", "broadcast_thumbnail"];
+const labels: Record<RoomAssetCategory, string> = { logo: "Logo / bug", stage_background: "Stage background", overlay: "Overlay image", holding: "Holding / waiting", presentation_placeholder: "Presentation placeholder", broadcast_thumbnail: "Broadcast thumbnail source" };
 
 export function RoomMediaPanel({ roomId, branding, browserSources, canEdit, refreshKey, onBranding, onChanged, onNotice }: { readonly roomId: string; readonly branding: RoomBranding; readonly browserSources: readonly BrowserSource[]; readonly canEdit: boolean; readonly refreshKey: number; readonly onBranding: (branding: RoomBranding) => void; readonly onChanged: () => Promise<void> | void; readonly onNotice: (message: string) => void }) {
   const [assets, setAssets] = useState<RoomAsset[]>([]), [filter, setFilter] = useState<RoomAssetCategory | "all">("all"), [uploadCategory, setUploadCategory] = useState<RoomAssetCategory>("logo"), [selected, setSelected] = useState(""), [status, setStatus] = useState<"loading" | "ready" | "uploading" | "error">("loading"), [error, setError] = useState("");

@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
-import { createStudioRoom, deleteStudioRoom, listStudioRooms, StudioApiError, transitionStudioRoom, updateStudioRoom } from "../api/studioAuth";
+import { connectStudioEvents, createStudioRoom, deleteStudioRoom, listStudioRoomAssets, loadStudioLobby, loadStudioRoom, StudioApiError, transitionStudioRoom, updateStudioRoom, uploadStudioRoomAsset } from "../api/studioAuth";
 import { useStudioAuth } from "../auth/studioAuthContext";
 import { SiteShell } from "../components/shell/SiteShell";
 import { StudioShell } from "../components/shell/StudioShell";
@@ -9,12 +9,27 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FormField } from "../components/ui/FormField";
 import { StatusChip } from "../components/ui/StatusChip";
-import type { RoomSummary } from "../domain/studio";
+import type { BroadcastVisibility, DestinationReadiness, RoomAsset, RoomSummary } from "../domain/studio";
 import { useGlobalActivity } from "../activity/useGlobalActivity";
+import defaultThumbnail from "../../assets/placeholders/defaultssthumb.svg";
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+interface RoomDraft {
+  internalName: string;
+  broadcastTitle: string;
+  broadcastDescription: string;
+  scheduled: boolean;
+  scheduledLocal: string;
+  visibility: BroadcastVisibility;
+  openForGuests: boolean;
 }
+
+const EMPTY_DESTINATIONS: DestinationReadiness = { availableCount: 0, connectedCount: 0, configuredCount: 0, readyCount: 0, outputEnabled: false };
+const EMPTY_DRAFT: RoomDraft = { internalName: "", broadcastTitle: "", broadcastDescription: "", scheduled: false, scheduledLocal: "", visibility: "private", openForGuests: false };
+
+function formatDate(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); }
+function toLocalInput(value: string | null) { if (!value) return ""; const date = new Date(value); const offset = date.getTimezoneOffset() * 60000; return new Date(date.getTime() - offset).toISOString().slice(0, 16); }
+function toRuntimeSchedule(draft: RoomDraft) { if (!draft.scheduled) return null; const date = new Date(draft.scheduledLocal); if (!draft.scheduledLocal || Number.isNaN(date.getTime())) throw new Error("Choose a valid scheduled date and time."); return date.toISOString(); }
+function previewUrl(file: File | null) { return file && typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : null; }
 
 function AccessState() {
   const { access, refresh, logout } = useStudioAuth();
@@ -24,98 +39,55 @@ function AccessState() {
   return <SiteShell><section className="centered-page page-width"><Card className="access-card access-state-card"><StatusChip tone="blocked">{access.status === "restricted" ? "Account restricted" : "Access denied"}</StatusChip><h1>{access.status === "restricted" ? "This account is not eligible." : "Closed ALPHA access required."}</h1><p>Runtime/Auth has not granted this account access to the Studio workspace.</p><div className="access-actions"><Button onClick={() => void refresh()}>Check again</Button><Button variant="secondary" onClick={() => void logout().then((ok) => ok && window.location.assign("/login"))}>Logout</Button><ButtonLink to="/" variant="quiet">Return home</ButtonLink></div></Card></section></SiteShell>;
 }
 
+function DestinationSummary({ readiness }: { readonly readiness: DestinationReadiness }) {
+  return <div className="destination-summary" data-testid="destination-summary"><strong>{readiness.connectedCount} connected · {readiness.readyCount} output ready</strong><span>{readiness.configuredCount} configured across {readiness.availableCount} provider connections</span><p>Runtime/Auth owns credentials and readiness. Studio remains OFF AIR; use Destinations in the left sidebar to review configuration.</p></div>;
+}
+
+function RoomForm({ draft, setDraft, file, setFile, assets, selectedAssetId, setSelectedAssetId, currentThumbnail, removeThumbnail, setRemoveThumbnail, readiness, submitLabel, pending }: {
+  readonly draft: RoomDraft; readonly setDraft: (draft: RoomDraft) => void; readonly file: File | null; readonly setFile: (file: File | null) => void;
+  readonly assets: readonly RoomAsset[]; readonly selectedAssetId: string; readonly setSelectedAssetId: (id: string) => void; readonly currentThumbnail: string | null;
+  readonly removeThumbnail: boolean; readonly setRemoveThumbnail: (remove: boolean) => void; readonly readiness: DestinationReadiness; readonly submitLabel: string; readonly pending: boolean;
+}) {
+  const localPreview = useMemo(() => previewUrl(file), [file]);
+  useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview); }, [localPreview]);
+  const selected = assets.find((asset) => asset.id === selectedAssetId)?.url ?? null;
+  const thumbnail = removeThumbnail ? defaultThumbnail : localPreview ?? selected ?? currentThumbnail ?? defaultThumbnail;
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Local time";
+  return <div className="broadcast-form">
+    <section className="broadcast-form__section" aria-labelledby={`${submitLabel}-room-details`}><h3 id={`${submitLabel}-room-details`}>Room Details</h3><FormField label="Internal room name" value={draft.internalName} onChange={(event) => { const internalName = event.target.value; setDraft({ ...draft, internalName, broadcastTitle: !draft.broadcastTitle || draft.broadcastTitle === draft.internalName ? internalName : draft.broadcastTitle }); }} maxLength={120} required /><label className="check-field"><input type="checkbox" checked={draft.openForGuests} onChange={(event) => setDraft({ ...draft, openForGuests: event.target.checked })} /><span>Open for invited guest entry after save</span></label></section>
+    <section className="broadcast-form__section" aria-labelledby={`${submitLabel}-broadcast-details`}><h3 id={`${submitLabel}-broadcast-details`}>Broadcast Details</h3><FormField label="Broadcast title" value={draft.broadcastTitle} onChange={(event) => setDraft({ ...draft, broadcastTitle: event.target.value })} maxLength={120} required /><label className="field"><span className="field__label">Broadcast description</span><textarea value={draft.broadcastDescription} onChange={(event) => setDraft({ ...draft, broadcastDescription: event.target.value })} maxLength={1000} rows={4} /></label><label className="check-field"><input type="checkbox" checked={draft.scheduled} onChange={(event) => setDraft({ ...draft, scheduled: event.target.checked })} /><span>Schedule this broadcast</span></label>{draft.scheduled && <label className="field"><span className="field__label">Scheduled date and time</span><input aria-label="Scheduled date and time" type="datetime-local" value={draft.scheduledLocal} onChange={(event) => setDraft({ ...draft, scheduledLocal: event.target.value })} required /><span className="fine-print">Shown in {timezone}; Runtime/Auth stores UTC.</span></label>}<label className="field"><span className="field__label">Visibility</span><select aria-label="Visibility" value={draft.visibility} onChange={(event) => setDraft({ ...draft, visibility: event.target.value as BroadcastVisibility })}><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select></label></section>
+    <section className="broadcast-form__section" aria-labelledby={`${submitLabel}-thumbnail`}><h3 id={`${submitLabel}-thumbnail`}>Thumbnail</h3><div className="broadcast-thumbnail-preview"><img src={thumbnail} alt="Broadcast thumbnail preview" /></div><label className="button button--secondary">{file ? "Replace uploaded thumbnail" : "Upload PNG, JPEG, or WebP"}<input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const next = event.target.files?.[0] ?? null; setFile(next); if (next) { setSelectedAssetId(""); setRemoveThumbnail(false); } }} /></label>{assets.length > 0 && <label className="field"><span className="field__label">Select existing room image</span><select value={selectedAssetId} onChange={(event) => { setSelectedAssetId(event.target.value); setFile(null); setRemoveThumbnail(false); }}><option value="">Keep current thumbnail</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}</select></label>}<Button type="button" variant="quiet" disabled={removeThumbnail && !file && !selectedAssetId && !currentThumbnail} onClick={() => { setFile(null); setSelectedAssetId(""); setRemoveThumbnail(true); }}>Remove thumbnail</Button><p className="fine-print">Runtime/Auth creates a versioned 1280×720 WebP derivative while preserving the reusable source asset.</p></section>
+    <section className="broadcast-form__section" aria-labelledby={`${submitLabel}-destinations`}><h3 id={`${submitLabel}-destinations`}>Destinations Summary</h3><DestinationSummary readiness={readiness} /></section>
+    <Button type="submit" disabled={pending || !draft.internalName.trim() || !draft.broadcastTitle.trim()}>{pending ? "Saving…" : submitLabel}</Button>
+  </div>;
+}
+
 export function StudioPage() {
   const { access } = useStudioAuth();
-  const [rooms, setRooms] = useState<RoomSummary[]>([]);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [roomActionPending, setRoomActionPending] = useState(false);
-  const [editingRoom, setEditingRoom] = useState<RoomSummary | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [deletingRoom, setDeletingRoom] = useState<RoomSummary | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [rooms, setRooms] = useState<RoomSummary[]>([]), [destinations, setDestinations] = useState<DestinationReadiness>(EMPTY_DESTINATIONS);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading"), [message, setMessage] = useState("");
+  const [draft, setDraft] = useState<RoomDraft>(EMPTY_DRAFT), [thumbnailFile, setThumbnailFile] = useState<File | null>(null), [submitting, setSubmitting] = useState(false);
+  const [roomActionPending, setRoomActionPending] = useState(false), [editingRoom, setEditingRoom] = useState<RoomSummary | null>(null), [editDraft, setEditDraft] = useState<RoomDraft>(EMPTY_DRAFT);
+  const [editAssets, setEditAssets] = useState<RoomAsset[]>([]), [editFile, setEditFile] = useState<File | null>(null), [editAssetId, setEditAssetId] = useState(""), [editRemoveThumbnail, setEditRemoveThumbnail] = useState(false);
+  const [deletingRoom, setDeletingRoom] = useState<RoomSummary | null>(null), [deleteConfirmation, setDeleteConfirmation] = useState("");
   useGlobalActivity(status === "loading" || submitting || roomActionPending, "Loading Studio rooms");
-
   const mayOwnRooms = access.status === "allowed" && ["admin", "creator", "developer"].includes(access.account?.accountType ?? "");
 
-  useEffect(() => {
-    if (!mayOwnRooms) return;
-    const controller = new AbortController();
-    setStatus("loading");
-    void listStudioRooms(controller.signal).then((items) => { setRooms(items); setStatus("ready"); }).catch((error: unknown) => {
-      if (!(error instanceof DOMException && error.name === "AbortError")) { setMessage(error instanceof Error ? error.message : "Rooms could not be loaded."); setStatus("error"); }
-    });
-    return () => controller.abort();
-  }, [mayOwnRooms]);
+  useEffect(() => { if (!mayOwnRooms) return; const controller = new AbortController(); setStatus("loading"); void loadStudioLobby(controller.signal).then(({ rooms: items, destinationReadiness }) => { setRooms(items); setDestinations(destinationReadiness); setStatus("ready"); }).catch((error: unknown) => { if (!(error instanceof DOMException && error.name === "AbortError")) { setMessage(error instanceof Error ? error.message : "Rooms could not be loaded."); setStatus("error"); } }); return () => controller.abort(); }, [mayOwnRooms]);
+  useEffect(() => { if (status !== "ready" || typeof EventSource === "undefined") return; const handles = rooms.map((room) => connectStudioEvents({ roomId: room.id, onState: () => undefined, onEvent: () => { void loadStudioRoom(room.id).then((canonical) => setRooms((items) => items.map((item) => item.id === canonical.id ? canonical : item))).catch(() => undefined); } })); return () => handles.forEach((handle) => handle.close()); }, [rooms.map((room) => room.id).join("|"), status]);
 
   if (access.status !== "allowed") return <AccessState />;
-
-  if (!mayOwnRooms) {
-    return <StudioShell><div className="studio-page-heading"><div><p className="eyebrow">Invite participation</p><h1>Studio</h1><p>Your public StreamSuites account remains a participant account.</p></div><StatusChip tone="alpha">Access confirmed</StatusChip></div><Card className="access-state-card"><h2>Join through a room invitation</h2><p>Public accounts can use valid guest invitation links without becoming creators or room owners. A Studio ALPHA grant does not change your account role, tier, or profile visibility.</p><p className="fine-print">Room creation is available only to admins and creator-capable accounts with active Studio access.</p></Card></StudioShell>;
-  }
+  if (!mayOwnRooms) return <StudioShell><div className="studio-page-heading"><div><p className="eyebrow">Invite participation</p><h1>Studio</h1><p>Your public StreamSuites account remains a participant account.</p></div><StatusChip tone="alpha">Access confirmed</StatusChip></div><Card className="access-state-card"><h2>Join through a room invitation</h2><p>Public accounts can use valid guest invitation links without becoming creators or room owners. A Studio ALPHA grant does not change your account role, tier, or profile visibility.</p></Card></StudioShell>;
 
   async function createRoom(event: FormEvent) {
-    event.preventDefault();
-    if (!title.trim() || submitting) return;
-    setSubmitting(true); setMessage("");
-    try {
-      const room = await createStudioRoom({ title, ...(description.trim() ? { description } : {}) });
-      setRooms((items) => [room, ...items]); setTitle(""); setDescription(""); setStatus("ready"); setMessage("Room created. It remains closed until you open it.");
-    } catch (error) { setMessage(error instanceof StudioApiError ? error.message : "Room creation failed."); }
-    finally { setSubmitting(false); }
+    event.preventDefault(); if (!draft.internalName.trim() || !draft.broadcastTitle.trim() || submitting) return; setSubmitting(true); setMessage("");
+    try { let room = await createStudioRoom({ title: draft.internalName.trim(), broadcastTitle: draft.broadcastTitle.trim(), broadcastDescription: draft.broadcastDescription.trim(), scheduledStartAt: toRuntimeSchedule(draft), broadcastVisibility: draft.visibility, entryState: draft.openForGuests ? "open" : "draft" }); if (thumbnailFile) { const asset = await uploadStudioRoomAsset(room.id, thumbnailFile, "broadcast_thumbnail"); room = await updateStudioRoom(room.id, { broadcastThumbnailAssetId: asset.id, expectedUpdatedAt: room.updatedAt }); } setRooms((items) => [room, ...items]); setDraft(EMPTY_DRAFT); setThumbnailFile(null); setStatus("ready"); setMessage("Room and broadcast details saved canonically by Runtime/Auth."); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Room creation failed."); } finally { setSubmitting(false); }
   }
+  async function openRoom(room: RoomSummary) { if (roomActionPending) return; setRoomActionPending(true); setMessage(""); try { const updated = await transitionStudioRoom(room.id, "open"); setRooms((items) => items.map((item) => item.id === room.id ? updated : item)); setMessage("Room opened for invited guest entry."); } catch (error) { setMessage(error instanceof Error ? error.message : "Room could not be opened."); } finally { setRoomActionPending(false); } }
+  async function beginEdit(room: RoomSummary) { setEditingRoom(room); setEditDraft({ internalName: room.title, broadcastTitle: room.broadcastTitle, broadcastDescription: room.broadcastDescription, scheduled: Boolean(room.scheduledStartAt), scheduledLocal: toLocalInput(room.scheduledStartAt), visibility: room.broadcastVisibility, openForGuests: room.lifecycleState === "open" }); setEditFile(null); setEditAssetId(""); setEditRemoveThumbnail(false); setMessage(""); try { setEditAssets(await listStudioRoomAssets(room.id)); } catch (error) { setEditAssets([]); setMessage(error instanceof Error ? error.message : "Existing room images could not be loaded."); } }
+  async function saveEdit(event: FormEvent) { event.preventDefault(); if (!editingRoom || !editDraft.internalName.trim() || !editDraft.broadcastTitle.trim() || roomActionPending) return; setRoomActionPending(true); setMessage(""); try { let thumbnailAssetId: string | null | undefined; if (editFile) thumbnailAssetId = (await uploadStudioRoomAsset(editingRoom.id, editFile, "broadcast_thumbnail")).id; else if (editAssetId) thumbnailAssetId = editAssetId; else if (editRemoveThumbnail) thumbnailAssetId = null; let updated = await updateStudioRoom(editingRoom.id, { title: editDraft.internalName.trim(), broadcastTitle: editDraft.broadcastTitle.trim(), broadcastDescription: editDraft.broadcastDescription.trim(), scheduledStartAt: toRuntimeSchedule(editDraft), broadcastVisibility: editDraft.visibility, ...(thumbnailAssetId === undefined ? {} : { broadcastThumbnailAssetId: thumbnailAssetId }), expectedUpdatedAt: editingRoom.updatedAt }); if (editDraft.openForGuests && updated.lifecycleState !== "open") updated = await transitionStudioRoom(updated.id, "open"); else if (!editDraft.openForGuests && updated.lifecycleState === "open") updated = await transitionStudioRoom(updated.id, "close"); setRooms((items) => items.map((item) => item.id === updated.id ? updated : item)); setEditingRoom(null); setMessage("Room and broadcast details updated by Runtime/Auth."); } catch (error) { setMessage(error instanceof StudioApiError ? error.message : error instanceof Error ? error.message : "Room details could not be updated."); } finally { setRoomActionPending(false); } }
+  async function confirmDelete() { if (!deletingRoom || deleteConfirmation !== deletingRoom.title || roomActionPending) return; setRoomActionPending(true); setMessage(""); try { await deleteStudioRoom(deletingRoom.id); setRooms((items) => items.filter((item) => item.id !== deletingRoom.id)); setDeletingRoom(null); setDeleteConfirmation(""); setMessage("Room permanently deleted from active Studio authority."); } catch (error) { setMessage(error instanceof Error ? error.message : "Room could not be deleted."); } finally { setRoomActionPending(false); } }
 
-  async function openRoom(room: RoomSummary) {
-    if (roomActionPending) return;
-    setRoomActionPending(true);
-    setMessage("");
-    try { const updated = await transitionStudioRoom(room.id, "open"); setRooms((items) => items.map((item) => item.id === room.id ? updated : item)); setMessage("Room opened for invited guest entry."); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Room could not be opened."); }
-    finally { setRoomActionPending(false); }
-  }
-
-  function beginEdit(room: RoomSummary) {
-    setEditingRoom(room); setEditTitle(room.title); setEditDescription(room.description ?? ""); setMessage("");
-  }
-
-  async function saveEdit(event: FormEvent) {
-    event.preventDefault();
-    if (!editingRoom || !editTitle.trim() || roomActionPending) return;
-    setRoomActionPending(true); setMessage("");
-    try {
-      const updated = await updateStudioRoom(editingRoom.id, { title: editTitle.trim(), description: editDescription.trim() || null });
-      setRooms((items) => items.map((item) => item.id === updated.id ? updated : item)); setEditingRoom(null); setMessage("Room details updated by Runtime/Auth.");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Room details could not be updated."); }
-    finally { setRoomActionPending(false); }
-  }
-
-  async function confirmDelete() {
-    if (!deletingRoom || deleteConfirmation !== deletingRoom.title || roomActionPending) return;
-    setRoomActionPending(true); setMessage("");
-    try {
-      await deleteStudioRoom(deletingRoom.id);
-      setRooms((items) => items.filter((item) => item.id !== deletingRoom.id)); setDeletingRoom(null); setDeleteConfirmation(""); setMessage("Room permanently deleted from active Studio authority.");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Room could not be deleted."); }
-    finally { setRoomActionPending(false); }
-  }
-
-  return <StudioShell>
-    <div className="studio-page-heading"><div><p className="eyebrow">Runtime-owned room authority</p><h1>Studio rooms</h1><p>Create and manage lobby authority here. Media and broadcasting are not connected.</p></div><StatusChip tone="alpha">Access confirmed</StatusChip></div>
-    <div className="room-dashboard-grid">
-      <Card><p className="eyebrow">New room</p><h2>Create a room</h2><form className="stack-form" onSubmit={createRoom}><FormField label="Room title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} required /><label className="field"><span className="field__label">Description <span className="fine-print">optional</span></span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} rows={4} /></label><Button type="submit" disabled={submitting || !title.trim()}>{submitting ? "Creating…" : "Create room"}</Button></form></Card>
-      <Card className="room-list-card"><div className="panel-heading"><div><p className="eyebrow">Your workspace</p><h2>Rooms</h2></div><StatusChip tone="neutral">{rooms.length} total</StatusChip></div>
-        {status === "loading" && <p role="status">Loading Runtime/Auth room summaries…</p>}
-        {status === "error" && <EmptyState title="Rooms unavailable"><p>{message}</p><Button onClick={() => window.location.reload()}>Retry</Button></EmptyState>}
-        {status === "ready" && rooms.length === 0 && <EmptyState title="No rooms yet"><p>Create a room to establish server-owned lobby authority. It will not start a broadcast.</p></EmptyState>}
-        {status === "ready" && rooms.length > 0 && <div className="room-list">{rooms.map((room) => { const mayDelete = access.account?.accountType === "admin" || access.account?.id === room.ownerAccountId; return <article className="room-list__item" key={room.id}><div className="room-list__content"><div className="room-list__title"><h3>{room.title}</h3><code className="room-id-chip" title="Room ID">{room.id}</code><StatusChip tone={room.lifecycleState === "open" ? "alpha" : room.lifecycleState === "ended" ? "blocked" : "neutral"}>{room.lifecycleState}</StatusChip></div><p className="room-list__description">{room.description || "No room description."}</p><div className="room-list__meta"><span>Updated {formatDate(room.updatedAt)}</span><span>{room.backstageGuestCount} waiting backstage</span><span>{room.onStageGuestCount} / {room.maxAdditionalStageParticipants} additional on stage · {room.totalStageCapacity} total including director</span></div></div><div className="room-list__actions">{room.lifecycleState === "ended" ? <Button disabled>Room ended</Button> : <ButtonLink to={`/studio/rooms/${room.id}`}>Enter room</ButtonLink>}{room.lifecycleState !== "ended" && <Button variant="secondary" disabled={roomActionPending} onClick={() => beginEdit(room)}>Edit room</Button>}{["draft", "closed"].includes(room.lifecycleState) && <Button variant="secondary" disabled={roomActionPending} onClick={() => void openRoom(room)}>Open room</Button>}{mayDelete && <Button className="button--destructive" variant="quiet" disabled={roomActionPending} onClick={() => { setDeletingRoom(room); setDeleteConfirmation(""); setMessage(""); }}>Delete room</Button>}</div></article>; })}</div>}
-      </Card>
-    </div>
-    {message && status !== "error" && <p className="status-banner" role="status" aria-live="polite">{message}</p>}
-    {editingRoom && <div className="modal-backdrop"><section className="studio-dialog room-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="room-edit-title"><p className="eyebrow">Runtime-owned room</p><h2 id="room-edit-title">Edit {editingRoom.title}</h2><form className="stack-form" onSubmit={saveEdit}><FormField label="Room title" value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={120} required /><label className="field"><span className="field__label">Description</span><textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} maxLength={1000} rows={4} /></label><div className="access-actions"><Button type="submit" disabled={roomActionPending || !editTitle.trim()}>{roomActionPending ? "Saving…" : "Save room"}</Button><Button type="button" variant="secondary" disabled={roomActionPending} onClick={() => setEditingRoom(null)}>Cancel</Button></div></form></section></div>}
-    {deletingRoom && <div className="modal-backdrop"><section className="studio-dialog room-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="room-delete-title"><p className="eyebrow">Permanent deletion</p><h2 id="room-delete-title">Delete {deletingRoom.title}?</h2><p>This ends room authority, invalidates guests and invites, and removes room-owned child records. StreamSuites user accounts are not deleted.</p><FormField label={`Type ${deletingRoom.title} to confirm`} value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} /><div className="access-actions"><Button className="button--destructive" disabled={deleteConfirmation !== deletingRoom.title || roomActionPending} onClick={() => void confirmDelete()}>{roomActionPending ? "Deleting…" : "Delete room permanently"}</Button><Button variant="secondary" disabled={roomActionPending} onClick={() => setDeletingRoom(null)}>Cancel</Button></div></section></div>}
-  </StudioShell>;
+  return <StudioShell><div className="studio-page-heading"><div><p className="eyebrow">Runtime-owned room authority</p><h1>Studio rooms</h1><p>Configure complete room and broadcast details here. Studio remains OFF AIR.</p></div><StatusChip tone="alpha">Access confirmed</StatusChip></div><div className="room-dashboard-grid"><Card className="room-create-card"><p className="eyebrow">New room</p><h2>Create Room</h2><form onSubmit={createRoom}><RoomForm draft={draft} setDraft={setDraft} file={thumbnailFile} setFile={setThumbnailFile} assets={[]} selectedAssetId="" setSelectedAssetId={() => undefined} currentThumbnail={null} removeThumbnail={false} setRemoveThumbnail={() => undefined} readiness={destinations} submitLabel="Create room" pending={submitting} /></form></Card><Card className="room-list-card"><div className="panel-heading"><div><p className="eyebrow">Your workspace</p><h2>Rooms</h2></div><StatusChip tone="neutral">{rooms.length} total</StatusChip></div>{status === "loading" && <p role="status">Loading Runtime/Auth room summaries…</p>}{status === "error" && <EmptyState title="Rooms unavailable"><p>{message}</p><Button onClick={() => window.location.reload()}>Retry</Button></EmptyState>}{status === "ready" && rooms.length === 0 && <EmptyState title="No rooms yet"><p>Create a room to establish server-owned lobby authority. It will not start a broadcast.</p></EmptyState>}{status === "ready" && rooms.length > 0 && <div className="room-list">{rooms.map((room) => { const mayDelete = access.account?.accountType === "admin" || access.account?.id === room.ownerAccountId; const statusLabel = room.lifecycleState === "draft" ? "closed" : room.lifecycleState; return <article className="room-list__item" key={room.id}><div className="room-card__thumbnail"><img src={room.broadcastThumbnailUrl ?? defaultThumbnail} alt={room.broadcastThumbnailUrl ? `${room.broadcastTitle} thumbnail` : "Default broadcast thumbnail"} /></div><div className="room-list__content"><div className="room-list__title"><div><p className="eyebrow">{room.title}</p><h3>{room.broadcastTitle}</h3></div><code className="room-id-chip" title="Room code">{room.id}</code><StatusChip tone={room.lifecycleState === "open" ? "alpha" : room.lifecycleState === "ended" ? "blocked" : "neutral"}>{statusLabel}</StatusChip><StatusChip tone="neutral">{room.broadcastVisibility}</StatusChip></div><p className="room-list__description">{room.broadcastDescription || "No broadcast description."}</p><div className="room-list__meta"><span>{room.scheduledStartAt ? formatDate(room.scheduledStartAt) : "Not scheduled"}</span><span>{room.onStageGuestCount} on Stage · {room.backstageGuestCount} waiting</span><span>{room.destinationReadiness.connectedCount} destinations connected · {room.destinationReadiness.readyCount} ready</span><span>Updated {formatDate(room.updatedAt)}</span></div></div><div className="room-list__actions">{room.lifecycleState === "ended" ? <Button disabled>Room ended</Button> : <ButtonLink to={`/studio/rooms/${room.id}`}>Open room</ButtonLink>}{room.lifecycleState !== "ended" && <Button variant="secondary" disabled={roomActionPending} onClick={() => void beginEdit(room)}>Edit room</Button>}{["draft", "closed"].includes(room.lifecycleState) && <Button variant="secondary" disabled={roomActionPending} onClick={() => void openRoom(room)}>Open for guests</Button>}{mayDelete && <Button className="button--destructive" variant="quiet" disabled={roomActionPending} onClick={() => { setDeletingRoom(room); setDeleteConfirmation(""); setMessage(""); }}>Delete room</Button>}</div></article>; })}</div>}</Card></div>{message && status !== "error" && <p className="status-banner" role="status" aria-live="polite">{message}</p>}{editingRoom && <div className="modal-backdrop"><section className="studio-dialog room-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="room-edit-title"><p className="eyebrow">Runtime-owned room</p><h2 id="room-edit-title">Edit {editingRoom.title}</h2><form onSubmit={saveEdit}><RoomForm draft={editDraft} setDraft={setEditDraft} file={editFile} setFile={setEditFile} assets={editAssets} selectedAssetId={editAssetId} setSelectedAssetId={setEditAssetId} currentThumbnail={editingRoom.broadcastThumbnailUrl} removeThumbnail={editRemoveThumbnail} setRemoveThumbnail={setEditRemoveThumbnail} readiness={editingRoom.destinationReadiness} submitLabel="Save room" pending={roomActionPending} /><Button type="button" variant="secondary" disabled={roomActionPending} onClick={() => setEditingRoom(null)}>Cancel</Button></form></section></div>}{deletingRoom && <div className="modal-backdrop"><section className="studio-dialog room-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="room-delete-title"><p className="eyebrow">Permanent deletion</p><h2 id="room-delete-title">Delete {deletingRoom.title}?</h2><p>This ends room authority, invalidates guests and invites, and removes room-owned child records. StreamSuites user accounts are not deleted.</p><FormField label={`Type ${deletingRoom.title} to confirm`} value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} /><div className="access-actions"><Button className="button--destructive" disabled={deleteConfirmation !== deletingRoom.title || roomActionPending} onClick={() => void confirmDelete()}>{roomActionPending ? "Deleting…" : "Delete room permanently"}</Button><Button variant="secondary" disabled={roomActionPending} onClick={() => setDeletingRoom(null)}>Cancel</Button></div></section></div>}</StudioShell>;
 }

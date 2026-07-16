@@ -87,8 +87,9 @@ Mocked SDK lifecycle, registration, intent-order, screen-share, Runtime provider
 - manage room-owned logo, Stage-background, overlay, holding, and presentation-placeholder PNG/JPEG/WebP assets through validated, normalized, CDN-only Runtime records
 - provide a portal-based Custom selector plus Room Settings management for up to eight stable-ID named/reorderable/deletable snapshots of Grid, Interview, Spotlight, or Presentation
 - preserve stable RealtimeKit participant keys and registrations while label, branding, background, and built-in/custom layout presentation changes reflow around them
+- complete the Runtime-owned lobby with separate room/broadcast identity, schedule/visibility, safe destination readiness, validated thumbnail upload/existing selection/replacement/removal, versioned 1280×720 CDN derivatives, and informative responsive room cards
 
-Custom geometry drag/resize, account-wide brand kits, director-visible Backstage preview transport, recording, destinations, broadcasting, and server-side egress were not delivered by this phase. Studio remains OFF AIR.
+Custom geometry drag/resize, account-wide brand kits, director-visible Backstage preview transport, room destination assignment/output, recording, broadcasting, and server-side egress were not delivered by this phase. Provider-private APIs were not used. Studio remains OFF AIR.
 
 ## 7. Runtime-owned custom browser sources — complete foundation
 

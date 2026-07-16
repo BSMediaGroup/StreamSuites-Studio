@@ -2,6 +2,10 @@
 
 ## CURRENT VER= 0.5.0-alpha / PENDING VER= 0.5.1-alpha
 
+- Studio lobby broadcast setup: added one canonical Create/Edit form for Room Details, Broadcast Details, Thumbnail, and Destinations Summary; separate room/broadcast identity, browser-timezone schedule, private/unlisted/public visibility, pending/error/conflict handling, and canonical success updates are implemented.
+- Thumbnail/card milestone: added upload, existing-room-image selection, preview, replacement, removal, refresh-safe versioned 1280×720 CDN output, default `assets/placeholders/defaultssthumb.svg` fallback, and compact responsive cards with room/broadcast metadata, counts, readiness, and Open/Edit/Delete.
+- Boundaries preserved: Runtime/Auth owns metadata and credentials; metadata SSE refetch does not reconnect RealtimeKit; nine Stage slots, OFF AIR, and disabled Go Live remain. No private Rumble GraphQL or broadcast output was added. Current/pending versions are unchanged.
+
 - Room Chat: added a Requests-matched header shortcut with capped private unread badge and a Chat top-level section in the existing right production sidebar. Private/Public tabs retain one compact keyboard-accessible row; no floating drawer or third sidebar was added.
 - Private: directors, covered cohosts, and current Backstage/on-Stage guests can load bounded history, send multiline text with idempotent retry, load earlier pages, persist/read unread state, and observe Runtime SSE creates/deletions and tombstones. Stage/RealtimeKit media state remains outside Chat selection and stays mounted.
 - Public: added registry-derived provider cards, safe per-actor connection labels, verified existing Twitch/Kick connection links, capability chips, Custom RTMP unsupported state, an empty combined-feed foundation, and an explicitly disabled composer. No sample feed, token storage, provider transport, or unsupported Rumble send endpoint was added.

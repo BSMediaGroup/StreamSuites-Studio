@@ -35,6 +35,15 @@ export interface AuthAccessGateState {
 }
 
 export type RoomLifecycle = "draft" | "open" | "closed" | "ended";
+export type BroadcastVisibility = "public" | "unlisted" | "private";
+
+export interface DestinationReadiness {
+  readonly availableCount: number;
+  readonly connectedCount: number;
+  readonly configuredCount: number;
+  readonly readyCount: number;
+  readonly outputEnabled: false;
+}
 
 export const STUDIO_TOTAL_STAGE_CAPACITY = 9;
 export const STUDIO_DIRECTOR_STAGE_SLOTS = 1;
@@ -45,6 +54,14 @@ export interface RoomSummary {
   readonly ownerAccountId: string;
   readonly title: string;
   readonly description: string | null;
+  readonly broadcastTitle: string;
+  readonly broadcastDescription: string;
+  readonly broadcastThumbnailAssetId: string | null;
+  readonly broadcastThumbnailUrl: string | null;
+  readonly broadcastThumbnailRevision: number;
+  readonly scheduledStartAt: string | null;
+  readonly broadcastVisibility: BroadcastVisibility;
+  readonly destinationReadiness: DestinationReadiness;
   readonly lifecycleState: RoomLifecycle;
   readonly maxGuestStageOccupants: number;
   readonly totalStageCapacity: number;
@@ -211,7 +228,7 @@ export const DEFAULT_ROOM_BRANDING: RoomBranding = {
   safeAreaVisible: true,
 };
 
-export type RoomAssetCategory = "logo" | "stage_background" | "overlay" | "holding" | "presentation_placeholder";
+export type RoomAssetCategory = "logo" | "stage_background" | "overlay" | "holding" | "presentation_placeholder" | "broadcast_thumbnail";
 
 export interface RoomAsset {
   readonly id: string;

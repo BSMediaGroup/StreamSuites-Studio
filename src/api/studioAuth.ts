@@ -1,6 +1,6 @@
 import { publicStudioConfig } from "../config/env";
 import { DEFAULT_ROOM_BRANDING, STUDIO_ADDITIONAL_STAGE_CAPACITY, STUDIO_DIRECTOR_STAGE_SLOTS, STUDIO_TOTAL_STAGE_CAPACITY } from "../domain/studio";
-import type { BrowserSource, BrowserSourceLocation, BrowserSourceVisibility, BuiltInStageLayout, CustomLayout, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, PresentationSource, PublicChatCapability, PublicChatFoundation, RoomAsset, RoomAssetCategory, RoomBranding, RoomChatMessage, RoomChatPage, RoomInvite, RoomLifecycle, RoomPresentation, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
+import type { BroadcastVisibility, BrowserSource, BrowserSourceLocation, BrowserSourceVisibility, BuiltInStageLayout, CustomLayout, DestinationReadiness, GuestLobbyState, GuestRoomView, InviteValidation, ParticipantLabelMode, PresentationSource, PublicChatCapability, PublicChatFoundation, RoomAsset, RoomAssetCategory, RoomBranding, RoomChatMessage, RoomChatPage, RoomInvite, RoomLifecycle, RoomPresentation, RoomSummary, StageLayout, StreamSuitesAccountType, StudioGuest, StudioAccessState, AuthAccessGateState, StudioSessionAccount, CohostRelationship, CohostScope, InvitePolicy, RoomCohosts, RoomConnectionState, RoomPermissions } from "../domain/studio";
 import type { SafeApiError } from "./contracts";
 
 const ACCOUNT_TYPES = new Set<StreamSuitesAccountType>(["admin", "creator", "developer", "public"]);
@@ -260,6 +260,14 @@ function normalizeRoom(value: unknown): RoomSummary {
     title,
     ownerAccountId,
     description: stringOrNull(value.description),
+    broadcastTitle: stringOrNull(value.broadcast_title) ?? title,
+    broadcastDescription: stringOrNull(value.broadcast_description) ?? "",
+    broadcastThumbnailAssetId: stringOrNull(value.broadcast_thumbnail_asset_id),
+    broadcastThumbnailUrl: safeCdnAvatarUrl(value.broadcast_thumbnail_url),
+    broadcastThumbnailRevision: numberOr(value.broadcast_thumbnail_revision),
+    scheduledStartAt: stringOrNull(value.scheduled_start_at),
+    broadcastVisibility: value.broadcast_visibility === "public" || value.broadcast_visibility === "unlisted" ? value.broadcast_visibility : "private",
+    destinationReadiness: normalizeDestinationReadiness(value.destination_readiness),
     lifecycleState: roomLifecycle(value.lifecycle_state),
     maxGuestStageOccupants: numberOr(value.max_guest_stage_occupants, STUDIO_ADDITIONAL_STAGE_CAPACITY),
     totalStageCapacity: numberOr(value.total_stage_capacity, STUDIO_TOTAL_STAGE_CAPACITY),
@@ -276,6 +284,11 @@ function normalizeRoom(value: unknown): RoomSummary {
     openedAt: stringOrNull(value.opened_at),
     endedAt: stringOrNull(value.ended_at),
   };
+}
+
+function normalizeDestinationReadiness(value: unknown): DestinationReadiness {
+  const item = isRecord(value) ? value : {};
+  return { availableCount: numberOr(item.available_count), connectedCount: numberOr(item.connected_count), configuredCount: numberOr(item.configured_count), readyCount: numberOr(item.ready_count), outputEnabled: false };
 }
 
 function normalizeInvite(value: unknown): RoomInvite {
@@ -472,12 +485,17 @@ export async function listStudioRooms(signal?: AbortSignal): Promise<RoomSummary
   return Array.isArray(payload.items) ? payload.items.map(normalizeRoom) : [];
 }
 
-export async function createStudioRoom(input: { title: string; description?: string }, signal?: AbortSignal): Promise<RoomSummary> {
+export async function loadStudioLobby(signal?: AbortSignal): Promise<{ rooms: RoomSummary[]; destinationReadiness: DestinationReadiness }> {
+  const payload = await studioRequest("/api/studio/rooms", { signal });
+  return { rooms: Array.isArray(payload.items) ? payload.items.map(normalizeRoom) : [], destinationReadiness: normalizeDestinationReadiness(payload.destination_readiness) };
+}
+
+export async function createStudioRoom(input: { title: string; description?: string; broadcastTitle: string; broadcastDescription?: string; scheduledStartAt?: string | null; broadcastVisibility: BroadcastVisibility; entryState?: "draft" | "open" }, signal?: AbortSignal): Promise<RoomSummary> {
   return normalizeRoom(
     (
       await studioRequest("/api/studio/rooms", {
         method: "POST",
-        body: body(input),
+        body: body({ title: input.title, ...(input.description ? { description: input.description } : {}), broadcast_title: input.broadcastTitle, broadcast_description: input.broadcastDescription ?? "", scheduled_start_at: input.scheduledStartAt ?? null, broadcast_visibility: input.broadcastVisibility, entry_state: input.entryState ?? "draft" }),
         signal,
       })
     ).room,
@@ -502,12 +520,12 @@ export async function loadStudioRoomContext(roomId: string, signal?: AbortSignal
   };
 }
 
-export async function updateStudioRoom(roomId: string, input: { title?: string; description?: string | null }, signal?: AbortSignal): Promise<RoomSummary> {
+export async function updateStudioRoom(roomId: string, input: { title?: string; description?: string | null; broadcastTitle?: string; broadcastDescription?: string; scheduledStartAt?: string | null; broadcastVisibility?: BroadcastVisibility; broadcastThumbnailAssetId?: string | null; expectedUpdatedAt?: string }, signal?: AbortSignal): Promise<RoomSummary> {
   return normalizeRoom(
     (
       await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}`, {
         method: "PATCH",
-        body: body(input),
+        body: body({ ...(input.title === undefined ? {} : { title: input.title }), ...(input.description === undefined ? {} : { description: input.description }), ...(input.broadcastTitle === undefined ? {} : { broadcast_title: input.broadcastTitle }), ...(input.broadcastDescription === undefined ? {} : { broadcast_description: input.broadcastDescription }), ...(input.scheduledStartAt === undefined ? {} : { scheduled_start_at: input.scheduledStartAt }), ...(input.broadcastVisibility === undefined ? {} : { broadcast_visibility: input.broadcastVisibility }), ...(input.broadcastThumbnailAssetId === undefined ? {} : { broadcast_thumbnail_asset_id: input.broadcastThumbnailAssetId }), ...(input.expectedUpdatedAt === undefined ? {} : { expected_updated_at: input.expectedUpdatedAt }) }),
         signal,
       })
     ).room,
@@ -781,7 +799,7 @@ function normalizeRoomAsset(value: unknown): RoomAsset {
   if (!isRecord(value)) throw new StudioApiError(requestError("invalid_room_asset_response", "Runtime/Auth returned invalid room asset data."));
   const id = stringOrNull(value.id), roomId = stringOrNull(value.room_id), displayName = stringOrNull(value.display_name), url = safeCdnAvatarUrl(value.url), createdAt = stringOrNull(value.created_at), updatedAt = stringOrNull(value.updated_at);
   const category = value.category as RoomAssetCategory;
-  if (!id || !roomId || !displayName || !url || !createdAt || !updatedAt || !["logo", "stage_background", "overlay", "holding", "presentation_placeholder"].includes(category)) throw new StudioApiError(requestError("invalid_room_asset_response", "Runtime/Auth returned incomplete room asset data."));
+  if (!id || !roomId || !displayName || !url || !createdAt || !updatedAt || !["logo", "stage_background", "overlay", "holding", "presentation_placeholder", "broadcast_thumbnail"].includes(category)) throw new StudioApiError(requestError("invalid_room_asset_response", "Runtime/Auth returned incomplete room asset data."));
   return { id, roomId, displayName, url, category, mimeType: "image/webp", width: numberOr(value.width), height: numberOr(value.height), fileSize: numberOr(value.file_size), sortOrder: numberOr(value.sort_order), createdAt, updatedAt };
 }
 
@@ -910,7 +928,7 @@ export function connectStudioEvents(options: { roomId?: string; guest?: boolean;
   let source: EventSource | null = null;
   let reconnects = 0;
   let timer = 0;
-  const eventNames = ["room.updated", "room.opened", "room.closed", "room.ended", "room.deleted", "room.invite_deleted", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "room.chat_message_created", "room.chat_message_deleted", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "participant.avatar_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
+  const eventNames = ["room.created", "room.updated", "room.broadcast_details_updated", "room.thumbnail_updated", "room.opened", "room.closed", "room.ended", "room.deleted", "room.invite_deleted", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "room.chat_message_created", "room.chat_message_deleted", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "participant.avatar_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
   const open = () => {
     if (closed) return;
     options.onState(reconnects ? "reconnecting" : "unavailable");

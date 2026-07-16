@@ -29,6 +29,61 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("completes Runtime-owned lobby broadcast details and thumbnail create-edit workflow", async () => {
+  const payload = authPayload("creator");
+  const NativeURL = URL;
+  vi.stubGlobal("URL", class extends NativeURL { static createObjectURL() { return "blob:thumbnail-preview"; } static revokeObjectURL() {} });
+  let rooms: any[] = [];
+  const canonical = (overrides: object = {}) => ({ id: "room-broadcast", owner_account_id: "creator-1", title: "Internal green room", description: null, broadcast_title: "Launch broadcast", broadcast_description: "A concise public description", broadcast_thumbnail_asset_id: "asset-thumb", broadcast_thumbnail_url: "https://cdn.streamsuites.app/studio/rooms/RoomCode/broadcast-thumbnail/11111111-1111-1111-1111-111111111111/v1.webp", broadcast_thumbnail_revision: 1, scheduled_start_at: "2026-07-31T23:30:00Z", broadcast_visibility: "unlisted", destination_readiness: { available_count: 5, connected_count: 1, configured_count: 1, ready_count: 0, output_enabled: false }, lifecycle_state: "draft", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, backstage_guest_count: 2, on_stage_guest_count: 1, created_at: "2026-07-16T00:00:00Z", updated_at: "2026-07-16T00:01:00Z", opened_at: null, ended_at: null, ...overrides });
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/auth/session")) return response(payload.session);
+    if (url.includes("/api/studio/access")) return response(payload.access);
+    if (url.endsWith("/api/studio/cohosts/invitations")) return response({ success: true, items: [] });
+    if (url.endsWith("/api/studio/rooms/room-broadcast/assets") && init?.method === "POST") return response({ success: true, asset: { id: "asset-thumb", room_id: "room-broadcast", category: "broadcast_thumbnail", display_name: "launch.png", url: "https://cdn.streamsuites.app/studio/rooms/RoomCode/assets/11111111-1111-1111-1111-111111111111/v1.webp", mime_type: "image/webp", width: 640, height: 360, file_size: 1000, sort_order: 0, created_at: "2026-07-16T00:00:30Z", updated_at: "2026-07-16T00:00:30Z" } }, 201);
+    if (url.endsWith("/api/studio/rooms/room-broadcast/assets")) return response({ success: true, items: [{ id: "asset-thumb", room_id: "room-broadcast", category: "broadcast_thumbnail", display_name: "launch.png", url: "https://cdn.streamsuites.app/studio/rooms/RoomCode/assets/11111111-1111-1111-1111-111111111111/v1.webp", mime_type: "image/webp", width: 640, height: 360, file_size: 1000, sort_order: 0, created_at: "2026-07-16T00:00:30Z", updated_at: "2026-07-16T00:00:30Z" }] });
+    if (url.endsWith("/api/studio/rooms/room-broadcast") && init?.method === "PATCH") { const body = JSON.parse(String(init.body)); rooms = [canonical({ broadcast_title: body.broadcast_title ?? rooms[0]?.broadcast_title, broadcast_visibility: body.broadcast_visibility ?? rooms[0]?.broadcast_visibility, broadcast_thumbnail_url: body.broadcast_thumbnail_asset_id === null ? null : rooms[0]?.broadcast_thumbnail_url, broadcast_thumbnail_asset_id: body.broadcast_thumbnail_asset_id === null ? null : "asset-thumb", updated_at: "2026-07-16T00:02:00Z" })]; return response({ success: true, room: rooms[0] }); }
+    if (url.endsWith("/api/studio/rooms") && init?.method === "POST") { rooms = [canonical({ broadcast_thumbnail_asset_id: null, broadcast_thumbnail_url: null, broadcast_thumbnail_revision: 0 })]; return response({ success: true, room: rooms[0] }, 201); }
+    if (url.endsWith("/api/studio/rooms")) return response({ success: true, items: rooms, destination_readiness: { available_count: 5, connected_count: 1, configured_count: 1, ready_count: 0, output_enabled: false } });
+    return response({}, 404);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><StudioPage /></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
+  expect(await screen.findByRole("heading", { name: "Create Room" })).toBeInTheDocument();
+  for (const heading of ["Room Details", "Broadcast Details", "Thumbnail", "Destinations Summary"]) expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+  const create = screen.getByRole("heading", { name: "Create Room" }).closest(".card") as HTMLElement;
+  expect(within(create).getByRole("button", { name: "Create room" })).toBeDisabled();
+  fireEvent.change(within(create).getByLabelText("Internal room name"), { target: { value: "Internal green room" } });
+  fireEvent.change(within(create).getByLabelText("Broadcast title"), { target: { value: "Launch broadcast" } });
+  fireEvent.change(within(create).getByLabelText("Broadcast description"), { target: { value: "A concise public description" } });
+  fireEvent.click(within(create).getByLabelText("Schedule this broadcast"));
+  fireEvent.change(within(create).getByLabelText("Scheduled date and time"), { target: { value: "2026-08-01T09:30" } });
+  fireEvent.change(within(create).getByLabelText("Visibility"), { target: { value: "unlisted" } });
+  fireEvent.change(within(create).getByLabelText("Upload PNG, JPEG, or WebP"), { target: { files: [new File(["image"], "launch.png", { type: "image/png" })] } });
+  expect(within(create).getByAltText("Broadcast thumbnail preview")).toHaveAttribute("src", "blob:thumbnail-preview");
+  fireEvent.click(within(create).getByRole("button", { name: "Create room" }));
+  expect(await screen.findByRole("heading", { name: "Launch broadcast" })).toBeInTheDocument();
+  expect(screen.getByText("A concise public description")).toBeInTheDocument();
+  expect(screen.getByText("unlisted")).toBeInTheDocument();
+  expect(screen.getByTitle("Room code")).toHaveTextContent("room-broadcast");
+  expect(screen.getByAltText("Launch broadcast thumbnail")).toHaveAttribute("src", expect.stringContaining("https://cdn.streamsuites.app/"));
+  expect(screen.getByRole("link", { name: "Open room" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Delete room" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Edit room" }));
+  const dialog = await screen.findByRole("dialog", { name: "Edit Internal green room" });
+  expect(within(dialog).getByLabelText("Internal room name")).toHaveValue("Internal green room");
+  expect(within(dialog).getByLabelText("Broadcast title")).toHaveValue("Launch broadcast");
+  expect(within(dialog).getByLabelText("Broadcast description")).toHaveValue("A concise public description");
+  expect(within(dialog).getByLabelText("Visibility")).toHaveValue("unlisted");
+  fireEvent.change(within(dialog).getByLabelText("Broadcast title"), { target: { value: "Edited launch" } });
+  fireEvent.change(within(dialog).getByLabelText("Visibility"), { target: { value: "private" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Remove thumbnail" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save room" }));
+  expect(await screen.findByRole("heading", { name: "Edited launch" })).toBeInTheDocument();
+  expect(screen.getByAltText("Default broadcast thumbnail")).toHaveAttribute("src", expect.stringContaining("defaultssthumb.svg"));
+  expect(screen.getByText("1 destinations connected · 0 ready")).toBeInTheDocument();
+});
+
 it("shows the truthful public-account invitation policy without fetching owner rooms", async () => {
   const payload = authPayload("public");
   const fetchMock = vi.fn((input: RequestInfo | URL) => String(input).includes("/auth/session") ? response(payload.session) : response(payload.access));
