@@ -1,14 +1,23 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { fetchRuntimeVersion } from "../api/runtimeVersion";
 import { publicStudioConfig } from "../config/env";
 
 type RuntimeState = "loading" | "online" | "degraded";
 
 export function StudioFooter() {
+  const location = useLocation();
   const [version, setVersion] = useState("Runtime version loading");
   const [build, setBuild] = useState<string | null>(null);
   const [runtimeState, setRuntimeState] = useState<RuntimeState>("loading");
   const [statusOpen, setStatusOpen] = useState(false);
+  const statusRef = useRef<HTMLDivElement>(null);
+  const statusTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const closeStatus = useCallback((restoreFocus = false) => {
+    setStatusOpen(false);
+    if (restoreFocus) window.setTimeout(() => statusTriggerRef.current?.focus(), 0);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -23,6 +32,35 @@ export function StudioFooter() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    setStatusOpen(false);
+  }, [build, location.hash, location.key, location.pathname, location.search, runtimeState, version]);
+
+  useEffect(() => {
+    if (!statusOpen) return;
+    const pointerDown = (event: PointerEvent) => {
+      if (!statusRef.current?.contains(event.target as Node)) closeStatus();
+    };
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeStatus(true);
+    };
+    document.addEventListener("pointerdown", pointerDown);
+    document.addEventListener("keydown", keyDown);
+    return () => {
+      document.removeEventListener("pointerdown", pointerDown);
+      document.removeEventListener("keydown", keyDown);
+    };
+  }, [closeStatus, statusOpen]);
+
+  const statusState = runtimeState === "online" ? "operational" : runtimeState === "degraded" ? "partial" : "unknown";
+  const statusSummary = runtimeState === "online"
+    ? "Runtime/Auth is reachable."
+    : runtimeState === "loading"
+      ? "Checking Runtime/Auth."
+      : "Runtime/Auth is unavailable or degraded.";
+
   return (
     <footer className="studio-global-footer footer-shell">
       <div className="footer-bar">
@@ -33,25 +71,43 @@ export function StudioFooter() {
         </nav>
         <a className="footer-copyright" href="https://brainstream.media" target="_blank" rel="noopener noreferrer">© 2026 Brainstream Media Group</a>
         <div className="footer-meta">
-          <div className="footer-status">
-            <div className="studio-runtime-status" data-state={runtimeState === "online" ? "operational" : runtimeState === "degraded" ? "partial" : "unknown"}>
-              <button className="studio-runtime-status__toggle" type="button" aria-expanded={statusOpen} aria-controls="studio-runtime-status-details" onClick={() => setStatusOpen((open) => !open)}>
-                <span className="studio-runtime-status__dot" aria-hidden="true" />
-                <span>Runtime/Auth {runtimeState === "loading" ? "checking" : runtimeState}</span>
+          <div className="footer-status" data-status-slot>
+            <div
+              ref={statusRef}
+              id="ss-status-indicator"
+              className="ss-status-indicator"
+              data-state={statusState}
+              data-expanded={String(statusOpen)}
+              onPointerLeave={() => closeStatus()}
+              onBlurCapture={(event) => {
+                if (!statusRef.current?.contains(event.relatedTarget as Node)) closeStatus();
+              }}
+            >
+              <button
+                ref={statusTriggerRef}
+                className="ss-status-toggle"
+                type="button"
+                aria-expanded={statusOpen}
+                aria-controls="ss-status-details"
+                aria-label="Service status details"
+                onClick={() => setStatusOpen((open) => !open)}
+              >
+                <span className="ss-status-dot" aria-hidden="true" />
+                <span className="ss-status-label">Status</span>
               </button>
-              <div id="studio-runtime-status-details" className="studio-runtime-status__details" hidden={!statusOpen}>
-                <strong>{runtimeState === "online" ? "Runtime/Auth is reachable" : runtimeState === "loading" ? "Checking Runtime/Auth" : "Runtime/Auth is unavailable or degraded"}</strong>
-                <span>Studio remains fail-closed and OFF AIR when canonical health cannot be confirmed.</span>
+              <div id="ss-status-details" className="ss-status-details" hidden={!statusOpen}>
+                <div className="ss-status-summary">{statusSummary}</div>
+                <a className="ss-status-link" href="https://streamsuites.statuspage.io/" target="_blank" rel="noreferrer">View full status →</a>
               </div>
             </div>
           </div>
           <span className="footer-version-tooltip-container">
             <a className="footer-version" href="https://streamsuites.app/changelog" aria-describedby="studio-footer-version-tooltip">{version}</a>
-            <span className="footer-version-tooltip" id="studio-footer-version-tooltip" role="tooltip">
-              <span className="footer-version-tooltip-line">StreamSuites Runtime {version}</span>
-              {build && <span className="footer-version-tooltip-line">Build {build}</span>}
+            <div className="footer-version-tooltip" id="studio-footer-version-tooltip" role="tooltip">
+              <div className="footer-version-tooltip-line">StreamSuites Runtime {version}</div>
+              {build && <div className="footer-version-tooltip-line">Build {build}</div>}
               <a className="footer-version-tooltip-link" href="https://streamsuites.app/changelog">View changelog</a>
-            </span>
+            </div>
           </span>
         </div>
       </div>

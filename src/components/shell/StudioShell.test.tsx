@@ -1,17 +1,81 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { fetchRuntimeVersion } from "../../api/runtimeVersion";
 import { PresentationProvider } from "../../presentation/PresentationProvider";
 import { STUDIO_CONTEXT_SIDEBAR_STORAGE_KEY, STUDIO_PRESENTATION_STORAGE_KEY, parseContextSidebarMode } from "../../presentation/presentationPreferences";
 import { ThemeProvider } from "../../theme/ThemeProvider";
+import { StudioFooter } from "../StudioFooter";
 import { STUDIO_PRIMARY_SIDEBAR_STORAGE_KEY, StudioShell, parsePrimarySidebarMode } from "./StudioShell";
 
+vi.mock("../../api/runtimeVersion", () => ({ fetchRuntimeVersion: vi.fn() }));
 vi.mock("../StudioAccountMenu", () => ({ StudioAccountMenu: () => <button type="button">Account</button> }));
 vi.mock("../AuthAccessBanner", () => ({ AuthAccessBanner: () => null }));
 vi.mock("../CohostRequests", () => ({ CohostRequests: () => <button type="button">Requests</button> }));
 
-beforeEach(() => window.localStorage.clear());
-afterEach(() => { cleanup(); vi.useRealTimers(); window.localStorage.clear(); });
+function FooterRouteHarness() {
+  const navigate = useNavigate();
+  return <><StudioFooter /><button type="button" onClick={() => navigate("/studio/rooms/fixture")}>Navigate to room</button></>;
+}
+
+beforeEach(() => {
+  window.localStorage.clear();
+  vi.mocked(fetchRuntimeVersion).mockResolvedValue({ ok: true, value: { version: "0.5.0-alpha", build: "fixture-build", source: "runtime" } });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })));
+});
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks(); window.localStorage.clear(); });
+
+it("uses one Public-pattern footer status widget with dismissible route-safe behavior", async () => {
+  const rendered = render(<MemoryRouter initialEntries={["/studio"]}><FooterRouteHarness /></MemoryRouter>);
+  expect(await screen.findByRole("link", { name: "v0.5.0-alpha" })).toBeInTheDocument();
+
+  const footer = rendered.container.querySelector(".studio-global-footer.footer-shell")!;
+  const bar = footer.querySelector(".footer-bar")!;
+  expect(Array.from(bar.children).map((child) => child.className)).toEqual(["footer-links", "footer-copyright", "footer-meta"]);
+  expect(footer.querySelectorAll(".ss-status-indicator")).toHaveLength(1);
+  expect(footer.querySelector(".studio-runtime-status")).not.toBeInTheDocument();
+  expect(footer.querySelector(".footer-links")).toHaveTextContent("/support/privacy/about");
+  expect(footer).toHaveTextContent("© 2026 Brainstream Media Group");
+  expect(footer).toHaveTextContent("Build fixture-build");
+
+  const trigger = screen.getByRole("button", { name: "Service status details" });
+  const details = footer.querySelector<HTMLElement>(".ss-status-details")!;
+  const status = footer.querySelector<HTMLElement>(".ss-status-indicator")!;
+  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(details).not.toBeVisible();
+  fireEvent.focus(trigger);
+  expect(details).not.toBeVisible();
+
+  fireEvent.click(trigger);
+  expect(details).toBeVisible();
+  expect(footer.querySelectorAll(".ss-status-details")).toHaveLength(1);
+  fireEvent.pointerLeave(status);
+  expect(details).not.toBeVisible();
+
+  fireEvent.click(trigger);
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(details).not.toBeVisible();
+  await waitFor(() => expect(trigger).toHaveFocus());
+
+  fireEvent.click(trigger);
+  fireEvent.pointerDown(document.body);
+  expect(details).not.toBeVisible();
+
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole("button", { name: "Navigate to room" }));
+  expect(details).not.toBeVisible();
+});
+
+it("removes status dismissal listeners when the footer unmounts", async () => {
+  const remove = vi.spyOn(document, "removeEventListener");
+  const rendered = render(<MemoryRouter><StudioFooter /></MemoryRouter>);
+  await screen.findByRole("link", { name: "v0.5.0-alpha" });
+  fireEvent.click(screen.getByRole("button", { name: "Service status details" }));
+  rendered.unmount();
+  expect(remove).toHaveBeenCalledWith("pointerdown", expect.any(Function));
+  expect(remove).toHaveBeenCalledWith("keydown", expect.any(Function));
+  remove.mockRestore();
+});
 
 it("defaults the primary sidebar to collapsed and its bottom toggle only pins or collapses it", () => {
   render(<ThemeProvider><PresentationProvider><MemoryRouter><StudioShell><p>Workspace</p></StudioShell></MemoryRouter></PresentationProvider></ThemeProvider>);

@@ -6,6 +6,7 @@ import viewSource from "../ViewOptionsMenu.tsx?raw";
 import preferencesSource from "../../presentation/presentationPreferences.ts?raw";
 import roomStyles from "../../styles/room-workspace.css?raw";
 import requestSource from "../CohostRequests.tsx?raw";
+import footerSource from "../StudioFooter.tsx?raw";
 import sharedStyles from "../../styles/index.css?raw";
 import tokens from "../../styles/tokens.css?raw";
 
@@ -67,8 +68,35 @@ describe("shared active-room edge sidebar and Stage geometry contract", () => {
     expect(roomStyles).toContain("--studio-left-sidebar-track: 0px");
     expect(roomStyles).toContain("--studio-right-sidebar-track: 0px");
     expect(roomStyles).toMatch(/is-collapsed\.is-temporarily-expanded \.studio-edge-sidebar__panel\s*\{[^}]*position:\s*absolute/);
+    expect(roomStyles).toMatch(/\.studio-edge-sidebar\s*\{[^}]*width:\s*calc\(var\(--studio-edge-rail-width\) \+ var\(--studio-edge-panel-width\)\)[^}]*gap:\s*0/);
+    expect(roomStyles).toMatch(/is-collapsed\.is-temporarily-expanded \.studio-edge-sidebar__panel\s*\{[^}]*grid-column:\s*auto/);
+    expect(roomStyles).toContain(".studio-edge-sidebar--left.is-collapsed.is-temporarily-expanded .studio-edge-sidebar__panel { right: auto; left: 100%; }");
+    expect(roomStyles).toContain(".studio-edge-sidebar--right.is-collapsed.is-temporarily-expanded .studio-edge-sidebar__panel { right: 100%; left: auto; }");
+    expect(roomStyles).toMatch(/\.studio-edge-sidebar__panel\s*\{[^}]*background:\s*var\(--sidebar-bg\)/);
+    expect(roomStyles).toMatch(/\.studio-edge-sidebar__rail\s*\{[^}]*background:\s*var\(--sidebar-bg\)/);
     expect(viewSource).toContain("Hide primary sidebar");
     expect(viewSource).toContain("Hide room production sidebar");
+  });
+
+  it("ports the Public footer/status DOM and keeps its disclosures opaque and out of layout", () => {
+    for (const className of ["footer-shell", "footer-bar", "footer-links", "footer-copyright", "footer-meta", "footer-status", "ss-status-indicator", "ss-status-toggle", "ss-status-dot", "ss-status-label", "ss-status-details", "ss-status-summary", "ss-status-link", "footer-version-tooltip-container", "footer-version-tooltip"]) {
+      expect(footerSource).toContain(className);
+    }
+    expect(footerSource).not.toContain("studio-runtime-status");
+    expect(footerSource).toContain("fetchRuntimeVersion");
+    expect(footerSource).toContain("Build {build}");
+    expect(footerSource).toContain("document.addEventListener(\"pointerdown\"");
+    expect(footerSource).toContain("document.addEventListener(\"keydown\"");
+    expect(footerSource).toContain("location.key");
+    expect(sharedStyles).toMatch(/\.studio-global-footer \.footer-bar\s*\{[^}]*display:\s*grid[^}]*height:\s*42px/);
+    expect(sharedStyles).toContain("grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr)");
+    expect(sharedStyles).toContain("padding: 0 var(--footer-padding-x)");
+    expect(sharedStyles).toMatch(/\.studio-global-footer \.ss-status-details\s*\{[^}]*position:\s*absolute/);
+    expect(sharedStyles).toMatch(/\.studio-global-footer \.ss-status-details\s*\{[^}]*background:\s*var\(--studio-footer-status-panel\)/);
+    expect(sharedStyles).toMatch(/\.footer-version-tooltip\s*\{[^}]*background:\s*var\(--studio-footer-status-panel\)/);
+    expect(sharedStyles).not.toMatch(/\.studio-global-footer \.ss-status-details[^}]*backdrop-filter/);
+    expect(sharedStyles.match(/--studio-footer-status-panel:\s*#[0-9a-f]{3,6}/gi)).toHaveLength(2);
+    expect(tokens.match(/--overlay-surface:\s*#[0-9a-f]{6}/gi)).toHaveLength(2);
   });
 
   it("restores the uncapped center track and one maximum contained 16:9 Stage contract", () => {
