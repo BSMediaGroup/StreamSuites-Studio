@@ -2,6 +2,8 @@
 
 ## CURRENT VER= 0.5.0-alpha / PENDING VER= 0.5.1-alpha
 
+- Shell-edge and Requests overlay repair: made the mirrored `StudioEdgeSidebar` room-grid alignment/paint contract explicit so both direct shell children remain full-height, marginless, footer-bounded, and flush to their viewport edges with independent bodies and square bottom-row toggles. Rebuilt the existing header Requests control as a body-portaled, viewport-clamped, internally scrolling dialog surface using explicit fully opaque dark/light overlay tokens, shell-above/modal-below layering, Escape/outside-click close, focus entry/restoration, and arrow/Home/End action navigation. The room Stage, sidebar state, Runtime/Auth request authority, SSE, and RealtimeKit component lifecycle remain outside the overlay state; versions are unchanged.
+
 - Studio lobby broadcast setup: added one canonical Create/Edit form for Room Details, Broadcast Details, Thumbnail, and Destinations Summary; separate room/broadcast identity, browser-timezone schedule, private/unlisted/public visibility, pending/error/conflict handling, and canonical success updates are implemented.
 - Thumbnail/card milestone: added upload, existing-room-image selection, preview, replacement, removal, refresh-safe versioned 1280×720 CDN output, default `assets/placeholders/defaultssthumb.svg` fallback, and compact responsive cards with room/broadcast metadata, counts, readiness, and Open/Edit/Delete.
 - Boundaries preserved: Runtime/Auth owns metadata and credentials; metadata SSE refetch does not reconnect RealtimeKit; nine Stage slots, OFF AIR, and disabled Go Live remain. No private Rumble GraphQL or broadcast output was added. Current/pending versions are unchanged.

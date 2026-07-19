@@ -206,6 +206,7 @@ StreamSuites-Studio/
 │   │   └── StageBranding.tsx
 │   ├── components/
 │   │   ├── AuthAccessBanner.tsx
+│   │   ├── CohostRequests.test.tsx
 │   │   ├── CohostRequests.tsx
 │   │   ├── StudioAccountMenu.test.tsx
 │   │   ├── StudioAccountMenu.tsx

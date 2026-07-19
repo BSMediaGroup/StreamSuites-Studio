@@ -19,6 +19,14 @@
 .studio-shell--room-workspace.studio-shell--context-panel-hidden { --studio-right-sidebar-track: 0px; }
 .studio-shell--cinematic { --studio-left-sidebar-track: 0px; --studio-right-sidebar-track: 0px; }
 .studio-shell--room-workspace .studio-main { min-height: 0; overflow-y: auto; padding: 0.5rem; }
+.studio-shell--room-workspace { column-gap: 0; overflow-x: clip; }
+.studio-shell--room-workspace > .studio-edge-sidebar {
+  align-self: stretch;
+  justify-self: stretch;
+  margin: 0;
+  inset: auto;
+}
+.studio-shell--room-workspace > .studio-edge-sidebar--right { justify-self: end; }
 
 .studio-edge-sidebar {
   position: relative;
@@ -30,6 +38,7 @@
   min-height: 0;
   grid-template-rows: minmax(0, 1fr);
   overflow: visible;
+  background: var(--sidebar-bg);
 }
 .studio-edge-sidebar--left { grid-area: left-sidebar; grid-template-columns: 64px minmax(0, 360px); }
 .studio-edge-sidebar--right { grid-area: right-sidebar; grid-template-columns: minmax(0, 360px) 64px; }

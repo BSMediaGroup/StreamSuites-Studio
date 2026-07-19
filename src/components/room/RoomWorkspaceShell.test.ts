@@ -5,6 +5,9 @@ import edgeSidebarSource from "../shell/StudioEdgeSidebar.tsx?raw";
 import viewSource from "../ViewOptionsMenu.tsx?raw";
 import preferencesSource from "../../presentation/presentationPreferences.ts?raw";
 import roomStyles from "../../styles/room-workspace.css?raw";
+import requestSource from "../CohostRequests.tsx?raw";
+import sharedStyles from "../../styles/index.css?raw";
+import tokens from "../../styles/tokens.css?raw";
 
 describe("shared active-room edge sidebar and Stage geometry contract", () => {
   it("uses the same mirrored component for both shell edges", () => {
@@ -34,6 +37,24 @@ describe("shared active-room edge sidebar and Stage geometry contract", () => {
     expect(roomStyles).toMatch(/studio-edge-sidebar__toggle[^}]*grid-row:\s*2[^}]*align-self:\s*end/);
     expect(roomStyles).toMatch(/studio-edge-sidebar__section,[\s\S]*studio-edge-sidebar__toggle[\s\S]*width:\s*46px[\s\S]*height:\s*46px/);
     expect(edgeSidebarSource).toContain('`${pinned ? "Collapse" : "Expand"} ${edge} sidebar`');
+    expect(roomStyles).toContain(".studio-shell--room-workspace > .studio-edge-sidebar");
+    expect(roomStyles).toContain("align-self: stretch");
+    expect(roomStyles).toContain("justify-self: end");
+    expect(roomStyles).toContain("overflow-x: clip");
+  });
+
+  it("uses the body overlay root and an explicit opaque Requests surface above shell chrome", () => {
+    expect(requestSource).toContain("createPortal(");
+    expect(requestSource).toContain("document.body");
+    expect(requestSource).toContain('role="dialog"');
+    expect(requestSource).toContain('querySelector<HTMLButtonElement>(".cohost-requests__trigger")?.focus()');
+    expect(requestSource).toContain('event.key === "Escape"');
+    expect(requestSource).toContain('document.addEventListener("pointerdown"');
+    expect(sharedStyles).toContain("z-index: var(--z-studio-overlay)");
+    expect(sharedStyles).toContain("background: var(--overlay-surface)");
+    expect(sharedStyles).not.toMatch(/\.cohost-requests__panel[^}]*backdrop-filter/);
+    expect(tokens.match(/--overlay-surface:\s*#[0-9a-f]{6}/gi)).toHaveLength(2);
+    expect(tokens).toContain("--z-studio-modal: 400");
   });
 
   it("defaults both edges collapsed and keeps hover, pinned, and hidden tracks independent", () => {

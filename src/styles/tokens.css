@@ -45,6 +45,14 @@
   --callout-gradient: linear-gradient(120deg, var(--accent-soft), rgba(17, 21, 29, 0.8) 58%);
   --topbar-bg: rgba(8, 10, 15, 0.94);
   --sidebar-bg: #0c0f15;
+  --overlay-surface: #101620;
+  --overlay-card-surface: #151c27;
+  --overlay-border: #3a4554;
+  --overlay-text: #f2f4f7;
+  --overlay-muted: #aeb6c2;
+  --overlay-shadow: 0 28px 72px rgba(0, 0, 0, 0.56);
+  --z-studio-overlay: 260;
+  --z-studio-modal: 400;
   --canvas-bg: #07090d;
   --preview-canvas-bg: #090c11;
   --grid-line: rgba(255, 255, 255, 0.02);
@@ -93,6 +101,12 @@
   --callout-gradient: linear-gradient(120deg, var(--accent-soft), rgba(255, 255, 255, 0.9) 58%);
   --topbar-bg: rgba(255, 255, 255, 0.94);
   --sidebar-bg: #eef1f4;
+  --overlay-surface: #ffffff;
+  --overlay-card-surface: #f4f6f8;
+  --overlay-border: #b7c0ca;
+  --overlay-text: #18212b;
+  --overlay-muted: #556271;
+  --overlay-shadow: 0 24px 64px rgba(35, 45, 55, 0.24);
   --canvas-bg: #dde3e8;
   --preview-canvas-bg: #e8edf1;
   --grid-line: rgba(20, 31, 43, 0.055);
