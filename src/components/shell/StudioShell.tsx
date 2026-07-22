@@ -166,7 +166,7 @@ export function StudioShell({ children, roomWorkspace = false, fullscreenSupport
             {primarySection === "settings" && <div className="studio-primary-panel"><h3>Studio display settings</h3><p>Theme and View controls configure this browser's shell presentation without changing rooms, participants, permissions, or shared production state.</p><p className="fine-print">Identity, authorization, rooms, and production truth remain server-owned.</p></div>}
           </>
         }
-        panelFooter={<div className="studio-sidebar__note"><strong>Closed ALPHA · OFF AIR</strong><p>Runtime/Auth owns room authority and proxies direct Cloudflare Realtime SFU signaling.</p></div>}
+        panelFooter={<div className="studio-sidebar__note"><strong>Closed ALPHA · OFF AIR</strong><p>Runtime/Auth owns room authority and issues participant-safe Cloudflare RealtimeKit credentials.</p></div>}
       />
 
       {effectiveSidebar === "hidden" && !cinematic && <button className="sidebar-restore icon-control studio-tooltip" data-tooltip="Restore Studio sidebar" type="button" onClick={() => setPrimarySidebar("collapsed")} aria-label="Restore Studio sidebar"><StudioIcon regular={sidebarOpenIcon} filled={sidebarOpenIcon} /></button>}

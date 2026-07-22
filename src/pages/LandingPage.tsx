@@ -17,7 +17,7 @@ const foundationPoints = [
   {
     number: "03",
     title: "Media stays off runtime",
-    body: "Cloudflare Realtime is the initial media direction. LiveKit and Egress are planned for the later production path.",
+    body: "Cloudflare RealtimeKit is the active browser room-media provider. LiveKit and Egress remain planned for the later production path.",
   },
 ];
 

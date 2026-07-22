@@ -4,7 +4,7 @@
 > **Flagship surface:** <https://studio.streamsuites.app>
 > **Deployment target:** Cloudflare Pages
 
-StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. It consumes Runtime/Auth-owned access, rooms, hash-only invitations, participant roles/permissions/approval/presence, published-track metadata, broadcast details, destinations, branding, and events. Browser media uses direct `RTCPeerConnection` connections to Cloudflare Realtime SFU while Runtime/Auth proxies signaling only. Studio stores no canonical authority, does not broadcast or record, and remains OFF AIR.
+StreamSuites Studio is the flagship browser livestream-production surface for the wider StreamSuites system. It consumes Runtime/Auth-owned access, rooms, hash-only invitations, participant roles/permissions/approval/presence, broadcast details, destinations, branding, and events. Browser media uses Cloudflare RealtimeKit 2.0 with only Runtime/Auth-issued participant credentials; the RealtimeKit account API token remains server-side. Studio stores no canonical authority, does not broadcast or record, and remains OFF AIR.
 
 Current rooms also consume Runtime/Auth-owned private text history and unread cursors. Chat opens inside the existing right production sidebar from a Requests-matched header shortcut and provides Private/Public tabs. Private chat is functional for directors, cohosts, and current Backstage/on-Stage guests; Public is a truthful provider connection/capability foundation with outbound delivery disabled.
 
@@ -28,17 +28,17 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 - reusable buttons, cards, status chips, empty states, and form fields
 - complete Runtime-backed lobby Create/Edit forms for internal room identity, entry state, broadcast title/description, browser-timezone schedule, visibility, thumbnail upload/existing-asset selection/preview/replacement/removal, and secret-free destination readiness
 - compact responsive room cards with 16:9 CDN/fallback thumbnail, room and broadcast identity, description, code, lifecycle, schedule, visibility, Stage/Backstage counts, destination readiness, timestamp, and preserved Open/Edit/Delete actions
-- protected `/studio/rooms/:roomId` production workspace with canonical short-code URLs, the original full-height primary Studio sidebar, a viewport-fitted 16:9 Stage/Program canvas, direct Cloudflare Realtime SFU media, Runtime-owned participant/invite controls, scrolling Backstage, lifecycle controls, and the existing production dock
+- protected `/studio/rooms/:roomId` production workspace with canonical short-code URLs, the original full-height primary Studio sidebar, a viewport-fitted 16:9 Stage/Program canvas, Cloudflare RealtimeKit media, Runtime-owned participant/invite controls, scrolling Backstage, lifecycle controls, and the existing production dock
 - route-scoped cinematic room mode with a stage-first canvas, compact truthful production state, waiting/on-stage badges, the existing authoritative Backstage/tools panel as a focus-managed drawer, obvious exit controls, and optional event-confirmed browser fullscreen
 - Runtime-owned requested Auto, Grid, Interview, Spotlight, Presentation, and Custom layouts. Auto derives Presentation for an active share, Spotlight for an explicit spotlight or one participant, Interview for two, and Grid for three through nine while leaving requested mode `auto`; a room may save, name, select, reorder, and delete up to eight stable-ID custom snapshots of resolved built-in modes
 - Runtime-owned `name_and_subtitle`, `name_only`, and `hidden` broadcast-label visibility with management identity preserved, plus a working Room Settings custom-layout manager and an unclipped keyboard/focus-safe Custom selector using the exact existing slot 1–8 icon pairs
 - a working room Branding panel for solid/gradient/CDN-image Stage backgrounds, logo/bug placement/size/opacity, badge/subtitle styling, editor-only safe area, live Stage preview, canonical save/reset, and pending/error recovery
 - a working room Media panel with separate PNG/JPEG/WebP asset tools and Runtime-owned Browser Sources tools for HTTPS create/edit/duplicate/refresh/disable/delete, visibility warnings, compatibility help, and Backstage-first placement
 - explicit browser device preflight with local camera preview, microphone activity, device-off choices, join-without-devices, secure-context/support checks, and permission/device error states
-- compact 16:9 Backstage camera thumbnails that reuse each connected participant's direct SFU video track, with camera-off/reconnecting avatar fallback and no separate media session
+- compact 16:9 Backstage camera thumbnails that reuse each connected participant's RealtimeKit video track, with camera-off/reconnecting avatar fallback and no separate media session
 - local and remote tracks attached to native browser media elements, remote-audio autoplay recovery, actual microphone/camera state, and stable guest-keyed tiles across Stage reordering
-- one room-scoped director or guest `RTCPeerConnection` lifecycle with Strict Mode cleanup, bounded signaling, heartbeat, renegotiation, Runtime mapping refresh, and no provider credential in JavaScript
-- Runtime-first Stage/Backstage and participant-permission authority; removal or publication-permission revocation closes owned mappings while media continues directly between browser and Cloudflare
+- one room-scoped director or guest RealtimeKit meeting lifecycle with Strict Mode cleanup, bounded participant-token refresh, stable media attachment, and no account-level provider credential in JavaScript
+- Runtime-first Stage/Backstage and participant-permission authority; provider presets reinforce those permissions, and removal or publication-permission revocation cleans up the mapped RealtimeKit participant
 - truthful `OFF AIR` orientation with an inactive `00:00:00` timer and disabled output integration; media connection does not imply broadcast
 - credentialed room and guest SSE with live/reconnecting/fallback-polling/unavailable status, burst-coalesced authoritative refetch, bounded polling only while disconnected, and manual refresh as secondary recovery
 - real `/join/:inviteCode` validation plus scrubbed `/join` guest-session resume, with an in-page reusable login sheet, bounded safe OAuth draft restoration, account-optional joining, approval waiting, visual keyboard-accessible initials colors, validated CDN-backed fallback avatar, and canonical Backstage/On Stage states
@@ -90,7 +90,7 @@ Requirements:
 From this repository root:
 
 ```powershell
-npm install
+npm ci
 npm run dev
 ```
 
@@ -105,6 +105,8 @@ npm run preview
 ```
 
 The production build is written to `dist/`. Cloudflare Pages should use `npm run build` as the build command and `dist` as the output directory. `public/_redirects` provides direct-load SPA fallback behavior.
+
+`package-lock.json` pins the previously approved `@cloudflare/realtimekit` 2.0.0 and `@cloudflare/realtimekit-react` 2.0.0 packages. `useStudioMedia` asks Runtime/Auth for a participant-scoped session only after explicit room/media entry; camera, microphone, and screen access still require explicit user actions. Invite validation and waiting-room approval remain Runtime-owned, and the invitation token is scrubbed from the route after exchange. The removed direct-SFU Connection API/SDP provider is neither bundled nor registered.
 
 `VITE_RUNTIME_API_BASE_URL` is the public Runtime/Auth origin. The client falls back to `https://api.streamsuites.app` in production and `http://127.0.0.1:18087` on Vite localhost, while remaining configurable for Pages. `VITE_RUNTIME_VERSION_URL` stays optional. Every `VITE_*` value is browser-public; secrets, provider credentials, room tokens, API tokens, and Cloudflare identifiers must never be placed there.
 
@@ -136,7 +138,7 @@ See [System architecture](docs/system-architecture.md) for the complete boundary
 
 ## Media direction
 
-The current Stage, Backstage tray, participant menus, ordering, label visibility, room branding, room assets, and custom layouts remain Runtime-authoritative. Browser `RTCPeerConnection` code publishes and subscribes through Runtime-proxied Cloudflare Realtime SFU signaling; branding and layout reflow preserve stable participant-keyed media elements, while Presentation screen share remains `object-fit: contain`. Runtime holds the provider credential, stores no SDP, and never carries media. Self-hosted LiveKit plus Egress remains planned.
+The current Stage, Backstage tray, participant menus, ordering, label visibility, room branding, room assets, and custom layouts remain Runtime-authoritative. The RealtimeKit SDK publishes and subscribes using a Runtime-issued participant credential; branding and layout reflow preserve stable participant-keyed media elements, while Presentation screen share remains `object-fit: contain`. Runtime holds the account API token and provider mappings and never carries media. Self-hosted LiveKit plus Egress remains planned.
 
 The Python runtime/Auth API will orchestrate rooms, permissions, invitations, access, and token minting, but audio and video must bypass the Python runtime. During early ALPHA, final output is expected to use an OBS-capturable program view before server-side egress exists.
 
@@ -148,7 +150,7 @@ The roadmap is phased and describes planned work, not current capability:
 2. existing StreamSuites Auth/session bridge and closed-ALPHA access authority — **current milestone complete**
 3. runtime-owned Studio rooms, short-code invites, temporary sessions, lobby admission, real-time events, and cohosts — **current milestone complete**
 4. polished pre-media stage, Backstage, guest identity, and production-control interactions — **current milestone complete**
-5. Direct Cloudflare Realtime SFU private-room media lifecycle — **current milestone complete**
+5. Cloudflare RealtimeKit private-room media lifecycle — **current milestone complete**
 6. room settings, Branding, Media, and eight-slot custom-layout foundations — **current milestone complete**
 7. Runtime-owned sandboxed browser sources with default Stage placement — **current milestone complete**
 8. OBS-capturable program output
@@ -258,7 +260,7 @@ StreamSuites-Studio/
 │   ├── media/
 │   │   ├── StudioMedia.test.tsx
 │   │   ├── StudioMediaElements.tsx
-│   │   └── useStudioMedia.ts          # direct browser RTCPeerConnection + Runtime-proxied SFU signaling
+│   │   └── useStudioMedia.ts          # RealtimeKit meeting + Runtime-issued participant credential lifecycle
 │   ├── pages/
 │   │   ├── JoinPage.tsx
 │   │   ├── GuestRoomWorkspace.tsx

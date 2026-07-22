@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
+import type { RTKParticipant } from "@cloudflare/realtimekit";
 import { Button } from "../components/ui/Button";
 import { DEFAULT_ROOM_BRANDING, type ParticipantLabelMode, type RoomBranding, type StudioGuest } from "../domain/studio";
-import type { StudioRemoteParticipant, useStudioMedia } from "./useStudioMedia";
+import type { useStudioMedia } from "./useStudioMedia";
 
 type StudioMedia = ReturnType<typeof useStudioMedia>;
 
@@ -9,29 +10,26 @@ export function LocalMediaVideo({ media, preview = false, className = "participa
   const ref = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    const element = ref.current, stream = media.localStream;
-    if (!element || !stream) return;
-    element.srcObject = stream;
-    void element.play().then(() => setError("")).catch(() => setError("Local camera could not be attached"));
-    return () => { element.pause(); element.srcObject = null; };
-  }, [media.localStream, preview]);
+    const element = ref.current, self = media.meeting?.self;
+    if (!element || !self) return;
+    let registered = false;
+    try { self.registerVideoElement(element, preview); registered = true; setError(""); }
+    catch { setError("Local camera could not be attached"); }
+    return () => { if (registered) { try { self.deregisterVideoElement(element, preview); } catch { /* The provider already released this element. */ } } };
+  }, [media.meeting, preview]);
   return <>{error && <span className="media-element-error" role="status">{error}</span>}<video ref={ref} className={className} autoPlay muted playsInline aria-label={preview ? "Local camera preview" : "Local camera"} /></>;
 }
 
-export function RemoteMediaVideo({ participant, label }: { participant: StudioRemoteParticipant; label: string }) {
+export function RemoteMediaVideo({ participant, label }: { participant: RTKParticipant; label: string }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    if (participant.registerVideoElement) {
-      participant.registerVideoElement(element);
-      return () => participant.deregisterVideoElement?.(element);
-    }
-    if (!participant.videoTrack) return;
-    element.srcObject = new MediaStream([participant.videoTrack]);
-    void element.play().then(() => setError("")).catch(() => setError(`${label} camera could not be attached`));
-    return () => { element.pause(); element.srcObject = null; };
+    let registered = false;
+    try { participant.registerVideoElement(element); registered = true; setError(""); }
+    catch { setError(`${label} camera could not be attached`); }
+    return () => { if (registered) { try { participant.deregisterVideoElement(element); } catch { /* The provider already released this element. */ } } };
   }, [label, participant]);
   return <>{error && <span className="media-element-error" role="status">{error}</span>}<video ref={ref} className="participant-video" autoPlay playsInline aria-label={`${label} camera`} /></>;
 }

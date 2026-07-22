@@ -9,6 +9,19 @@
 
 ## CURRENT VER= 0.5.0-alpha / PENDING VER= 0.5.1-alpha
 
+### 2026-07-22 - RealtimeKit browser media recovery
+
+#### Technical notes
+
+- Restored the previously approved `@cloudflare/realtimekit` 2.0.0 and `@cloudflare/realtimekit-react` 2.0.0 lockfile packages, room-scoped SDK hook, media-element attachment, explicit device preflight/actions, participant-token refresh, and cleanup behavior.
+- Browser Studio again consumes only Runtime/Auth-issued participant credentials. Removed direct-SFU session/SDP/track APIs and `RTCPeerConnection` provider behavior while retaining Runtime-owned participant, invite, approval, permission, presence, SSE, routing, and OFF AIR contracts.
+- Typecheck and production build passed; lint completed with six existing warnings and no errors; the RealtimeKit/media, invite, room, route, and authority suites passed. One unrelated footer visibility assertion failed in the full 112-test run and its permitted focused rerun passed 9/9. Bundle scanning found no RealtimeKit account credential, direct-SFU App secret, Runtime `.env`, or direct signaling route marker. Nothing was deployed and no live meeting was created.
+
+#### Human-readable notes
+
+- Browser guests continue using Cloudflare RealtimeKit. Camera, microphone, and screen sharing still begin only after explicit user action.
+- StreamSuites remains the room and participant authority, and the browser never receives the RealtimeKit account API token.
+
 - Sidebar adjacency and Public footer/status parity repair: removed the 64px hover dead strip caused by combining each collapsed panel's pinned CSS-grid column with a second 64px absolute inset. The shared left/right overlay now resets `grid-column` and attaches at `left: 100%` / `right: 100%`; collapsed tracks remain rail-only, pinned tracks remain exactly rail plus panel, all structural gaps/margins/transforms are explicit, and opaque themed rail/panel paint remains continuous. Replaced the divergent Studio-only Runtime status markup with Public's current `footer-*` / `ss-status-*` DOM, link order, trigger, indicator, dimensions, typography, version/build presentation, and responsive structure. The single status disclosure begins closed and additionally satisfies Studio's required pointer-leave, blur, Escape with focus restoration, outside-pointer, route, Runtime-state, and unmount cleanup contract on fully opaque dark/light surfaces. Runtime/Auth remains the health/version authority; Stage, SSE, RealtimeKit media, nine slots, OFF AIR, and disabled Go Live are unchanged. Current/pending versions are unchanged.
 
 - Shell-edge and Requests overlay repair: made the mirrored `StudioEdgeSidebar` room-grid alignment/paint contract explicit so both direct shell children remain full-height, marginless, footer-bounded, and flush to their viewport edges with independent bodies and square bottom-row toggles. Rebuilt the existing header Requests control as a body-portaled, viewport-clamped, internally scrolling dialog surface using explicit fully opaque dark/light overlay tokens, shell-above/modal-below layering, Escape/outside-click close, focus entry/restoration, and arrow/Home/End action navigation. The room Stage, sidebar state, Runtime/Auth request authority, SSE, and RealtimeKit component lifecycle remain outside the overlay state; versions are unchanged.

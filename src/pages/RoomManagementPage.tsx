@@ -985,7 +985,7 @@ function HostRoomManagementPage() {
               </div>
               <div className="program-canvas__notice">
                 <strong>{media.state === "connected" ? "Media connected · OFF AIR" : "Media not connected"}</strong>
-                <span>{media.state === "connected" ? "Cloudflare Realtime SFU transports room media only; no broadcast output is active." : "No camera, microphone, screen share, track, or broadcast output is active."}</span>
+                <span>{media.state === "connected" ? "Cloudflare RealtimeKit transports room media only; no broadcast output is active." : "No camera, microphone, screen share, track, or broadcast output is active."}</span>
               </div>
               </div>
             </div>
@@ -1303,7 +1303,7 @@ function HostRoomManagementPage() {
           <section className="studio-dialog" role="dialog" aria-modal="true" aria-labelledby="go-live-title">
             <StatusChip tone="blocked">OFF AIR</StatusChip>
             <h2 id="go-live-title">Live output is not connected yet.</h2>
-            <p>This pre-media workspace shows the intended production flow without starting a timer, requesting device access, connecting media, or sending a broadcast. Cloudflare Realtime is the next media milestone.</p>
+            <p>This pre-media workspace shows the intended production flow without starting a timer, requesting device access, connecting RealtimeKit, or sending a broadcast. Media starts only after an explicit user action.</p>
             <Button onClick={closeGoLiveInfo}>Got it</Button>
           </section>
         </div>
