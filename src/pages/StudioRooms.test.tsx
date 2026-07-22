@@ -33,8 +33,8 @@ it("completes Runtime-owned lobby broadcast details and thumbnail create-edit wo
   const payload = authPayload("creator");
   const NativeURL = URL;
   vi.stubGlobal("URL", class extends NativeURL { static createObjectURL() { return "blob:thumbnail-preview"; } static revokeObjectURL() {} });
-  let rooms: any[] = [];
   const canonical = (overrides: object = {}) => ({ id: "room-broadcast", owner_account_id: "creator-1", title: "Internal green room", description: null, broadcast_title: "Launch broadcast", broadcast_description: "A concise public description", broadcast_thumbnail_asset_id: "asset-thumb", broadcast_thumbnail_url: "https://cdn.streamsuites.app/studio/rooms/RoomCode/broadcast-thumbnail/11111111-1111-1111-1111-111111111111/v1.webp", broadcast_thumbnail_revision: 1, scheduled_start_at: "2026-07-31T23:30:00Z", broadcast_visibility: "unlisted", destination_readiness: { available_count: 5, connected_count: 1, configured_count: 1, ready_count: 0, output_enabled: false }, lifecycle_state: "draft", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, backstage_guest_count: 2, on_stage_guest_count: 1, created_at: "2026-07-16T00:00:00Z", updated_at: "2026-07-16T00:01:00Z", opened_at: null, ended_at: null, ...overrides });
+  let rooms: Array<ReturnType<typeof canonical>> = [];
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/auth/session")) return response(payload.session);
@@ -42,7 +42,7 @@ it("completes Runtime-owned lobby broadcast details and thumbnail create-edit wo
     if (url.endsWith("/api/studio/cohosts/invitations")) return response({ success: true, items: [] });
     if (url.endsWith("/api/studio/rooms/room-broadcast/assets") && init?.method === "POST") return response({ success: true, asset: { id: "asset-thumb", room_id: "room-broadcast", category: "broadcast_thumbnail", display_name: "launch.png", url: "https://cdn.streamsuites.app/studio/rooms/RoomCode/assets/11111111-1111-1111-1111-111111111111/v1.webp", mime_type: "image/webp", width: 640, height: 360, file_size: 1000, sort_order: 0, created_at: "2026-07-16T00:00:30Z", updated_at: "2026-07-16T00:00:30Z" } }, 201);
     if (url.endsWith("/api/studio/rooms/room-broadcast/assets")) return response({ success: true, items: [{ id: "asset-thumb", room_id: "room-broadcast", category: "broadcast_thumbnail", display_name: "launch.png", url: "https://cdn.streamsuites.app/studio/rooms/RoomCode/assets/11111111-1111-1111-1111-111111111111/v1.webp", mime_type: "image/webp", width: 640, height: 360, file_size: 1000, sort_order: 0, created_at: "2026-07-16T00:00:30Z", updated_at: "2026-07-16T00:00:30Z" }] });
-    if (url.endsWith("/api/studio/rooms/room-broadcast") && init?.method === "PATCH") { const body = JSON.parse(String(init.body)); rooms = [canonical({ broadcast_title: body.broadcast_title ?? rooms[0]?.broadcast_title, broadcast_visibility: body.broadcast_visibility ?? rooms[0]?.broadcast_visibility, broadcast_thumbnail_url: body.broadcast_thumbnail_asset_id === null ? null : rooms[0]?.broadcast_thumbnail_url, broadcast_thumbnail_asset_id: body.broadcast_thumbnail_asset_id === null ? null : "asset-thumb", updated_at: "2026-07-16T00:02:00Z" })]; return response({ success: true, room: rooms[0] }); }
+    if (url.endsWith("/api/studio/rooms/room-broadcast") && init?.method === "PATCH") { const body = JSON.parse(String(init.body)); rooms = [canonical({ broadcast_title: body.broadcast_title ?? rooms[0]?.broadcast_title, broadcast_visibility: body.broadcast_visibility ?? rooms[0]?.broadcast_visibility, broadcast_thumbnail_url: body.broadcast_thumbnail_asset_id === null ? null : "https://cdn.streamsuites.app/studio/rooms/RoomCode/broadcast-thumbnail/11111111-1111-1111-1111-111111111111/v1.webp", broadcast_thumbnail_asset_id: body.broadcast_thumbnail_asset_id === null ? null : "asset-thumb", updated_at: "2026-07-16T00:02:00Z" })]; return response({ success: true, room: rooms[0] }); }
     if (url.endsWith("/api/studio/rooms") && init?.method === "POST") { rooms = [canonical({ broadcast_thumbnail_asset_id: null, broadcast_thumbnail_url: null, broadcast_thumbnail_revision: 0 })]; return response({ success: true, room: rooms[0] }, 201); }
     if (url.endsWith("/api/studio/rooms")) return response({ success: true, items: rooms, destination_readiness: { available_count: 5, connected_count: 1, configured_count: 1, ready_count: 0, output_enabled: false } });
     return response({}, 404);
@@ -103,24 +103,23 @@ it("loads creator room summaries without inventing media state", async () => {
     return response({ success: true, items: [{ id: "room-1", owner_account_id: "creator-1", title: "Real room", description: null, lifecycle_state: "draft", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, waiting_guest_count: 0, admitted_guest_count: 0, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", opened_at: null, ended_at: null }] });
   }));
   render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><StudioPage /></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
-  expect(await screen.findByText("Real room")).toBeInTheDocument();
-  expect(screen.getByText(/Media and broadcasting are not connected/i)).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Enter room" })).toHaveAttribute("href", "/studio/rooms/room-1");
-  expect(screen.getByText("0 waiting backstage")).toBeInTheDocument();
-  expect(screen.getByText("0 / 8 additional on stage · 9 total including director")).toBeInTheDocument();
+  expect((await screen.findAllByText("Real room")).length).toBeGreaterThanOrEqual(1);
+  expect(screen.getAllByText(/Studio remains OFF AIR/i).length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByRole("link", { name: "Open room" })).toHaveAttribute("href", "/studio/rooms/room-1");
+  expect(screen.getByText("0 on Stage · 0 waiting")).toBeInTheDocument();
   expect(screen.queryByText(/viewer count/i)).not.toBeInTheDocument();
 });
 
 it("edits and deletes lobby rooms and accepts signed-in cohost requests from the header", async () => {
   const payload = authPayload("creator");
   let rooms = [{ id: "room-edit", owner_account_id: "creator-1", title: "Editable room", description: "Before", lifecycle_state: "draft", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, waiting_guest_count: 0, admitted_guest_count: 0, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", opened_at: null, ended_at: null }];
-  let requests = [{ id: "request-1", director: { id: "director-2", display_name: "Requesting director", avatar_url: null }, cohost: { id: "creator-1", display_name: "creator", avatar_url: null }, status: "pending", scope_type: "selected_rooms", room_ids: ["safe-code"], room: { id: "safe-code", title: "Requested room" }, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", expires_at: "2026-07-18T00:00:00Z" }];
+  let requests = [{ id: "request-1", director: { id: "director-2", display_name: "Requesting director", avatar_url: null }, cohost: { id: "creator-1", display_name: "creator", avatar_url: null }, status: "pending", scope_type: "selected_rooms", room_ids: ["safe-code"], room: { id: "safe-code", title: "Requested room" }, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:00:00Z", expires_at: "2099-07-30T00:00:00Z" }];
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/auth/session")) return response(payload.session);
     if (url.includes("/api/studio/access")) return response(payload.access);
     if (url.endsWith("/api/studio/cohosts/invitations") && !init?.method) return response({ success: true, items: requests });
-    if (url.endsWith("/api/studio/cohosts/invitations/request-1/accept")) { requests = []; return response({ success: true, relationship: { ...requests[0], id: "request-1", status: "accepted", room_ids: [], created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T00:01:00Z" } }); }
+    if (url.endsWith("/api/studio/cohosts/invitations/request-1/accept")) { const accepted = requests[0]; requests = []; return response({ success: true, relationship: { ...accepted, status: "accepted", updated_at: "2026-07-11T00:01:00Z" } }); }
     if (url.endsWith("/api/studio/rooms/room-edit") && init?.method === "PATCH") { rooms = [{ ...rooms[0], title: JSON.parse(String(init.body)).title, updated_at: "2026-07-11T00:02:00Z" }]; return response({ success: true, room: rooms[0] }); }
     if (url.endsWith("/api/studio/rooms/room-edit") && init?.method === "DELETE") { rooms = []; return response({ success: true, deleted: true, room_id: "room-edit" }); }
     if (url.endsWith("/api/studio/rooms")) return response({ success: true, items: rooms });
@@ -128,7 +127,7 @@ it("edits and deletes lobby rooms and accepts signed-in cohost requests from the
   });
   vi.stubGlobal("fetch", fetchMock);
   render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><StudioPage /></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
-  expect(await screen.findByText("Editable room")).toBeInTheDocument();
+  expect((await screen.findAllByText("Editable room")).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByRole("button", { name: /Requests/ })).toHaveTextContent("1");
   fireEvent.click(screen.getByRole("button", { name: /Requests/ }));
   expect(screen.getByText("Requested room")).toBeInTheDocument();
@@ -136,14 +135,14 @@ it("edits and deletes lobby rooms and accepts signed-in cohost requests from the
   await waitFor(() => expect(screen.getByText(/request accepted/i)).toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "Edit room" }));
   const editDialog = screen.getByRole("dialog", { name: "Edit Editable room" });
-  fireEvent.change(within(editDialog).getByLabelText("Room title"), { target: { value: "Edited room" } });
+  fireEvent.change(within(editDialog).getByLabelText("Internal room name"), { target: { value: "Edited room" } });
   fireEvent.click(within(editDialog).getByRole("button", { name: "Save room" }));
-  expect(await screen.findByText("Edited room")).toBeInTheDocument();
+  expect((await screen.findAllByText("Edited room")).length).toBeGreaterThanOrEqual(1);
   fireEvent.click(screen.getByRole("button", { name: "Delete room" }));
   const deleteDialog = screen.getByRole("alertdialog", { name: "Delete Edited room?" });
   fireEvent.change(within(deleteDialog).getByLabelText("Type Edited room to confirm"), { target: { value: "Edited room" } });
   fireEvent.click(within(deleteDialog).getByRole("button", { name: "Delete room permanently" }));
-  await waitFor(() => expect(screen.queryByText("Edited room")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryAllByText("Edited room")).toHaveLength(0));
 });
 
 it("keeps ended rooms visible without presenting an active Enter room action", async () => {
@@ -155,9 +154,9 @@ it("keeps ended rooms visible without presenting an active Enter room action", a
     return response({ success: true, items: [{ id: "room-ended", owner_account_id: "creator-1", title: "Finished room", description: "Archived authority", lifecycle_state: "ended", max_guest_stage_occupants: 8, total_stage_capacity: 9, reserved_director_stage_slots: 1, max_additional_stage_participants: 8, waiting_guest_count: 0, admitted_guest_count: 0, created_at: "2026-07-11T00:00:00Z", updated_at: "2026-07-11T01:00:00Z", opened_at: "2026-07-11T00:10:00Z", ended_at: "2026-07-11T01:00:00Z" }] });
   }));
   render(<ThemeProvider><PresentationProvider><StudioAuthProvider><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><StudioPage /></MemoryRouter></StudioAuthProvider></PresentationProvider></ThemeProvider>);
-  expect(await screen.findByText("Finished room")).toBeInTheDocument();
+  expect((await screen.findAllByText("Finished room")).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByRole("button", { name: "Room ended" })).toBeDisabled();
-  expect(screen.queryByRole("link", { name: "Enter room" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Open room" })).not.toBeInTheDocument();
 });
 
 it("renders the pre-media Stage and Backstage, changes local layout, and preserves Runtime lobby and invite actions", async () => {

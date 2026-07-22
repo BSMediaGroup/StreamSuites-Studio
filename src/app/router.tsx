@@ -13,6 +13,7 @@ export const studioRouter = createBrowserRouter(
     { path: "/studio", element: <StudioPage /> },
     { path: "/studio/rooms/:roomId", element: <RoomManagementPage /> },
     { path: "/join/:inviteCode", element: <JoinPage /> },
+    { path: "/join", element: <JoinPage /> },
     { path: "*", element: <NotFoundPage /> },
   ],
   {

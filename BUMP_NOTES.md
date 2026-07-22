@@ -1,5 +1,12 @@
 # Bump Notes
 
+## 2026-07-22 - Direct Cloudflare Realtime SFU and approval-gated guests
+
+- Replaced the RealtimeKit browser SDK lifecycle with native browser `RTCPeerConnection` capture, publish/subscribe negotiation, remote media attachment, autoplay recovery, heartbeat, and teardown through Runtime/Auth-proxied Cloudflare Realtime SFU signaling. Removed both RealtimeKit npm packages; no Cloudflare credential or SDP is persisted in Studio.
+- Invitation plaintext is now shown only from the immediate create response, never from later lists. Invite creation exposes Runtime-owned role and approval policy, the join URL is scrubbed after exchange, pending guests remain on a waiting surface, and SSE snapshot/replay reconnects drive approval and roster refresh.
+- Added `Referrer-Policy: no-referrer` in HTML and Cloudflare Pages headers. Existing Stage geometry, nine-slot capacity, custom UI, OFF AIR/readiness truth, routing, browser sources, and Runtime/Auth authority remain.
+- Removed the two RealtimeKit npm dependencies and refreshed stale room fixtures to current lobby/card behavior. TypeScript, lint with six existing warnings and no errors, all 103 Vitest tests, and the production Vite build passed; live Cloudflare media, deployed Pages, real hardware, and visual browser automation were not exercised.
+
 ## CURRENT VER= 0.5.0-alpha / PENDING VER= 0.5.1-alpha
 
 - Sidebar adjacency and Public footer/status parity repair: removed the 64px hover dead strip caused by combining each collapsed panel's pinned CSS-grid column with a second 64px absolute inset. The shared left/right overlay now resets `grid-column` and attaches at `left: 100%` / `right: 100%`; collapsed tracks remain rail-only, pinned tracks remain exactly rail plus panel, all structural gaps/margins/transforms are explicit, and opaque themed rail/panel paint remains continuous. Replaced the divergent Studio-only Runtime status markup with Public's current `footer-*` / `ss-status-*` DOM, link order, trigger, indicator, dimensions, typography, version/build presentation, and responsive structure. The single status disclosure begins closed and additionally satisfies Studio's required pointer-leave, blur, Escape with focus restoration, outside-pointer, route, Runtime-state, and unmount cleanup contract on fully opaque dark/light surfaces. Runtime/Auth remains the health/version authority; Stage, SSE, RealtimeKit media, nine slots, OFF AIR, and disabled Go Live are unchanged. Current/pending versions are unchanged.

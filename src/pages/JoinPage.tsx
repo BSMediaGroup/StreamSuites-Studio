@@ -82,9 +82,10 @@ const copy: Record<Exclude<PageState, "valid" | "joining" | "guest">, { chip: st
 export function JoinPage() {
   const { inviteCode } = useParams<{ inviteCode: string }>();
   const checked = checkInviteCode(inviteCode);
+  const isGuestResume = !inviteCode;
   const navigate = useNavigate();
   const { access } = useStudioAuth();
-  const [state, setState] = useState<PageState>(checked.isSafeFormat ? "validating" : "invalid");
+  const [state, setState] = useState<PageState>(checked.isSafeFormat || isGuestResume ? "validating" : "invalid");
   const [validation, setValidation] = useState<InviteValidation | null>(null);
   const [guest, setGuest] = useState<StudioGuest | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -181,6 +182,20 @@ export function JoinPage() {
   const closeAuthenticatedLogin = useCallback(() => setLoginOpen(false), []);
 
   const validate = useCallback(async () => {
+    if (isGuestResume) {
+      setState("validating");
+      setMessage("");
+      try {
+        const current = await loadStudioGuestSession();
+        setGuest(current);
+        setState("guest");
+        if (current.approvalStatus === "approved") navigate(`/studio/rooms/${encodeURIComponent(current.roomId)}`, { replace: true });
+      } catch (error) {
+        setState(error instanceof StudioApiError && error.code === "guest_session_not_found" ? "session_expired" : "unavailable");
+        setMessage(error instanceof Error ? error.message : "Guest session could not be restored.");
+      }
+      return;
+    }
     if (!checked.isSafeFormat) {
       setState("invalid");
       return;
@@ -195,7 +210,7 @@ export function JoinPage() {
       setState(stateForError(error));
       setMessage(error instanceof Error ? error.message : "Invite validation failed.");
     }
-  }, [checked.isSafeFormat, checked.normalized]);
+  }, [checked.isSafeFormat, checked.normalized, isGuestResume, navigate]);
 
   useEffect(() => {
     void validate();
@@ -215,7 +230,8 @@ export function JoinPage() {
       if (avatarFile) joined = await uploadStudioGuestAvatar(avatarFile);
       setGuest(joined);
       setState("guest");
-      navigate(`/studio/rooms/${encodeURIComponent(joined.roomId)}`, { replace: true });
+      window.history.replaceState(window.history.state, "", "/join");
+      if (joined.approvalStatus === "approved") navigate(`/studio/rooms/${encodeURIComponent(joined.roomId)}`, { replace: true });
     } catch (error) {
       setState(stateForError(error));
       setMessage(error instanceof Error ? error.message : "Guest entry failed.");
@@ -305,6 +321,7 @@ export function JoinPage() {
       const current = await loadStudioGuestSession();
       setGuest(current);
       setState("guest");
+      if (current.approvalStatus === "approved") navigate(`/studio/rooms/${encodeURIComponent(current.roomId)}`, { replace: true });
       if (current.signedIn) setCohostInvitations(await listCohostRelationships(true));
     } catch (error) {
       setGuest(null);
@@ -341,7 +358,7 @@ export function JoinPage() {
   ) : null;
 
   if (state === "guest" && guest) {
-    const stateCopy = {
+    const stateCopy = guest.approvalStatus === "pending" ? ["Waiting for approval", "Your request is with the host. Media remains disconnected until Runtime/Auth approves this participant."] : {
       backstage: ["Waiting Backstage", "You can watch the Stage while the director decides when to bring you on."],
       on_stage: ["On Stage", "Your intended controls are ready, but camera, microphone, and media are not connected."],
       denied: ["Entry denied", "The host denied this lobby request. Admission will not retry automatically."],

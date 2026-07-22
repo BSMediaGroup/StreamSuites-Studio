@@ -215,6 +215,9 @@ function HostRoomManagementPage() {
   const [invitePolicy, setInvitePolicy] = useState<InvitePolicy>("open");
   const [inviteCap, setInviteCap] = useState("5");
   const [invitePermanent, setInvitePermanent] = useState(false);
+  const [inviteRole, setInviteRole] = useState<"producer" | "guest" | "viewer">("guest");
+  const [inviteRequiresApproval, setInviteRequiresApproval] = useState(true);
+  const [newInviteLink, setNewInviteLink] = useState("");
   const [inviteExpiry, setInviteExpiry] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 16));
   const [panel, setPanel] = useState<WorkspacePanel>("backstage");
   const [panelPeek, setPanelPeek] = useState(false);
@@ -529,11 +532,15 @@ function HostRoomManagementPage() {
         policy_type: invitePolicy,
         ...(invitePolicy === "capped" ? { max_uses: Number(inviteCap) } : {}),
         permanent: invitePermanent,
+        permission_preset: inviteRole,
+        requires_approval: inviteRequiresApproval,
         ...(!invitePermanent ? { expires_at: new Date(inviteExpiry).toISOString() } : {}),
       });
       setInvites(await listStudioInvites(room.id));
       setInviteLabel("");
-      setMessage(`Invite created. Canonical ${created.inviteCode.length}-character link is available to copy.`);
+      const link = `${window.location.origin}/join/${encodeURIComponent(created.inviteCode)}`;
+      setNewInviteLink(link);
+      setMessage("Invite created. Its one-time plaintext link is available below until this page is left or another invite is created.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Invite could not be created.");
     } finally {
@@ -541,9 +548,8 @@ function HostRoomManagementPage() {
     }
   }
 
-  async function copyInvite(invite: RoomInvite) {
-    if (!invite.active || invite.expired || invite.exhausted || !invite.inviteCode) { setMessage("This invite is no longer usable, so no link was copied."); return; }
-    const link = `${window.location.origin}/join/${encodeURIComponent(invite.inviteCode)}`;
+  async function copyInvite(link: string) {
+    if (!link) return;
     try {
       await navigator.clipboard.writeText(link);
       setMessage("Invite link copied.");
@@ -558,6 +564,7 @@ function HostRoomManagementPage() {
     setMessage("");
     try {
       await revokeStudioInvite(room.id, invite.id);
+      setNewInviteLink("");
       setInvites(await listStudioInvites(room.id));
       setMessage("Invite revoked in Runtime/Auth.");
     } catch (error) {
@@ -594,7 +601,7 @@ function HostRoomManagementPage() {
       setRoom(nextRoom.room);
       setPermissions(nextRoom.permissions);
       setGuests(nextGuests);
-      setMessage(action === "admit" ? "Guest admitted by Runtime/Auth and synchronized with RealtimeKit." : `Guest ${action === "deny" ? "denied" : "removed from the room"} by Runtime/Auth.`);
+      setMessage(action === "admit" ? "Guest approved by Runtime/Auth for direct Realtime SFU access." : `Guest ${action === "deny" ? "denied" : "removed from the room"} by Runtime/Auth.`);
       requestAnimationFrame(() => {
         if (previousFocus?.isConnected) previousFocus.focus();
         else backstageHeadingRef.current?.focus();
@@ -978,7 +985,7 @@ function HostRoomManagementPage() {
               </div>
               <div className="program-canvas__notice">
                 <strong>{media.state === "connected" ? "Media connected · OFF AIR" : "Media not connected"}</strong>
-                <span>{media.state === "connected" ? "RealtimeKit transports room media only; no broadcast output is active." : "No camera, microphone, screen share, track, or broadcast output is active."}</span>
+                <span>{media.state === "connected" ? "Cloudflare Realtime SFU transports room media only; no broadcast output is active." : "No camera, microphone, screen share, track, or broadcast output is active."}</span>
               </div>
               </div>
             </div>
@@ -1166,6 +1173,8 @@ function HostRoomManagementPage() {
                       </select>
                     </label>
                     {invitePolicy === "capped" && <FormField label="Entrant cap" type="number" min={1} value={inviteCap} onChange={(event) => setInviteCap(event.target.value)} />}
+                    <label className="field"><span className="field__label">Room role</span><select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as "producer" | "guest" | "viewer")}><option value="guest">Guest</option><option value="viewer">Viewer</option><option value="producer">Producer</option></select></label>
+                    <label className="check-row"><input type="checkbox" checked={inviteRequiresApproval} onChange={(event) => setInviteRequiresApproval(event.target.checked)} /><span>Require host approval before room/media access</span></label>
                     {!invitePermanent && <FormField label="Expiry" type="datetime-local" value={inviteExpiry} onChange={(event) => setInviteExpiry(event.target.value)} />}
                     <label className="check-row">
                       <input type="checkbox" checked={invitePermanent} onChange={(event) => setInvitePermanent(event.target.checked)} />
@@ -1176,6 +1185,7 @@ function HostRoomManagementPage() {
                     </Button>
                   </form>
                 )}
+                {newInviteLink && <div className="safe-room-summary" role="status"><strong>New invitation link</strong><code className="room-id-chip invite-code-chip" aria-label="Invite code">{newInviteLink}</code><Button variant="secondary" onClick={() => void copyInvite(newInviteLink)}>Copy link</Button><p className="fine-print">Runtime/Auth stores only its hash. This plaintext link will not appear in the invitation list again.</p></div>}
                 <div className="invite-list">
                   {invites.length === 0 ? (
                     <EmptyState title="No invites yet">
@@ -1191,13 +1201,7 @@ function HostRoomManagementPage() {
                             {invite.maxUses === null ? " uses" : ` / ${invite.maxUses} uses`} · {invite.permanent ? "No expiry" : `Expires ${date(invite.expiresAt)}`}
                           </p>
                         </div>
-                        {invite.inviteCode && <code className="room-id-chip invite-code-chip" aria-label="Invite code">{invite.inviteCode}</code>}
                         <div className="guest-card__actions">
-                          {invite.active && !invite.expired && !invite.exhausted && invite.inviteCode && (
-                            <Button variant="secondary" onClick={() => void copyInvite(invite)}>
-                              Copy link
-                            </Button>
-                          )}
                           <Button className="button--destructive" variant="quiet" disabled={Boolean(busy)} onClick={() => void removeInvite(invite)}>{busy === `invite-delete-${invite.id}` ? "Deleting…" : "Delete"}</Button>
                           {invite.active && room.lifecycleState !== "ended" && (
                             <Button className="button--destructive" variant="quiet" disabled={Boolean(busy)} onClick={() => void revoke(invite)}>

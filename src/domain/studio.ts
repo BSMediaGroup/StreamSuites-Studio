@@ -275,7 +275,11 @@ export interface RoomInvite {
   readonly roomId: string;
   readonly label: string | null;
   readonly active: boolean;
-  readonly inviteCode: string;
+  /** Present only on the immediate create response; Runtime/Auth never re-lists plaintext invitation secrets. */
+  readonly inviteCode: string | null;
+  readonly permissionPreset: "producer" | "guest" | "viewer";
+  readonly permissions: Readonly<Record<string, boolean>>;
+  readonly requiresApproval: boolean;
   readonly policyType: InvitePolicy;
   readonly maxUses: number | null;
   readonly successfulUseCount: number;
@@ -320,6 +324,11 @@ export interface StudioGuest {
   readonly pendingPermanentCohost: boolean;
   readonly accountId: string | null;
   readonly state: GuestLobbyState;
+  readonly participantId: string | null;
+  readonly roomRole: "owner" | "producer" | "guest" | "viewer";
+  readonly approvalStatus: "pending" | "approved" | "rejected";
+  readonly presenceStatus: "connected" | "reconnecting" | "disconnected" | "removed";
+  readonly permissions: Readonly<Record<string, boolean>>;
   readonly microphoneMuted: boolean;
   readonly cameraHidden: boolean;
   readonly stagePosition: number | null;

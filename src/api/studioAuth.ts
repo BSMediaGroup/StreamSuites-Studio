@@ -304,7 +304,10 @@ function normalizeInvite(value: unknown): RoomInvite {
     roomId,
     label: stringOrNull(value.label),
     active: value.active === true,
-    inviteCode: stringOrNull(value.invite_code) ?? "",
+    inviteCode: stringOrNull(value.invite_code),
+    permissionPreset: value.permission_preset === "producer" || value.permission_preset === "viewer" ? value.permission_preset : "guest",
+    permissions: isRecord(value.permissions) ? Object.fromEntries(Object.entries(value.permissions).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean")) : {},
+    requiresApproval: value.requires_approval !== false,
     policyType,
     maxUses: typeof value.max_uses === "number" ? value.max_uses : null,
     successfulUseCount: numberOr(value.successful_use_count),
@@ -361,6 +364,11 @@ function normalizeGuest(value: unknown): StudioGuest {
     pendingPermanentCohost: value.pending_permanent_cohost === true,
     accountId: stringOrNull(value.account_id),
     state,
+    participantId: stringOrNull(value.participant_id),
+    roomRole: value.room_role === "owner" || value.room_role === "producer" || value.room_role === "viewer" ? value.room_role : "guest",
+    approvalStatus: value.approval_status === "pending" || value.approval_status === "rejected" ? value.approval_status : "approved",
+    presenceStatus: value.presence_status === "reconnecting" || value.presence_status === "disconnected" || value.presence_status === "removed" ? value.presence_status : "connected",
+    permissions: isRecord(value.permissions) ? Object.fromEntries(Object.entries(value.permissions).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean")) : {},
     microphoneMuted: value.microphone_muted === true,
     cameraHidden: value.camera_hidden === true,
     stagePosition: typeof value.stage_position === "number" ? value.stage_position : null,
@@ -553,6 +561,9 @@ export async function createStudioInvite(
     permanent?: boolean;
     policy_type?: InvitePolicy;
     max_uses?: number;
+    permission_preset?: "producer" | "guest" | "viewer";
+    permissions?: Readonly<Record<string, boolean>>;
+    requires_approval?: boolean;
   },
   signal?: AbortSignal,
 ): Promise<{ invite: RoomInvite; inviteCode: string }> {
@@ -560,6 +571,83 @@ export async function createStudioInvite(
   const inviteCode = stringOrNull(payload.invite_code);
   if (!inviteCode) throw new StudioApiError(requestError("invalid_invite_response", "Runtime/Auth did not return the canonical invite code."));
   return { invite: normalizeInvite(payload.invite), inviteCode };
+}
+
+export interface StudioRealtimeSession {
+  readonly sessionId: string;
+  readonly participantId: string;
+  readonly generation: number;
+  readonly stunUrls: readonly string[];
+}
+
+export interface StudioRealtimeTrack {
+  readonly id: string;
+  readonly participantId: string;
+  readonly mediaKind: "audio" | "video";
+  readonly sourceRole: "microphone" | "camera" | "screen";
+  readonly mid?: string;
+}
+
+export interface StudioRealtimeSignaling {
+  readonly sessionDescription: RTCSessionDescriptionInit | null;
+  readonly requiresImmediateRenegotiation: boolean;
+  readonly tracks: readonly StudioRealtimeTrack[];
+}
+
+function normalizeRealtimeTrack(value: unknown): StudioRealtimeTrack {
+  if (!isRecord(value)) throw new StudioApiError(requestError("invalid_realtime_response", "Runtime/Auth returned invalid Realtime track data."));
+  const id = stringOrNull(value.id), participantId = stringOrNull(value.participant_id);
+  const mediaKind = value.media_kind === "audio" ? "audio" : value.media_kind === "video" ? "video" : null;
+  const sourceRole = value.source_role === "microphone" || value.source_role === "camera" || value.source_role === "screen" ? value.source_role : null;
+  if (!id || !participantId || !mediaKind || !sourceRole) throw new StudioApiError(requestError("invalid_realtime_response", "Runtime/Auth returned incomplete Realtime track data."));
+  return { id, participantId, mediaKind, sourceRole, mid: stringOrNull(value.mid) ?? undefined };
+}
+
+function normalizeSignaling(value: unknown): StudioRealtimeSignaling {
+  if (!isRecord(value)) throw new StudioApiError(requestError("invalid_realtime_response", "Runtime/Auth returned invalid Realtime signaling data."));
+  const description = isRecord(value.session_description) && typeof value.session_description.sdp === "string" && (value.session_description.type === "answer" || value.session_description.type === "offer")
+    ? { sdp: value.session_description.sdp, type: value.session_description.type } as RTCSessionDescriptionInit
+    : null;
+  return { sessionDescription: description, requiresImmediateRenegotiation: value.requires_immediate_renegotiation === true, tracks: Array.isArray(value.tracks) ? value.tracks.map(normalizeRealtimeTrack) : [] };
+}
+
+export async function loadStudioRealtimeStatus(roomId: string, signal?: AbortSignal): Promise<{ enabled: boolean; configured: boolean }> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/realtime/status`, { signal });
+  const realtime = isRecord(payload.realtime) ? payload.realtime : {};
+  return { enabled: realtime.enabled === true, configured: realtime.configured === true };
+}
+
+export async function createStudioRealtimeSession(roomId: string, signal?: AbortSignal): Promise<StudioRealtimeSession> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/realtime/session`, { method: "POST", signal });
+  const session = isRecord(payload.realtime_session) ? payload.realtime_session : {};
+  const sessionId = stringOrNull(session.session_id), participantId = stringOrNull(session.participant_id);
+  if (!sessionId || !participantId || typeof session.generation !== "number") throw new StudioApiError(requestError("invalid_realtime_response", "Runtime/Auth returned an incomplete Realtime session."));
+  return { sessionId, participantId, generation: session.generation, stunUrls: Array.isArray(session.stun_urls) ? session.stun_urls.filter((item): item is string => typeof item === "string") : [] };
+}
+
+export async function publishStudioRealtimeTracks(roomId: string, sessionId: string, description: RTCSessionDescriptionInit, tracks: readonly { kind: "audio" | "video"; source_role: "microphone" | "camera" | "screen"; mid: string }[]): Promise<StudioRealtimeSignaling> {
+  return normalizeSignaling((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/realtime/publish`, { method: "POST", body: body({ session_id: sessionId, session_description: description, tracks }) })).signaling);
+}
+
+export async function listStudioRealtimeTracks(roomId: string, signal?: AbortSignal): Promise<StudioRealtimeTrack[]> {
+  const payload = await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/realtime/tracks`, { signal });
+  return Array.isArray(payload.items) ? payload.items.map(normalizeRealtimeTrack) : [];
+}
+
+export async function subscribeStudioRealtimeTracks(roomId: string, sessionId: string, trackIds: readonly string[]): Promise<StudioRealtimeSignaling> {
+  return normalizeSignaling((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/realtime/subscribe`, { method: "POST", body: body({ session_id: sessionId, track_ids: trackIds }) })).signaling);
+}
+
+export async function renegotiateStudioRealtimeSession(roomId: string, sessionId: string, description: RTCSessionDescriptionInit): Promise<StudioRealtimeSignaling> {
+  return normalizeSignaling((await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/realtime/renegotiate`, { method: "POST", body: body({ session_id: sessionId, session_description: description }) })).signaling);
+}
+
+export async function heartbeatStudioRealtimeSession(roomId: string, generation: number): Promise<void> {
+  await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/realtime/heartbeat`, { method: "POST", body: body({ generation }) });
+}
+
+export async function leaveStudioRealtimeSession(roomId: string): Promise<void> {
+  await studioRequest(`/api/studio/rooms/${encodeURIComponent(roomId)}/realtime/leave`, { method: "POST" });
 }
 
 export async function revokeStudioInvite(roomId: string, inviteId: string, signal?: AbortSignal): Promise<RoomInvite> {
@@ -927,17 +1015,26 @@ export function connectStudioEvents(options: { roomId?: string; guest?: boolean;
   let closed = false;
   let source: EventSource | null = null;
   let reconnects = 0;
+  let lastEventId = "";
   let timer = 0;
-  const eventNames = ["room.created", "room.updated", "room.broadcast_details_updated", "room.thumbnail_updated", "room.opened", "room.closed", "room.ended", "room.deleted", "room.invite_deleted", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "room.chat_message_created", "room.chat_message_deleted", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "participant.avatar_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
+  const eventNames = ["room_snapshot", "participant_join_requested", "participant_join_approved", "participant_join_rejected", "participant_removed", "participant_permissions_updated", "participant_presence_updated", "realtime_session_connected", "realtime_session_disconnected", "realtime_track_published", "realtime_track_closed", "room.created", "room.updated", "room.broadcast_details_updated", "room.thumbnail_updated", "room.opened", "room.closed", "room.ended", "room.deleted", "room.invite_deleted", "room.branding_updated", "room.asset_created", "room.asset_updated", "room.asset_deleted", "room.custom_layouts_updated", "room.presentation_updated", "room.presentation_source_created", "room.presentation_source_updated", "room.presentation_source_stopped", "room.chat_message_created", "room.chat_message_deleted", "participant.moved_stage", "participant.moved_backstage", "participant.media_intent_updated", "participant.profile_updated", "participant.avatar_updated", "stage.order_updated", "presentation.layout_updated", "guest.denied", "guest.removed", "guest.left", "guest.expired", "invite.created", "invite.updated", "invite.revoked", "invite.exhausted", "cohost.session_granted", "cohost.session_revoked", "cohost.permanent_invited", "cohost.permanent_accepted", "cohost.permanent_declined", "cohost.permanent_revoked", "cohost.scope_updated"];
   const open = () => {
     if (closed) return;
     options.onState(reconnects ? "reconnecting" : "unavailable");
-    source = new EventSource(apiUrl(path), { withCredentials: true });
-    source.addEventListener("connected", () => {
+    const eventUrl = lastEventId ? `${path}${path.includes("?") ? "&" : "?"}last_event_id=${encodeURIComponent(lastEventId)}` : path;
+    source = new EventSource(apiUrl(eventUrl), { withCredentials: true });
+    source.addEventListener("connected", () => { reconnects = 0; options.onState("live"); });
+    source.addEventListener("room_snapshot", (event) => {
       reconnects = 0;
       options.onState("live");
+      const message = event as MessageEvent;
+      if (message.lastEventId) lastEventId = message.lastEventId;
+      options.onEvent(message);
     });
-    eventNames.forEach((name) => source?.addEventListener(name, options.onEvent as EventListener));
+    eventNames.filter((name) => name !== "room_snapshot").forEach((name) => source?.addEventListener(name, ((event: MessageEvent) => {
+      if (event.lastEventId) lastEventId = event.lastEventId;
+      options.onEvent(event);
+    }) as EventListener));
     source.onerror = () => {
       source?.close();
       if (closed) return;
