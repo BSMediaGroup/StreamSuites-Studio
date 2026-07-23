@@ -1,5 +1,18 @@
 # Bump Notes
 
+## RELEASED / PACKAGED: 0.5.0-alpha
+
+Packaged / released and no longer the active pending bucket. Preserve new notes for the open `0.2.1-alpha` section below.
+
+## CURRENT VER= 0.2.1-alpha / PENDING VER= 0.2.2-alpha
+
+## STREAMSUITES SYSTEM COMPATIBILITY= 0.5.4-alpha
+
+### 2026-07-24 - Studio version-cycle synchronization only
+
+- Opened Studio to the platform `0.2.1-alpha` product bucket with runtime compatibility set to `0.5.4-alpha`.
+- No studio behavior is claimed in this sync-only cycle.
+
 ## 2026-07-22 - Direct Cloudflare Realtime SFU and approval-gated guests
 
 - Replaced the RealtimeKit browser SDK lifecycle with native browser `RTCPeerConnection` capture, publish/subscribe negotiation, remote media attachment, autoplay recovery, heartbeat, and teardown through Runtime/Auth-proxied Cloudflare Realtime SFU signaling. Removed both RealtimeKit npm packages; no Cloudflare credential or SDP is persisted in Studio.
