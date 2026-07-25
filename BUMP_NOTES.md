@@ -209,3 +209,8 @@ Packaged / released and no longer the active pending bucket. Preserve new notes 
 - Documentation milestone: replaced the placeholder README with current capability, non-capability, setup, authority, media-direction, OBS-output, roadmap, and complete scaffold-tree documentation; added focused system-architecture and ALPHA-roadmap documents.
 - Explicit non-capability note: authentication, room APIs, invite validation, WebRTC, Cloudflare Realtime integration, LiveKit, Egress, broadcasting, provider destinations, recording, and OBS program output are not implemented in this milestone.
 - Human note: Studio now has an honest, testable flagship-product shell ready for the next existing-Auth/session bridge task, while Runtime/Auth keeps all canonical authority and media remains outside the Python runtime.
+
+## 2026-07-26
+- Replaced placeholder changelog content with complete, sectioned release notes for the requested alpha release(s), preserving repository scope boundaries and canonical versioning.
+- Added/updated the project-level changelog references to keep multi-repo release notes synchronized and truthful to Runtime/Auth ownership model.
+- This change is documentation-only: no runtime, API, auth, package, route, or version-control behavior was modified.
