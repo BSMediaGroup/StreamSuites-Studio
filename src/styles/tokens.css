@@ -1,21 +1,116 @@
 @font-face {
-  font-family: "Recharge";
-  src: url("../../assets/fonts/Recharge-Bold.otf") format("opentype");
-  font-weight: 700;
+  font-family: "Tektur";
+  src: url("../../assets/fonts/Tektur-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight: 400 900;
+  font-stretch: 75% 100%;
+  font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "Sui Generis";
-  src: url("../../assets/fonts/SuiGeneris-Regular.otf") format("opentype");
+  font-family: "Geist Sans";
+  src: url("../../assets/fonts/Geist-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../../assets/fonts/Geist-Regular.ttf") format("truetype");
   font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../../assets/fonts/Geist-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../../assets/fonts/Geist-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../../assets/fonts/Geist-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Sans";
+  src: url("../../assets/fonts/Geist-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../../assets/fonts/mono/IBMPlexMono-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../../assets/fonts/mono/IBMPlexMono-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../../assets/fonts/mono/IBMPlexMono-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../../assets/fonts/mono/IBMPlexMono-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../../assets/fonts/mono/IBMPlexMono-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
   font-display: swap;
 }
 
 :root {
   color-scheme: dark;
-  --font-display: "Recharge", "Arial Narrow", sans-serif;
-  --font-body: "Sui Generis", Inter, system-ui, sans-serif;
+  --font-display: "Tektur", "Geist Sans", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-ui: "Geist Sans", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-body: var(--font-ui);
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, Menlo, Monaco, monospace;
+  --font-weight-body: 400;
+  --font-weight-ui-medium: 500;
+  --font-weight-ui-semibold: 600;
+  --font-weight-ui-bold: 700;
+  --font-weight-display-medium: 500;
+  --font-weight-display-semibold: 600;
+  --font-weight-display-bold: 700;
+  --font-weight-mono-regular: 400;
+  --font-weight-mono-medium: 500;
+  --font-weight-mono-semibold: 600;
   --bg-root: #080a0f;
   --bg-deep: #05070a;
   --bg-panel: #11151d;

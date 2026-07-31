@@ -10,6 +10,14 @@ Current rooms also consume Runtime/Auth-owned private text history and unread cu
 
 Admins are eligible automatically. Non-admin accounts require an explicit active grant, with no more than 25 enabled invited non-admin grants. Admins may own/manage any room; creator/developer-capable accounts with active Studio access may own their rooms. Public accounts may participate through valid invitations without becoming creators or owners. Runtime/Auth transactionally enforces nine total visible Stage slots: the host/director reserves one and at most eight additional guests or cohosts may be on Stage. Backstage does not count toward that limit.
 
+## Studio-first visual system
+
+- `src/styles/tokens.css` defines the semantic display, UI, and monospace roles; `src/styles/index.css` and `src/styles/room-workspace.css` apply them across entry, room-list, shell, Stage, sidebar, chat, status, dialog, empty, and error states without changing the recently approved graphite/green Studio palette.
+- Tektur is the display face, Geist Sans is the body/control face, and IBM Plex Mono is reserved for room IDs, transport/media/status values, timestamps, and diagnostics. The repo-local sources are `assets/fonts/Tektur-VariableFont_wdth,wght.ttf`, `assets/fonts/Geist-{Light,Regular,Medium,SemiBold,Bold,ExtraBold}.ttf`, and `assets/fonts/mono/IBMPlexMono-{Light,Regular,Medium,SemiBold,Bold}.ttf`.
+- Those binaries are byte-identical to the approved read-only Public font set. Genuine Geist and IBM Plex Mono licenses remain at `assets/fonts/GEISTMONOOFL.txt` and `assets/fonts/mono/IBMPLEXMONOOFL.txt`; no genuine local Tektur `OFL.txt` has been located, so publication of the font remains blocked pending license-file recovery.
+- Routes, deep links, Runtime/Auth requests, RealtimeKit media, room workflows, device permissions, Stage capacity, OFF AIR truth, and keyboard behavior are unchanged. Responsive rules retain narrow workspace behavior, visible focus rings, and reduced-motion handling.
+- Validation commands remain `npm test`, `npm run check`, `npm run lint`, and `npm run build`. No files were created or removed for this Studio refresh.
+
 ## Current implementation
 
 - React + TypeScript + Vite application foundation
