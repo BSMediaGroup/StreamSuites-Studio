@@ -8,6 +8,17 @@ Packaged / released and no longer the active pending bucket. Preserve new notes 
 
 ## STREAMSUITES SYSTEM COMPATIBILITY= 0.5.4-alpha
 
+### 2026-08-14 - Blinker body typography
+
+#### Technical notes
+
+- Added the local Blinker fixed faces to `src/styles/tokens.css` at truthful weights 100/200/300/400/600/700/800/900 with `font-display: swap` and changed only the semantic UI/body token to Blinker. Existing 500 declarations remain unchanged and select the nearest registered face.
+- Preserved Tektur display/title typography, Geist Sans secondary heading and display-fallback roles, IBM Plex Mono technical roles, all layout and responsive metrics, routes, room/media behavior, and Runtime/Auth boundaries. No dependency, version, deployment, commit, or push change was made.
+
+#### Human-readable summary
+
+Browser Studio body copy and controls now use the bundled Blinker family, while headings and technical data keep their established typefaces.
+
 ### 2026-07-31 - Studio-first visual-system alignment
 
 #### Technical notes

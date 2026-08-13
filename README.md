@@ -13,8 +13,8 @@ Admins are eligible automatically. Non-admin accounts require an explicit active
 ## Studio-first visual system
 
 - `src/styles/tokens.css` defines the semantic display, UI, and monospace roles; `src/styles/index.css` and `src/styles/room-workspace.css` apply them across entry, room-list, shell, Stage, sidebar, chat, status, dialog, empty, and error states without changing the recently approved graphite/green Studio palette.
-- Tektur is the display face, Geist Sans is the body/control face, and IBM Plex Mono is reserved for room IDs, transport/media/status values, timestamps, and diagnostics. The repo-local sources are `assets/fonts/Tektur-VariableFont_wdth,wght.ttf`, `assets/fonts/Geist-{Light,Regular,Medium,SemiBold,Bold,ExtraBold}.ttf`, and `assets/fonts/mono/IBMPlexMono-{Light,Regular,Medium,SemiBold,Bold}.ttf`.
-- Those binaries are byte-identical to the approved read-only Public font set. Genuine Geist and IBM Plex Mono licenses remain at `assets/fonts/GEISTMONOOFL.txt` and `assets/fonts/mono/IBMPLEXMONOOFL.txt`; no genuine local Tektur `OFL.txt` has been located, so publication of the font remains blocked pending license-file recovery.
+- Tektur is the display face, Blinker is the body/control face, retained Geist Sans preserves existing secondary heading and display-fallback roles, and IBM Plex Mono is reserved for room IDs, transport/media/status values, timestamps, and diagnostics. The repo-local Blinker sources are `assets/fonts/body/Blinker-{Thin,ExtraLight,Light,Regular,SemiBold,Bold,ExtraBold,Black}.ttf` at fixed weights 100/200/300/400/600/700/800/900.
+- Those binaries are byte-identical to the approved Public font set. The Blinker license is `assets/fonts/body/BLINKEROFL.txt`; genuine Geist and IBM Plex Mono licenses remain at `assets/fonts/GEISTMONOOFL.txt` and `assets/fonts/mono/IBMPLEXMONOOFL.txt`. No genuine local Tektur `OFL.txt` has been located, so publication of the font remains blocked pending license-file recovery.
 - Routes, deep links, Runtime/Auth requests, RealtimeKit media, room workflows, device permissions, Stage capacity, OFF AIR truth, and keyboard behavior are unchanged. Responsive rules retain narrow workspace behavior, visible focus rings, and reduced-motion handling.
 - Validation commands remain `npm test`, `npm run check`, `npm run lint`, and `npm run build`. No files were created or removed for this Studio refresh.
 
@@ -179,6 +179,7 @@ StreamSuites-Studio/
 │   ├── css/
 │   ├── data/
 │   ├── fonts/
+│   │   └── body/                   # Blinker fixed 100/200/300/400/600/700/800/900 faces
 │   ├── games/
 │   ├── icons/                      # Public-parity badges plus Studio SVG families
 │   │   └── ui/                     # exitroom, backstage, Stage move, dock navigation, roomprefs and layout icon pairs

@@ -66,6 +66,13 @@ h2 {
   letter-spacing: -0.015em;
 }
 
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading-ui);
+}
+
 h1 {
   font-size: clamp(2.35rem, 7vw, 5.2rem);
   margin-bottom: 1.3rem;
