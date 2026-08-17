@@ -118,6 +118,8 @@ The production build is written to `dist/`. Cloudflare Pages should use `npm run
 
 `VITE_RUNTIME_API_BASE_URL` is the public Runtime/Auth origin. The client falls back to `https://api.streamsuites.app` in production and `http://127.0.0.1:18087` on Vite localhost, while remaining configurable for Pages. `VITE_RUNTIME_VERSION_URL` stays optional. Every `VITE_*` value is browser-public; secrets, provider credentials, room tokens, API tokens, and Cloudflare identifiers must never be placed there.
 
+The router installs one lifetime-scoped page-view reporter from `src/telemetry/pageViewTelemetry.ts`. Initial load and actual pathname transitions send only `surface=studio`, a normalized route family, and an ephemeral event ID to Runtime/Auth using Beacon or a non-blocking keepalive request. Room IDs and invite codes collapse to `:room`/`:invite`; query/hash changes, rerenders, source/scene/media changes, and repeated equivalent routes do not create page views. Telemetry failure is isolated from Studio routing and never carries account, participant, destination, stream-key, or production configuration.
+
 Turnstile uses the same runtime-owned configuration as Public, Creator, Dashboard, and Developer: Studio fetches `GET /auth/turnstile/config` from `VITE_RUNTIME_API_BASE_URL`, renders the returned public site key, and sends the ephemeral `turnstile_token` only to the selected Auth start. The Runtime/Auth environment variables remain `CLOUDFLARE_TURNSTILE_SITEKEY`, `CLOUDFLARE_TURNSTILE_SECRET`, and the existing `CLOUDFLARE_TURNSTILE_ENABLED` switch. There is deliberately no Studio `VITE_*` site-key variable and no Turnstile secret in Cloudflare Pages.
 
 The challenge uses Cloudflare's supported dark appearance in Studio dark mode and light appearance in light mode. A render-generation guard keeps one widget active, prevents ordinary React/auth/access rerenders from replacing it, and allows only an explicit theme change, retry, or unmount to recreate it. A completed token remains in component memory until expiry, provider failure, a consumed login attempt, backend rejection, or deliberate widget replacement; it is never written to local/session storage or Studio route state. Runtime/Auth must be deployed, reachable, and configured with the site key and secret for a real production challenge/login test.
@@ -290,6 +292,9 @@ StreamSuites-Studio/
 │   │   ├── index.css
 │   │   ├── room-workspace.css
 │   │   └── tokens.css
+│   ├── telemetry/
+│   │   ├── pageViewTelemetry.test.ts
+│   │   └── pageViewTelemetry.ts
 │   ├── test/
 │   │   └── setup.ts
 │   ├── theme/

@@ -5,6 +5,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RoomManagementPage } from "../pages/RoomManagementPage";
 import { StudioPage } from "../pages/StudioPage";
+import { installStudioPageViewTelemetry } from "../telemetry/pageViewTelemetry";
 
 export const studioRouter = createBrowserRouter(
   [
@@ -26,3 +27,5 @@ export const studioRouter = createBrowserRouter(
     },
   },
 );
+
+installStudioPageViewTelemetry(studioRouter);

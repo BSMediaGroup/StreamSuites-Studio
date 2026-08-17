@@ -8,6 +8,17 @@ Packaged / released and no longer the active pending bucket. Preserve new notes 
 
 ## STREAMSUITES SYSTEM COMPATIBILITY= 0.5.4-alpha
 
+### 2026-08-17 - Browser Studio route-view aggregation
+
+#### Technical notes
+
+- Added one router-scoped page-view reporter for initial load and actual pathname transitions. The Beacon-first/keepalive payload contains only `surface=studio`, a normalized route family, and an ephemeral event ID; room IDs and invite codes collapse to safe families, repeated routes are deduped, and source, scene, Stage, participant, and media state changes never count as page navigation.
+- Transport failure is swallowed outside routing, the reporter is installed once for the singleton router, and no polling, unload blocking, account/session data, stream keys, destinations, participant names, or production configuration is introduced. Focused Vitest coverage and TypeScript checking pass. No Runtime authority, room/media behavior, version/build, deployment, commit, or push changed.
+
+#### Human-readable summary
+
+Browser Studio navigation now contributes privacy-safe recorded page views to the shared Stats history without treating production actions as visits or affecting the Studio experience.
+
 ### 2026-08-14 - Blinker body typography
 
 #### Technical notes
